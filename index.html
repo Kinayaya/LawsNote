@@ -8,6 +8,7 @@
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,"PingFang TC",sans-serif;font-size:14px;background:#f2f2f7;color:#1c1c1e;}
 button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appearance:none;}
+.sync-bar{background:#E6F1FB;border-bottom:1px solid #B5D4F4;padding:8px 14px;font-size:12px;color:#0C447C;display:flex;align-items:center;gap:6px;}
 #topbar{background:#fff;padding:10px 14px 8px;border-bottom:1px solid #e5e5e5;position:sticky;top:0;z-index:50;}
 .title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
 .app-title{font-size:16px;font-weight:700;}
@@ -40,13 +41,17 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 .panel{display:none;margin:12px 14px;background:#fff;border-radius:14px;border:1px solid #e0e0e0;padding:18px;}
 .panel.open{display:block;}
 .ph{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;}
+.ph-title{font-size:15px;font-weight:700;}
 .pcls{background:#ececec;border:none;border-radius:50%;width:30px;height:30px;font-size:18px;color:#666;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .pcls:active{background:#ddd;}
 .dp-ttl{font-size:17px;font-weight:700;line-height:1.4;margin-bottom:12px;}
 .dp-lbl{font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;margin-top:14px;}
 .dp-txt{font-size:13px;color:#444;line-height:1.8;white-space:pre-wrap;}
 .dp-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;}
-.del-btn{margin-top:14px;padding:8px 14px;background:#FFF0F0;color:#D92B2B;border:1px solid #FFCDD2;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;}
+.action-row{display:flex;gap:8px;margin-top:16px;}
+.edit-btn{flex:1;padding:9px;background:#E6F1FB;color:#0C447C;border:1px solid #B5D4F4;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;text-align:center;}
+.edit-btn:active{background:#B5D4F4;}
+.del-btn{flex:1;padding:9px;background:#FFF0F0;color:#D92B2B;border:1px solid #FFCDD2;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;text-align:center;}
 .del-btn:active{background:#ffe0e0;}
 .flbl{font-size:11px;font-weight:600;color:#555;margin-bottom:4px;margin-top:12px;display:block;}
 .fi,.fs,.ft{width:100%;padding:9px 11px;border:1px solid #ddd;border-radius:10px;font-size:14px;background:#f8f8f8;color:#1c1c1e;display:block;}
@@ -59,15 +64,13 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 .bsv{background:#007AFF;color:#fff;}.bsv:active{background:#0062cc;}
 .bcl{background:#ececec;color:#555;}.bcl:active{background:#ddd;}
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.75);color:#fff;padding:9px 20px;border-radius:99px;font-size:13px;z-index:999;display:none;white-space:nowrap;}
-.sync-bar{background:#E6F1FB;border-bottom:1px solid #B5D4F4;padding:8px 14px;font-size:12px;color:#0C447C;display:flex;align-items:center;gap:8px;}
-.sync-bar b{font-weight:700;}
 </style>
 </head>
 <body>
 
 <div class="sync-bar">
   <span>&#9432;</span>
-  <span>&#31558;&#35352;&#33258;&#21205;&#20786;&#23384;&#26044;&#27492;&#35037;&#32622;&#12290;&#40670; <b>&#21295;&#20986;</b> &#21487;&#20633;&#20221;&#33267; iCloud&#65292; <b>&#21295;&#20837;</b> &#21487;&#36996;&#21407;&#25110;&#36328;&#35037;&#32622;&#21516;&#27493;&#12290;</span>
+  <span>&#31558;&#35352;&#33258;&#21205;&#20786;&#23384;&#26044;&#27492;&#35037;&#32622;&#12290;&#40670; <b>&#21295;&#20986;</b> &#20633;&#20221;&#33267; iCloud&#65292;&#40670; <b>&#21295;&#20837;</b> &#36328;&#35037;&#32622;&#21516;&#27493;&#12290;</span>
 </div>
 
 <div id="topbar">
@@ -100,6 +103,7 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
   <div id="grid"></div>
 </div>
 
+<!-- Detail Panel -->
 <div class="panel" id="dp">
   <div class="ph">
     <span id="dp-badge" class="ctag ta"></span>
@@ -109,12 +113,16 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
   <div class="dp-lbl">&#25688;&#35201;</div><div id="dp-body" class="dp-txt"></div>
   <div class="dp-lbl">&#35443;&#32048;&#31558;&#35352;</div><div id="dp-detail" class="dp-txt"></div>
   <div class="dp-lbl">&#27161;&#31844;</div><div id="dp-chips" class="dp-chips"></div>
-  <button class="del-btn" id="delBtn">&#21034;&#38500;&#36889;&#31558;&#31558;&#35352;</button>
+  <div class="action-row">
+    <button class="edit-btn" id="editBtn">&#9998; &#32232;&#36655;&#27492;&#31558;&#35352;</button>
+    <button class="del-btn" id="delBtn">&#128465; &#21034;&#38500;</button>
+  </div>
 </div>
 
+<!-- Add / Edit Form Panel -->
 <div class="panel" id="fp">
   <div class="ph">
-    <span style="font-size:15px;font-weight:700;">&#26032;&#22686;&#31558;&#35352;</span>
+    <span class="ph-title" id="form-title">&#26032;&#22686;&#31558;&#35352;</span>
     <button class="pcls" id="fpClose">&#215;</button>
   </div>
   <div class="f2col">
@@ -142,7 +150,7 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
   <input class="fi" id="fta" placeholder="&#20363;&#65306;&#20405;&#27402;&#34892;&#28858;, &#25613;&#23475;&#36064;&#20767;">
   <div class="frow">
     <button class="fbtn bcl" id="fpCancel">&#21462;&#28040;</button>
-    <button class="fbtn bsv" id="fpSave">&#20786;&#23384;&#31558;&#35352;</button>
+    <button class="fbtn bsv" id="fpSave">&#20786;&#23384;</button>
   </div>
 </div>
 
@@ -162,7 +170,7 @@ var LBL2={article:'\u689d\u6587\u6574\u7406',case:'\u6848\u4f8b\u7b46\u8a18',con
 var TC={article:'ta',case:'tc',concept:'tk'};
 var BC={article:'ba',case:'bc',concept:'bk'};
 var SKEY='legal_notes_v2';
-var notes=[],nid=10,cv='all',cs='all',openId=null;
+var notes=[],nid=10,cv='all',cs='all',openId=null,editMode=false;
 
 function g(id){return document.getElementById(id);}
 
@@ -180,9 +188,7 @@ function loadData(){
 }
 
 function saveData(){
-  try{
-    localStorage.setItem(SKEY,JSON.stringify({notes:notes,nid:nid}));
-  }catch(e){}
+  try{localStorage.setItem(SKEY,JSON.stringify({notes:notes,nid:nid}));}catch(e){}
 }
 
 function render(){
@@ -209,10 +215,12 @@ function render(){
 }
 
 function openNote(id){
-  var n=null;for(var i=0;i<notes.length;i++){if(notes[i].id===id){n=notes[i];break;}}
+  var n=null;
+  for(var i=0;i<notes.length;i++){if(notes[i].id===id){n=notes[i];break;}}
   if(!n)return;
   openId=id;
-  g('dp-badge').textContent=LBL2[n.type];g('dp-badge').className='ctag '+TC[n.type];
+  g('dp-badge').textContent=LBL2[n.type];
+  g('dp-badge').className='ctag '+TC[n.type];
   g('dp-title').textContent=n.title;
   g('dp-body').textContent=n.body;
   g('dp-detail').textContent=n.detail||'\uff08\u5c1a\u7121\u8a73\u7d30\u7b46\u8a18\uff09';
@@ -226,8 +234,24 @@ function openNote(id){
 
 function closeDetail(){g('dp').classList.remove('open');openId=null;}
 
-function openForm(){
-  g('fti').value='';g('fbo').value='';g('fde').value='';g('fta').value='';
+function openForm(isEdit){
+  editMode=isEdit||false;
+  if(editMode){
+    var n=null;
+    for(var i=0;i<notes.length;i++){if(notes[i].id===openId){n=notes[i];break;}}
+    if(!n)return;
+    g('form-title').textContent='\u7de8\u8f2f\u7b46\u8a18';
+    g('ft').value=n.type;
+    g('fs2').value=n.subject;
+    g('fti').value=n.title;
+    g('fbo').value=n.body;
+    g('fde').value=n.detail||'';
+    g('fta').value=n.tags.join(', ');
+  } else {
+    g('form-title').textContent='\u65b0\u589e\u7b46\u8a18';
+    g('fti').value='';g('fbo').value='';g('fde').value='';g('fta').value='';
+    g('ft').value='article';g('fs2').selectedIndex=0;
+  }
   g('fp').classList.add('open');
   g('dp').classList.remove('open');
   setTimeout(function(){g('fp').scrollIntoView({behavior:'smooth',block:'nearest'});},60);
@@ -239,18 +263,32 @@ function saveNote(){
   var title=(g('fti').value||'').replace(/^ +| +$/g,'');
   if(!title){g('fti').style.borderColor='#FF3B30';showToast('\u8acb\u8f38\u5165\u6a19\u984c');return;}
   g('fti').style.borderColor='';
-  var d=new Date();
-  var dt=d.getFullYear()+'-'+(d.getMonth()<9?'0':'')+(d.getMonth()+1)+'-'+(d.getDate()<10?'0':'')+d.getDate();
   var tags=(g('fta').value||'').split(',').map(function(t){return t.replace(/^ +| +$/g,'');}).filter(Boolean);
-  notes.unshift({id:nid++,type:g('ft').value,subject:g('fs2').value,
-    title:title,body:(g('fbo').value||'').replace(/^ +| +$/g,''),
-    detail:(g('fde').value||'').replace(/^ +| +$/g,''),tags:tags,date:dt});
-  saveData();closeForm();render();
-  showToast('\u7b46\u8a18\u5df2\u5132\u5b58\uff01');
-  setTimeout(function(){
-    window.scrollTo(0,0);
-    setTimeout(function(){openNote(notes[0].id);},300);
-  },100);
+  if(editMode&&openId){
+    for(var i=0;i<notes.length;i++){
+      if(notes[i].id===openId){
+        notes[i].type=g('ft').value;
+        notes[i].subject=g('fs2').value;
+        notes[i].title=title;
+        notes[i].body=(g('fbo').value||'').replace(/^ +| +$/g,'');
+        notes[i].detail=(g('fde').value||'').replace(/^ +| +$/g,'');
+        notes[i].tags=tags;
+        break;
+      }
+    }
+    saveData();closeForm();render();
+    showToast('\u7b46\u8a18\u5df2\u66f4\u65b0\uff01');
+    setTimeout(function(){openNote(openId);},150);
+  } else {
+    var d=new Date();
+    var dt=d.getFullYear()+'-'+(d.getMonth()<9?'0':'')+(d.getMonth()+1)+'-'+(d.getDate()<10?'0':'')+d.getDate();
+    notes.unshift({id:nid++,type:g('ft').value,subject:g('fs2').value,
+      title:title,body:(g('fbo').value||'').replace(/^ +| +$/g,''),
+      detail:(g('fde').value||'').replace(/^ +| +$/g,''),tags:tags,date:dt});
+    saveData();closeForm();render();
+    showToast('\u7b46\u8a18\u5df2\u5132\u5b58\uff01');
+    setTimeout(function(){window.scrollTo(0,0);setTimeout(function(){openNote(notes[0].id);},300);},100);
+  }
 }
 
 function deleteNote(){
@@ -278,7 +316,7 @@ function importData(file){
   reader.onload=function(e){
     try{
       var d=JSON.parse(e.target.result);
-      if(!d.notes)throw new Error('invalid');
+      if(!d.notes)throw new Error();
       var existing=notes.map(function(n){return n.id;});
       var added=0;
       for(var i=0;i<d.notes.length;i++){
@@ -290,16 +328,13 @@ function importData(file){
       notes.sort(function(a,b){return b.id-a.id;});
       saveData();render();
       showToast('\u5df2\u532f\u5165 '+added+' \u7b46\u65b0\u7b46\u8a18');
-    }catch(ex){
-      showToast('\u532f\u5165\u5931\u6557\uff0c\u8acb\u78ba\u8a8d\u6a94\u6848\u683c\u5f0f');
-    }
+    }catch(ex){showToast('\u532f\u5165\u5931\u6557\uff0c\u8acb\u78ba\u8a8d\u6a94\u6848\u683c\u5f0f');}
   };
   reader.readAsText(file);
 }
 
 window.addEventListener('load',function(){
   loadData();render();
-
   var tabs=document.querySelectorAll('.tab');
   for(var i=0;i<tabs.length;i++){
     (function(btn){btn.addEventListener('click',function(){
@@ -308,7 +343,6 @@ window.addEventListener('load',function(){
       render();
     });})(tabs[i]);
   }
-
   var scs=document.querySelectorAll('.sc');
   for(var i=0;i<scs.length;i++){
     (function(btn){btn.addEventListener('click',function(){
@@ -317,8 +351,8 @@ window.addEventListener('load',function(){
       render();
     });})(scs[i]);
   }
-
-  g('addBtn').addEventListener('click',openForm);
+  g('addBtn').addEventListener('click',function(){openForm(false);});
+  g('editBtn').addEventListener('click',function(){openForm(true);});
   g('dpClose').addEventListener('click',closeDetail);
   g('fpClose').addEventListener('click',closeForm);
   g('fpCancel').addEventListener('click',closeForm);

@@ -367,6 +367,7 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
     </div>
     <select id="mapFilterSub" class="map-filter-sel"><option value="all">&#20840;&#37096;&#31185;&#30446;</option></select>
     <select id="mapFilterType" class="map-filter-sel"><option value="all">&#20840;&#37096;&#39006;&#22411;</option></select>
+    <button class="tool-btn" id="mapLinkedOnlyBtn" style="background:#EAF3DE;color:#3B6D11;border-color:#97C459;">&#128279; &#21482;&#39023;&#31034;&#38364;&#32879;</button>
     <button class="tool-btn" id="mapAutoBtn">&#10024; &#33258;&#21205;&#25490;&#21015;</button>
     <button class="tool-btn" id="mapResetBtn">&#8634; &#37325;&#32622;</button>
     <button class="add-btn" style="font-size:12px;padding:5px 12px;" id="mapBackBtn">&#8592; &#36820;&#22238;</button>
@@ -453,6 +454,7 @@ var nodePos={};
 var dragNode=null,dragOffX=0,dragOffY=0,mapW=800,mapH=500;
 var mapScale=1,mapOffX=0,mapOffY=0;
 var mapFilter={sub:"all",type:"all",q:""};
+var mapLinkedOnly=false;
 var isMapOpen=false;
 
 function g(id){return document.getElementById(id);}
@@ -942,10 +944,18 @@ function redrawLines(){
 
 function visibleNotes(){
   var q=mapFilter.q.toLowerCase();
+  var linkedIds={};
+  if(mapLinkedOnly){
+    for(var li2=0;li2<links.length;li2++){
+      linkedIds[links[li2].from]=true;
+      linkedIds[links[li2].to]=true;
+    }
+  }
   return notes.filter(function(n){
     if(mapFilter.sub!=='all'&&n.subject!==mapFilter.sub)return false;
     if(mapFilter.type!=='all'&&n.type!==mapFilter.type)return false;
     if(q&&(n.title+n.subject+n.tags.join('')).toLowerCase().indexOf(q)===-1)return false;
+    if(mapLinkedOnly&&!linkedIds[n.id])return false;
     return true;
   });
 }
@@ -1671,7 +1681,13 @@ window.addEventListener('load',function(){
     buildMapFilters();
     mapScale=1;mapOffX=0;mapOffY=0;
     var zl=g('zoomLabel');if(zl)zl.textContent='100%';
-    setTimeout(function(){forceLayout();drawMap();},80);
+    mapLinkedOnly=(notes.length>50&&links.length>0);
+    var mloBtn3=g('mapLinkedOnlyBtn');
+    if(mloBtn3){
+      mloBtn3.style.background=mapLinkedOnly?'#3B6D11':'#EAF3DE';
+      mloBtn3.style.color=mapLinkedOnly?'#fff':'#3B6D11';
+    }
+    setTimeout(function(){nodePos={};forceLayout();drawMap();},80);
   });
   g('mapBackBtn').addEventListener('click',function(){
     isMapOpen=false;
@@ -1711,6 +1727,20 @@ window.addEventListener('load',function(){
   });}
   var mpCloseBtn=g('mpClose');
   if(mpCloseBtn)mpCloseBtn.addEventListener('click',closeMapPopup);
+  var mloBtn=g('mapLinkedOnlyBtn');
+  if(mloBtn){
+    mloBtn.addEventListener('click',function(){
+      mapLinkedOnly=!mapLinkedOnly;
+      mloBtn.style.background=mapLinkedOnly?'#3B6D11':'#EAF3DE';
+      mloBtn.style.color=mapLinkedOnly?'#fff':'#3B6D11';
+      mloBtn.textContent=mapLinkedOnly?'\u2714 \u53ea\u986f\u793a\u95dc\u806f':'\u128279 \u53ea\u986f\u793a\u95dc\u806f';
+      nodePos={};
+      forceLayout();drawMap();
+      var vc_=visibleNotes().length;
+      showToast(mapLinkedOnly?'\u986f\u793a '+vc_+' \u500b\u6709\u95dc\u806f\u7684\u7bc0\u9ede':'\u986f\u793a\u5168\u90e8\u7bc0\u9ede');
+    });
+  }
+
   var auB=g('mapAutoBtn');
 
   if(auB){auB.addEventListener('click',function(){

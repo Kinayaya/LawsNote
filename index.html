@@ -369,7 +369,7 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
     </div>
     <select id="mapFilterSub" class="map-filter-sel"><option value="all">&#20840;&#37096;&#31185;&#30446;</option></select>
     <select id="mapFilterType" class="map-filter-sel"><option value="all">&#20840;&#37096;&#39006;&#22411;</option></select>
-    <button class="tool-btn" id="mapLinkedOnlyBtn" style="background:#EAF3DE;color:#3B6D11;border-color:#97C459;">&#128279; &#21482;&#39023;&#31034;&#38364;&#32879;</button>
+    <button class="tool-btn" id="mapLinkedOnlyBtn" style="background:#3B6D11;color:#fff;border-color:#3B6D11;">&#128279; &#21482;&#39023;&#31034;&#38364;&#32879;</button>
     <button class="tool-btn" id="mapAutoBtn">&#10024; &#33258;&#21205;&#25490;&#21015;</button>
     <button class="tool-btn" id="mapResetBtn">&#8634; &#37325;&#32622;</button>
     <button class="add-btn" style="font-size:12px;padding:5px 12px;" id="mapBackBtn">&#8592; &#36820;&#22238;</button>
@@ -456,7 +456,7 @@ var nodePos={};
 var dragNode=null,dragOffX=0,dragOffY=0,mapW=800,mapH=500;
 var mapScale=1,mapOffX=0,mapOffY=0;
 var mapFilter={sub:"all",type:"all",q:""};
-var mapLinkedOnly=false;
+var mapLinkedOnly=true; // always hide unlinked nodes by default
 var nodeEls={};
 var linkElsMap={};
 var nodeLinksIndex={};
@@ -779,7 +779,11 @@ function initNodePos(){
 function forceLayout(){
   var canvas=g('mapCanvas');
   mapW=canvas.offsetWidth||800;mapH=canvas.offsetHeight||500;
-  var n2=notes.length; if(!n2)return;
+  // Only layout visible notes (respect mapLinkedOnly filter)
+  var layoutNotes=visibleNotes();
+  var n2=layoutNotes.length; if(!n2)return;
+  // Use layoutNotes instead of notes for all layout operations
+  var _origNotes=notes; notes=layoutNotes;
 
   // Node radius for layout (use max possible size + padding)
   var NODE_R=38;
@@ -887,6 +891,7 @@ function forceLayout(){
     if(!moved)break;
   }
 
+  notes=_origNotes; // restore
   saveData();
 }
 
@@ -1708,11 +1713,11 @@ window.addEventListener('load',function(){
     buildMapFilters();
     mapScale=1;mapOffX=0;mapOffY=0;
     var zl=g('zoomLabel');if(zl)zl.textContent='100%';
-    mapLinkedOnly=(notes.length>50&&links.length>0);
+    mapLinkedOnly=true;
     var mloBtn3=g('mapLinkedOnlyBtn');
     if(mloBtn3){
-      mloBtn3.style.background=mapLinkedOnly?'#3B6D11':'#EAF3DE';
-      mloBtn3.style.color=mapLinkedOnly?'#fff':'#3B6D11';
+      mloBtn3.style.background='#3B6D11';
+      mloBtn3.style.color='#fff';
     }
     setTimeout(function(){nodePos={};forceLayout();drawMap();},80);
   });

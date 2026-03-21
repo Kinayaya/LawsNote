@@ -1676,6 +1676,7 @@ window.addEventListener('load',function(){
   var musicUrlInput = document.getElementById('music-url-input');
   var musicLoadBtn = document.getElementById('music-load-btn');
   var musicIframe = document.getElementById('music-iframe');
+  var musicFab = document.getElementById('music-fab');
 
   function extractVideoId(str) {
     str = (str || '').trim();
@@ -1750,8 +1751,8 @@ window.addEventListener('load',function(){
   musicFab.addEventListener('mousedown',function(e){if(!e.target.closest('#music-panel')){fabDown(e.clientX,e.clientY);e.preventDefault();}});
   document.addEventListener('mousemove',function(e){fabMove(e.clientX,e.clientY);});
   document.addEventListener('mouseup',fabUp);
-  musicFab.addEventListener('touchstart',function(e){if(!e.target.closest('#music-panel')&&e.touches.length===1){fabDown(e.touches[0].clientX,e.touches[0].clientY);}},{passive:true});
-  document.addEventListener('touchmove',function(e){if(fabDragging&&e.touches.length===1){fabMove(e.touches[0].clientX,e.touches[0].clientY);if(fabMoved&&e.cancelable)e.preventDefault();}},{passive:false});
+  musicFab.addEventListener('touchstart',function(e){if(!e.target.closest('#music-panel')&&e.touches.length===1){fabDown(e.touches[0].clientX,e.touches[0].clientY);e.preventDefault();}},{passive:false});
+  document.addEventListener('touchmove',function(e){if(fabDragging&&e.touches.length===1){if(e.cancelable)e.preventDefault();fabMove(e.touches[0].clientX,e.touches[0].clientY);}},{passive:false});
   document.addEventListener('touchend',function(){fabUp();});
 
   // Restore saved FAB position

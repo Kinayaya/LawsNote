@@ -779,34 +779,67 @@ function importData(file){
 
 // ===== SHORTCUTS =====
 var DEFAULT_SHORTCUTS = [
-  {id:'new',    label:'\u65b0\u589e\u7b46\u8a18',     key:'n', ctrl:true,  shift:false, alt:false},
-  {id:'search', label:'\u641c\u5c0b',         key:'f', ctrl:true,  shift:false, alt:false},
-  {id:'map',    label:'\u958b\u555f\u9ad4\u7cfb\u5716',   key:'m', ctrl:true,  shift:false, alt:false},
-  {id:'back',   label:'\u8fd4\u56de\u7b46\u8a18\u5217\u8868', key:'Escape', ctrl:false, shift:false, alt:false},
-  {id:'close',  label:'\u95dc\u9589\u9762\u677f',     key:'Escape', ctrl:false, shift:false, alt:false},
-  {id:'edit',   label:'\u7de8\u8f2f\u7576\u524d\u7b46\u8a18', key:'e', ctrl:true,  shift:false, alt:false},
-  {id:'link',   label:'\u65b0\u589e\u95dc\u806f',     key:'l', ctrl:true,  shift:false, alt:false},
-  {id:'export', label:'\u532f\u51fa',         key:'s', ctrl:true,  shift:true,  alt:false},
-  {id:'shortcuts',label:'\u5feb\u6377\u9375\u8a2d\u5b9a', key:'k', ctrl:true,  shift:false, alt:false},
+  {id:'new',     label:'\u65b0\u589e\u7b46\u8a18',      key:'n', ctrl:false, shift:false, alt:true},
+  {id:'search',  label:'\u641c\u5c0b',          key:'f', ctrl:false, shift:false, alt:true},
+  {id:'map',     label:'\u958b\u555f\u9ad4\u7cfb\u5716',    key:'m', ctrl:false, shift:false, alt:true},
+  {id:'back',    label:'\u8fd4\u56de\u7b46\u8a18\u5217\u8868',  key:'Escape', ctrl:false, shift:false, alt:false},
+  {id:'close',   label:'\u95dc\u9589\u9762\u677f',      key:'w', ctrl:false, shift:false, alt:true},
+  {id:'edit',    label:'\u7de8\u8f2f\u7576\u524d\u7b46\u8a18',  key:'e', ctrl:false, shift:false, alt:true},
+  {id:'link',    label:'\u65b0\u589e\u95dc\u806f',      key:'l', ctrl:false, shift:false, alt:true},
+  {id:'export',  label:'\u532f\u51fa\u5099\u4efd',      key:'s', ctrl:false, shift:false, alt:true},
+  {id:'shortcuts',label:'\u5feb\u6377\u9375\u8a2d\u5b9a',  key:'k', ctrl:false, shift:false, alt:true},
 ];
 var shortcuts = [];
 var recordingBtn = null;
 
+function cloneShortcuts(src){
+  var out=[];
+  for(var i=0;i<src.length;i++){
+    var s=src[i];
+    out.push({id:s.id,label:s.label,key:s.key,ctrl:s.ctrl,shift:s.shift,alt:s.alt});
+  }
+  return out;
+}
+
 function loadShortcuts(){
   try{
     var raw=localStorage.getItem('legal_shortcuts');
-    if(raw) shortcuts=JSON.parse(raw);
-    else{ shortcuts=DEFAULT_SHORTCUTS.map(function(s){return Object.assign({},s);}); }
-  }catch(e){ shortcuts=DEFAULT_SHORTCUTS.map(function(s){return Object.assign({},s);}); }
+    if(raw){
+      var parsed=JSON.parse(raw);
+      // Merge: keep default entries, overlay saved keys
+      shortcuts=cloneShortcuts(DEFAULT_SHORTCUTS);
+      for(var i=0;i<shortcuts.length;i++){
+        for(var j=0;j<parsed.length;j++){
+          if(parsed[j].id===shortcuts[i].id){
+            shortcuts[i].key=parsed[j].key;
+            shortcuts[i].ctrl=parsed[j].ctrl;
+            shortcuts[i].shift=parsed[j].shift;
+            shortcuts[i].alt=parsed[j].alt;
+            break;
+          }
+        }
+      }
+    } else {
+      shortcuts=cloneShortcuts(DEFAULT_SHORTCUTS);
+    }
+  }catch(e){
+    shortcuts=cloneShortcuts(DEFAULT_SHORTCUTS);
+  }
 }
 
 function saveShortcuts(){
-  localStorage.setItem('legal_shortcuts',JSON.stringify(shortcuts));
+  try{localStorage.setItem('legal_shortcuts',JSON.stringify(shortcuts));}catch(e){}
 }
 
 function scById(id){
   for(var i=0;i<shortcuts.length;i++){if(shortcuts[i].id===id)return shortcuts[i];}
   return null;
+}
+
+function normalizeKey(k){
+  if(!k)return '';
+  if(k.length===1)return k.toLowerCase();
+  return k;
 }
 
 function fmtKey(sc){
@@ -815,7 +848,13 @@ function fmtKey(sc){
   if(sc.ctrl) parts.push('Ctrl');
   if(sc.alt) parts.push('Alt');
   if(sc.shift) parts.push('Shift');
-  var k=sc.key==='Escape'?'Esc':sc.key==='ArrowUp'?'\u2191':sc.key==='ArrowDown'?'\u2193':sc.key===' '?'Space':sc.key.toUpperCase();
+  var k=sc.key==='Escape'?'Esc':
+        sc.key==='ArrowUp'?'\u2191':
+        sc.key==='ArrowDown'?'\u2193':
+        sc.key==='ArrowLeft'?'\u2190':
+        sc.key==='ArrowRight'?'\u2192':
+        sc.key===' '?'Space':
+        sc.key.length===1?sc.key.toUpperCase():sc.key;
   parts.push(k);
   return parts.join(' + ');
 }
@@ -835,11 +874,13 @@ function renderShortcutList(){
       btn.addEventListener('click',function(){
         if(recordingBtn&&recordingBtn!==btn){
           recordingBtn.classList.remove('recording');
-          recordingBtn.textContent=fmtKey(shortcuts[parseInt(recordingBtn.getAttribute('data-idx'))]);
+          var prevIdx=parseInt(recordingBtn.getAttribute('data-idx'));
+          recordingBtn.textContent=fmtKey(shortcuts[prevIdx]);
         }
         recordingBtn=btn;
         btn.classList.add('recording');
         btn.textContent='\u8acb\u6309\u4e0b\u6309\u9375...';
+        btn.focus();
       });
     })(btns[i]);
   }
@@ -848,7 +889,8 @@ function renderShortcutList(){
     (function(btn){
       btn.addEventListener('click',function(){
         var idx2=parseInt(btn.getAttribute('data-clear'));
-        shortcuts[idx2].key='';shortcuts[idx2].ctrl=false;shortcuts[idx2].shift=false;shortcuts[idx2].alt=false;
+        shortcuts[idx2].key='';
+        shortcuts[idx2].ctrl=false;shortcuts[idx2].shift=false;shortcuts[idx2].alt=false;
         saveShortcuts();renderShortcutList();
       });
     })(clrs[i]);
@@ -865,29 +907,33 @@ function openShortcutMgr(){
 }
 
 function closeShortcutMgr(){
-  recordingBtn=null;
+  if(recordingBtn){recordingBtn.classList.remove('recording');recordingBtn=null;}
   g('scp').style.display='none';
 }
 
 function showShortcutHint(text){
   var h=g('scHint');
   h.textContent=text;h.style.display='block';
-  setTimeout(function(){h.style.display='none';},1800);
+  clearTimeout(h._t);
+  h._t=setTimeout(function(){h.style.display='none';},1800);
 }
 
 function handleGlobalKey(e){
-  // If recording, capture the key
+  // Recording mode: capture any key press
   if(recordingBtn){
+    if(['Control','Shift','Alt','Meta','CapsLock','Tab'].indexOf(e.key)!==-1)return;
+    e.preventDefault();
+    e.stopPropagation();
     if(e.key==='Escape'){
+      // Cancel recording
       recordingBtn.classList.remove('recording');
-      var idx2=parseInt(recordingBtn.getAttribute('data-idx'));
-      recordingBtn.textContent=fmtKey(shortcuts[idx2]);
+      var prevIdx=parseInt(recordingBtn.getAttribute('data-idx'));
+      recordingBtn.textContent=fmtKey(shortcuts[prevIdx]);
       recordingBtn=null;
-      e.preventDefault();return;
+      return;
     }
-    if(['Control','Shift','Alt','Meta','CapsLock'].indexOf(e.key)!==-1)return;
     var idx2=parseInt(recordingBtn.getAttribute('data-idx'));
-    shortcuts[idx2].key=e.key;
+    shortcuts[idx2].key=normalizeKey(e.key);
     shortcuts[idx2].ctrl=e.ctrlKey||e.metaKey;
     shortcuts[idx2].shift=e.shiftKey;
     shortcuts[idx2].alt=e.altKey;
@@ -896,18 +942,23 @@ function handleGlobalKey(e){
     recordingBtn.textContent=fmtKey(shortcuts[idx2]);
     recordingBtn=null;
     saveShortcuts();
-    e.preventDefault();return;
+    return;
   }
+
   // Skip if typing in input/textarea/select
   var tag=(e.target.tagName||'').toLowerCase();
   if(tag==='input'||tag==='textarea'||tag==='select')return;
 
   var ctrl=e.ctrlKey||e.metaKey;
+  var eKey=normalizeKey(e.key);
+
   for(var i=0;i<shortcuts.length;i++){
     var sc=shortcuts[i];
     if(!sc.key)continue;
-    if(sc.key===e.key&&sc.ctrl===ctrl&&sc.shift===e.shiftKey&&sc.alt===e.altKey){
+    var scKey=normalizeKey(sc.key);
+    if(scKey===eKey && sc.ctrl===ctrl && sc.shift===e.shiftKey && sc.alt===e.altKey){
       e.preventDefault();
+      e.stopPropagation();
       execShortcut(sc.id);
       return;
     }
@@ -920,7 +971,11 @@ function execShortcut(id){
       if(!isMapOpen){openForm(false);showShortcutHint('\u65b0\u589e\u7b46\u8a18');}
       break;
     case 'search':
-      if(!isMapOpen){var si=g('searchInput');si.focus();si.select();showShortcutHint('\u641c\u5c0b');}
+      if(!isMapOpen){
+        var si=g('searchInput');
+        si.focus();si.select();
+        showShortcutHint('\u641c\u5c0b');
+      }
       break;
     case 'map':
       if(!isMapOpen){
@@ -948,12 +1003,17 @@ function execShortcut(id){
       else if(g('lp').classList.contains('open')){g('lp').classList.remove('open');g('dp').classList.add('open');}
       else if(g('fp').classList.contains('open')){closeForm();}
       else if(g('dp').classList.contains('open')){closeDetail();}
+      showShortcutHint('\u95dc\u9589');
       break;
     case 'edit':
-      if(openId&&g('dp').classList.contains('open')){openForm(true);showShortcutHint('\u7de8\u8f2f\u7b46\u8a18');}
+      if(openId&&g('dp').classList.contains('open')){
+        openForm(true);showShortcutHint('\u7de8\u8f2f\u7b46\u8a18');
+      }
       break;
     case 'link':
-      if(openId&&g('dp').classList.contains('open')){openLinkPanel();showShortcutHint('\u65b0\u589e\u95dc\u806f');}
+      if(openId&&g('dp').classList.contains('open')){
+        openLinkPanel();showShortcutHint('\u65b0\u589e\u95dc\u806f');
+      }
       break;
     case 'export':
       exportData();showShortcutHint('\u532f\u51fa\u5099\u4efd');
@@ -964,6 +1024,7 @@ function execShortcut(id){
   }
 }
 // ===== END SHORTCUTS =====
+
 
 window.addEventListener('load',function(){
   loadData();buildTypeRow();buildSubRow();buildFormSelects();render();

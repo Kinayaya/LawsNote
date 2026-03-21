@@ -1140,97 +1140,90 @@ window.addEventListener('load',function(){
   canvas.addEventListener('touchend',function(){
     if(dragNode){if(rafId)cancelAnimationFrame(rafId);saveData();dragNode=null;}
   });
-});
 
-// ===== MUSIC PLAYER =====
-(function(){
-  var panel = document.getElementById('music-panel');
-  var toggle = document.getElementById('music-toggle');
-  var closeBtn = document.getElementById('music-close');
-  var urlInput = document.getElementById('music-url-input');
-  var loadBtn = document.getElementById('music-load-btn');
-  var iframe = document.getElementById('music-iframe');
-  var isPlaying = false;
+  // ===== MUSIC PLAYER INIT =====
+  var musicPanel = document.getElementById('music-panel');
+  var musicToggle = document.getElementById('music-toggle');
+  var musicClose = document.getElementById('music-close');
+  var musicUrlInput = document.getElementById('music-url-input');
+  var musicLoadBtn = document.getElementById('music-load-btn');
+  var musicIframe = document.getElementById('music-iframe');
 
   function extractVideoId(str) {
     str = (str || '').trim();
-    // Already an ID (11 chars alphanumeric)
     if (/^[a-zA-Z0-9_-]{11}$/.test(str)) return {type:'video', id:str};
-    // youtube.com/watch?v=ID
     var m = str.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
     if (m) return {type:'video', id:m[1]};
-    // youtu.be/ID
     m = str.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
     if (m) return {type:'video', id:m[1]};
-    // playlist
     m = str.match(/[?&]list=([a-zA-Z0-9_-]+)/);
     if (m) return {type:'playlist', id:m[1]};
-    // youtube.com/embed/ID
     m = str.match(/embed\/([a-zA-Z0-9_-]{11})/);
     if (m) return {type:'video', id:m[1]};
     return null;
   }
 
-  function loadVideo(str) {
+  function loadMusic(str) {
     var result = extractVideoId(str);
-    if (!result) {
-      showToast('\u8acb\u8f38\u5165\u6709\u6548\u7684 YouTube \u7db2\u5740');
-      return;
-    }
+    if (!result) { showToast('\u8acb\u8f38\u5165\u6709\u6548\u7684 YouTube \u7db2\u5740'); return; }
     var src;
     if (result.type === 'playlist') {
-      src = 'https://www.youtube.com/embed/videoseries?list=' + result.id + '&autoplay=1&loop=1';
+      src = 'https://www.youtube.com/embed/videoseries?list=' + result.id + '&autoplay=1';
     } else {
       src = 'https://www.youtube.com/embed/' + result.id + '?autoplay=1&loop=1&playlist=' + result.id;
     }
-    iframe.src = src;
-    isPlaying = true;
-    toggle.classList.add('playing');
-    // Save last URL
-    try { localStorage.setItem('klaws_music_last', str); } catch(e){}
+    musicIframe.src = src;
+    musicToggle.classList.add('playing');
+    try { localStorage.setItem('klaws_music_last', str); } catch(e) {}
   }
 
-  toggle.addEventListener('click', function(){
-    if (panel.classList.contains('open')) {
-      panel.classList.remove('open');
-    } else {
-      panel.classList.add('open');
-    }
-  });
+  if (musicToggle) {
+    musicToggle.addEventListener('click', function() {
+      if (musicPanel.classList.contains('open')) {
+        musicPanel.classList.remove('open');
+      } else {
+        musicPanel.classList.add('open');
+      }
+    });
+  }
 
-  closeBtn.addEventListener('click', function(){
-    panel.classList.remove('open');
-  });
+  if (musicClose) {
+    musicClose.addEventListener('click', function() {
+      musicPanel.classList.remove('open');
+    });
+  }
 
-  loadBtn.addEventListener('click', function(){
-    loadVideo(urlInput.value);
-    panel.classList.remove('open');
-  });
+  if (musicLoadBtn) {
+    musicLoadBtn.addEventListener('click', function() {
+      loadMusic(musicUrlInput.value);
+      musicPanel.classList.remove('open');
+    });
+  }
 
-  urlInput.addEventListener('keydown', function(e){
-    if (e.key === 'Enter') { loadVideo(urlInput.value); panel.classList.remove('open'); }
-  });
+  if (musicUrlInput) {
+    musicUrlInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { loadMusic(musicUrlInput.value); musicPanel.classList.remove('open'); }
+    });
+  }
 
-  // Preset buttons
-  var presets = document.querySelectorAll('.music-preset');
-  for (var i = 0; i < presets.length; i++) {
-    (function(btn){
-      btn.addEventListener('click', function(){
+  var musicPresets = document.querySelectorAll('.music-preset');
+  for (var mp = 0; mp < musicPresets.length; mp++) {
+    (function(btn) {
+      btn.addEventListener('click', function() {
         var vid = btn.getAttribute('data-vid');
-        urlInput.value = vid;
-        loadVideo(vid);
-        panel.classList.remove('open');
+        musicUrlInput.value = vid;
+        loadMusic(vid);
+        musicPanel.classList.remove('open');
       });
-    })(presets[i]);
+    })(musicPresets[mp]);
   }
 
-  // Restore last URL
   try {
-    var last = localStorage.getItem('klaws_music_last');
-    if (last) urlInput.value = last;
-  } catch(e){}
-})();
-// ===== END MUSIC PLAYER =====
+    var lastMusic = localStorage.getItem('klaws_music_last');
+    if (lastMusic && musicUrlInput) musicUrlInput.value = lastMusic;
+  } catch(e) {}
+  // ===== END MUSIC PLAYER INIT =====
+});
 
 </script>
 

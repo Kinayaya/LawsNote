@@ -101,6 +101,13 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 .rel-btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
 .rel-btn{padding:5px 12px;border-radius:99px;border:2px solid;font-size:12px;font-weight:600;cursor:pointer;background:#fff;}
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.75);color:#fff;padding:9px 20px;border-radius:99px;font-size:13px;z-index:999;display:none;white-space:nowrap;}
+.sc-item{display:flex;align-items:center;gap:10px;background:#f8f8f8;border-radius:10px;padding:9px 12px;border:1px solid #eee;}
+.sc-label{flex:1;font-size:13px;color:#333;font-weight:500;}
+.sc-key{padding:5px 10px;border:1.5px solid #ddd;border-radius:7px;font-size:12px;font-family:monospace;background:#fff;color:#333;cursor:pointer;min-width:80px;text-align:center;outline:none;}
+.sc-key.recording{border-color:#007AFF;background:#E6F1FB;color:#0C447C;animation:blink 0.8s infinite;}
+.sc-key.has-key{border-color:#B5D4F4;background:#f0f7ff;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0.5;}}
+.shortcut-hint{position:fixed;bottom:60px;right:14px;background:rgba(0,0,0,0.65);color:#fff;padding:7px 12px;border-radius:8px;font-size:11px;z-index:998;display:none;max-width:200px;line-height:1.6;}
 </style>
 </head>
 <body>
@@ -118,6 +125,7 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
     </div>
     <div class="tool-btns">
       <button class="map-btn" id="mapToggleBtn">&#128279; &#39636;&#31995;&#22294;</button>
+      <button class="tool-btn" id="shortcutMgrBtn">&#9000; &#24555;&#25463;&#37749;</button>
       <button class="tool-btn" id="exportBtn">&#8593; &#21295;&#20986;</button>
       <label class="tool-btn" for="importFile" style="cursor:pointer;display:inline-block;">&#8595; &#21295;&#20837;</label>
       <input type="file" id="importFile" accept=".json" style="display:none">
@@ -244,7 +252,23 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
   <div id="mapInfo">&#40670;&#25802;&#31680;&#40670;&#26597;&#30475;&#31558;&#35352;&#36039;&#35338;</div>
 </div>
 
+
+<!-- Shortcut Manager Panel -->
+<div class="panel" id="scp" style="display:none;margin:12px 14px;">
+  <div class="ph">
+    <span class="ph-title">&#9000; &#24555;&#25463;&#37749;&#35373;&#23450;</span>
+    <button class="pcls" id="scpClose">&#215;</button>
+  </div>
+  <div style="font-size:12px;color:#888;margin-bottom:12px;">&#40670;&#25802;&#20219;&#19968;&#24555;&#25463;&#37749;&#27396;&#20301;&#24460;&#65292;&#30452;&#25509;&#25353;&#19979;&#24819;&#35373;&#23450;&#30340;&#25353;&#37749;&#32068;&#21512;&#65288;&#25903;&#25588; Ctrl/Cmd/Alt/Shift + &#25353;&#37749;&#65289;&#12290;</div>
+  <div id="scpList" style="display:flex;flex-direction:column;gap:6px;"></div>
+  <div style="display:flex;gap:8px;margin-top:14px;">
+    <button class="fbtn bcl" id="scpReset" style="flex:1;padding:9px;border-radius:10px;font-size:13px;font-weight:600;border:none;cursor:pointer;">&#8634; &#24674;&#24489;&#38928;&#35373;</button>
+    <button class="fbtn bsv" id="scpDone" style="flex:1;padding:9px;border-radius:10px;font-size:13px;font-weight:600;border:none;cursor:pointer;">&#23436;&#25104;</button>
+  </div>
+</div>
+
 <div id="toast"></div>
+<div class="shortcut-hint" id="scHint"></div>
 <script>
 var DEFAULT_NOTES=[
 {id:1,type:'article',subject:'\u6c11\u6cd5',title:'\u6c11\u6cd5\u7b2c 184 \u689d \u2014 \u4fb5\u6b0a\u884c\u70ba',body:'\u56e0\u6545\u610f\u6216\u904e\u5931\uff0c\u4e0d\u6cd5\u4fb5\u5bb3\u4ed6\u4eba\u4e4b\u6b0a\u5229\u8005\uff0c\u8ca0\u640d\u5bb3\u8ce0\u511f\u8cac\u4efb\u3002',tags:['\u4fb5\u6b0a\u884c\u70ba','\u640d\u5bb3\u8ce0\u511f'],date:'2025-03-10',detail:'\u69cb\u6210\u8981\u4ef6\uff1a\n1. \u9808\u6709\u52a0\u5bb3\u884c\u70ba\n2. \u884c\u70ba\u9808\u4e0d\u6cd5\n3. \u9808\u6709\u6545\u610f\u6216\u904e\u5931\n4. \u9808\u6709\u640d\u5bb3\n5. \u52a0\u5bb3\u884c\u70ba\u8207\u640d\u5bb3\u9593\u6709\u56e0\u679c\u95dc\u4fc2'},
@@ -752,6 +776,195 @@ function importData(file){
   };reader.readAsText(file);
 }
 
+
+// ===== SHORTCUTS =====
+var DEFAULT_SHORTCUTS = [
+  {id:'new',    label:'\u65b0\u589e\u7b46\u8a18',     key:'n', ctrl:true,  shift:false, alt:false},
+  {id:'search', label:'\u641c\u5c0b',         key:'f', ctrl:true,  shift:false, alt:false},
+  {id:'map',    label:'\u958b\u555f\u9ad4\u7cfb\u5716',   key:'m', ctrl:true,  shift:false, alt:false},
+  {id:'back',   label:'\u8fd4\u56de\u7b46\u8a18\u5217\u8868', key:'Escape', ctrl:false, shift:false, alt:false},
+  {id:'close',  label:'\u95dc\u9589\u9762\u677f',     key:'Escape', ctrl:false, shift:false, alt:false},
+  {id:'edit',   label:'\u7de8\u8f2f\u7576\u524d\u7b46\u8a18', key:'e', ctrl:true,  shift:false, alt:false},
+  {id:'link',   label:'\u65b0\u589e\u95dc\u806f',     key:'l', ctrl:true,  shift:false, alt:false},
+  {id:'export', label:'\u532f\u51fa',         key:'s', ctrl:true,  shift:true,  alt:false},
+  {id:'shortcuts',label:'\u5feb\u6377\u9375\u8a2d\u5b9a', key:'k', ctrl:true,  shift:false, alt:false},
+];
+var shortcuts = [];
+var recordingBtn = null;
+
+function loadShortcuts(){
+  try{
+    var raw=localStorage.getItem('legal_shortcuts');
+    if(raw) shortcuts=JSON.parse(raw);
+    else{ shortcuts=DEFAULT_SHORTCUTS.map(function(s){return Object.assign({},s);}); }
+  }catch(e){ shortcuts=DEFAULT_SHORTCUTS.map(function(s){return Object.assign({},s);}); }
+}
+
+function saveShortcuts(){
+  localStorage.setItem('legal_shortcuts',JSON.stringify(shortcuts));
+}
+
+function scById(id){
+  for(var i=0;i<shortcuts.length;i++){if(shortcuts[i].id===id)return shortcuts[i];}
+  return null;
+}
+
+function fmtKey(sc){
+  if(!sc.key) return '\u672a\u8a2d\u5b9a';
+  var parts=[];
+  if(sc.ctrl) parts.push('Ctrl');
+  if(sc.alt) parts.push('Alt');
+  if(sc.shift) parts.push('Shift');
+  var k=sc.key==='Escape'?'Esc':sc.key==='ArrowUp'?'\u2191':sc.key==='ArrowDown'?'\u2193':sc.key===' '?'Space':sc.key.toUpperCase();
+  parts.push(k);
+  return parts.join(' + ');
+}
+
+function renderShortcutList(){
+  var list=g('scpList');
+  list.innerHTML=shortcuts.map(function(sc,idx){
+    return'<div class="sc-item">'+
+      '<span class="sc-label">'+sc.label+'</span>'+
+      '<button class="sc-key'+(sc.key?' has-key':'')+'" data-idx="'+idx+'">'+fmtKey(sc)+'</button>'+
+      '<button style="padding:4px 8px;border-radius:6px;border:1px solid #FFCDD2;background:#FFF0F0;font-size:11px;color:#D92B2B;cursor:pointer;" data-clear="'+idx+'">&#215;</button>'+
+      '</div>';
+  }).join('');
+  var btns=list.querySelectorAll('.sc-key');
+  for(var i=0;i<btns.length;i++){
+    (function(btn){
+      btn.addEventListener('click',function(){
+        if(recordingBtn&&recordingBtn!==btn){
+          recordingBtn.classList.remove('recording');
+          recordingBtn.textContent=fmtKey(shortcuts[parseInt(recordingBtn.getAttribute('data-idx'))]);
+        }
+        recordingBtn=btn;
+        btn.classList.add('recording');
+        btn.textContent='\u8acb\u6309\u4e0b\u6309\u9375...';
+      });
+    })(btns[i]);
+  }
+  var clrs=list.querySelectorAll('[data-clear]');
+  for(var i=0;i<clrs.length;i++){
+    (function(btn){
+      btn.addEventListener('click',function(){
+        var idx2=parseInt(btn.getAttribute('data-clear'));
+        shortcuts[idx2].key='';shortcuts[idx2].ctrl=false;shortcuts[idx2].shift=false;shortcuts[idx2].alt=false;
+        saveShortcuts();renderShortcutList();
+      });
+    })(clrs[i]);
+  }
+}
+
+function openShortcutMgr(){
+  recordingBtn=null;
+  renderShortcutList();
+  g('scp').style.display='block';
+  g('dp').classList.remove('open');g('fp').classList.remove('open');
+  g('lp').classList.remove('open');g('tp').classList.remove('open');
+  setTimeout(function(){g('scp').scrollIntoView({behavior:'smooth',block:'nearest'});},60);
+}
+
+function closeShortcutMgr(){
+  recordingBtn=null;
+  g('scp').style.display='none';
+}
+
+function showShortcutHint(text){
+  var h=g('scHint');
+  h.textContent=text;h.style.display='block';
+  setTimeout(function(){h.style.display='none';},1800);
+}
+
+function handleGlobalKey(e){
+  // If recording, capture the key
+  if(recordingBtn){
+    if(e.key==='Escape'){
+      recordingBtn.classList.remove('recording');
+      var idx2=parseInt(recordingBtn.getAttribute('data-idx'));
+      recordingBtn.textContent=fmtKey(shortcuts[idx2]);
+      recordingBtn=null;
+      e.preventDefault();return;
+    }
+    if(['Control','Shift','Alt','Meta','CapsLock'].indexOf(e.key)!==-1)return;
+    var idx2=parseInt(recordingBtn.getAttribute('data-idx'));
+    shortcuts[idx2].key=e.key;
+    shortcuts[idx2].ctrl=e.ctrlKey||e.metaKey;
+    shortcuts[idx2].shift=e.shiftKey;
+    shortcuts[idx2].alt=e.altKey;
+    recordingBtn.classList.remove('recording');
+    recordingBtn.classList.add('has-key');
+    recordingBtn.textContent=fmtKey(shortcuts[idx2]);
+    recordingBtn=null;
+    saveShortcuts();
+    e.preventDefault();return;
+  }
+  // Skip if typing in input/textarea/select
+  var tag=(e.target.tagName||'').toLowerCase();
+  if(tag==='input'||tag==='textarea'||tag==='select')return;
+
+  var ctrl=e.ctrlKey||e.metaKey;
+  for(var i=0;i<shortcuts.length;i++){
+    var sc=shortcuts[i];
+    if(!sc.key)continue;
+    if(sc.key===e.key&&sc.ctrl===ctrl&&sc.shift===e.shiftKey&&sc.alt===e.altKey){
+      e.preventDefault();
+      execShortcut(sc.id);
+      return;
+    }
+  }
+}
+
+function execShortcut(id){
+  switch(id){
+    case 'new':
+      if(!isMapOpen){openForm(false);showShortcutHint('\u65b0\u589e\u7b46\u8a18');}
+      break;
+    case 'search':
+      if(!isMapOpen){var si=g('searchInput');si.focus();si.select();showShortcutHint('\u641c\u5c0b');}
+      break;
+    case 'map':
+      if(!isMapOpen){
+        isMapOpen=true;
+        g('notesView').style.display='none';
+        g('mapView').classList.add('open');
+        g('subbar').style.display='none';
+        g('search-results-bar').style.display='none';
+        setTimeout(function(){drawMap();},80);
+        showShortcutHint('\u958b\u555f\u9ad4\u7cfb\u5716');
+      }
+      break;
+    case 'back':
+      if(isMapOpen){
+        isMapOpen=false;
+        g('notesView').style.display='block';
+        g('mapView').classList.remove('open');
+        g('subbar').style.display='flex';
+        showShortcutHint('\u8fd4\u56de\u7b46\u8a18\u5217\u8868');
+      }
+      break;
+    case 'close':
+      if(g('scp').style.display==='block'){closeShortcutMgr();}
+      else if(g('tp').classList.contains('open')){g('tp').classList.remove('open');}
+      else if(g('lp').classList.contains('open')){g('lp').classList.remove('open');g('dp').classList.add('open');}
+      else if(g('fp').classList.contains('open')){closeForm();}
+      else if(g('dp').classList.contains('open')){closeDetail();}
+      break;
+    case 'edit':
+      if(openId&&g('dp').classList.contains('open')){openForm(true);showShortcutHint('\u7de8\u8f2f\u7b46\u8a18');}
+      break;
+    case 'link':
+      if(openId&&g('dp').classList.contains('open')){openLinkPanel();showShortcutHint('\u65b0\u589e\u95dc\u806f');}
+      break;
+    case 'export':
+      exportData();showShortcutHint('\u532f\u51fa\u5099\u4efd');
+      break;
+    case 'shortcuts':
+      openShortcutMgr();showShortcutHint('\u5feb\u6377\u9375\u8a2d\u5b9a');
+      break;
+  }
+}
+// ===== END SHORTCUTS =====
+
 window.addEventListener('load',function(){
   loadData();buildTypeRow();buildSubRow();buildFormSelects();render();
 
@@ -774,6 +987,15 @@ window.addEventListener('load',function(){
   g('addTypeBtn').addEventListener('click',function(){addTag('type');});
   g('addSubBtn').addEventListener('click',function(){addTag('sub');});
   g('importFile').addEventListener('change',function(e){if(e.target.files&&e.target.files[0])importData(e.target.files[0]);e.target.value='';});
+  g('shortcutMgrBtn').addEventListener('click',openShortcutMgr);
+  g('scpClose').addEventListener('click',closeShortcutMgr);
+  g('scpDone').addEventListener('click',closeShortcutMgr);
+  g('scpReset').addEventListener('click',function(){
+    shortcuts=DEFAULT_SHORTCUTS.map(function(s){return Object.assign({},s);});
+    saveShortcuts();renderShortcutList();showToast('\u5df2\u6062\u5fa9\u9810\u8a2d\u5feb\u6377\u9375');
+  });
+  loadShortcuts();
+  document.addEventListener('keydown',handleGlobalKey);
 
   g('mapToggleBtn').addEventListener('click',function(){
     isMapOpen=true;

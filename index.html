@@ -632,49 +632,113 @@ function forceLayout(){
   var canvas=g('mapCanvas');
   mapW=canvas.offsetWidth||800;mapH=canvas.offsetHeight||500;
   var n2=notes.length; if(!n2)return;
-  var cols=Math.ceil(Math.sqrt(n2*1.6));
-  var cellW=mapW/(cols+1), cellH=mapH/(Math.ceil(n2/cols)+1);
+
+  // Node radius for layout (use max possible size + padding)
+  var NODE_R=38;
+  var LINK_IDEAL=NODE_R*5; // ideal distance between linked nodes
+  var LINK_MIN=NODE_R*2.2; // hard minimum between linked nodes
+
+  // Build linked-pair lookup
+  var linkedPairs={};
+  for(var li=0;li<links.length;li++){
+    var lk=links[li];
+    var key1=lk.from+'_'+lk.to, key2=lk.to+'_'+lk.from;
+    linkedPairs[key1]=true; linkedPairs[key2]=true;
+  }
+  function isLinked(a,b){ return !!linkedPairs[a+'_'+b]; }
+
+  // Initial grid placement
+  var cols=Math.ceil(Math.sqrt(n2*1.4));
+  var cellW=Math.max(mapW/(cols+1), NODE_R*3);
+  var cellH=Math.max(mapH/(Math.ceil(n2/cols)+1), NODE_R*3);
   for(var i=0;i<n2;i++){
     var col=i%cols, row=Math.floor(i/cols);
     nodePos[notes[i].id]={
-      x:cellW*(col+1)+( Math.random()-0.5)*cellW*0.3,
-      y:cellH*(row+1)+( Math.random()-0.5)*cellH*0.3
+      x: cellW*(col+1)+(Math.random()-0.5)*cellW*0.25,
+      y: cellH*(row+1)+(Math.random()-0.5)*cellH*0.25
     };
   }
-  var iter=180, k=Math.sqrt(mapW*mapH/Math.max(n2,1))*0.9;
+
+  // Force iterations
+  var iter=300;
   for(var t=0;t<iter;t++){
-    var cool=1-t/iter;
+    var cool=Math.pow(1-t/iter, 1.5);
     var disp={};
     for(var i=0;i<n2;i++) disp[notes[i].id]={x:0,y:0};
+
+    // Repulsion: strong between LINKED pairs, weak between unlinked
     for(var i=0;i<n2;i++){
       for(var j=i+1;j<n2;j++){
-        var ai=notes[i].id,aj=notes[j].id;
-        var dx=nodePos[ai].x-nodePos[aj].x,dy=nodePos[ai].y-nodePos[aj].y;
+        var ai=notes[i].id, aj=notes[j].id;
+        var px=nodePos[ai],py=nodePos[aj];
+        var dx=px.x-py.x, dy=px.y-py.y;
         var dist=Math.sqrt(dx*dx+dy*dy)||0.01;
-        var rep=k*k/dist;
-        disp[ai].x+=dx/dist*rep;disp[ai].y+=dy/dist*rep;
-        disp[aj].x-=dx/dist*rep;disp[aj].y-=dy/dist*rep;
+        var linked=isLinked(ai,aj);
+        var rep;
+        if(linked){
+          // Strong repulsion up to LINK_MIN - pushes apart if too close
+          rep = (dist < LINK_MIN*1.5) ? (LINK_MIN*LINK_MIN*6)/dist : 0;
+        } else {
+          // Very weak repulsion for unlinked - allow overlap
+          rep = (dist < NODE_R*1.2) ? (NODE_R*NODE_R*0.8)/dist : 0;
+        }
+        if(rep>0){
+          disp[ai].x+=dx/dist*rep; disp[ai].y+=dy/dist*rep;
+          disp[aj].x-=dx/dist*rep; disp[aj].y-=dy/dist*rep;
+        }
       }
     }
+
+    // Attraction: only for LINKED pairs, spring toward ideal distance
     for(var li=0;li<links.length;li++){
       var lk=links[li];
-      var fp=nodePos[lk.from],tp=nodePos[lk.to];
+      var fp=nodePos[lk.from], tp=nodePos[lk.to];
       if(!fp||!tp)continue;
-      var dx=tp.x-fp.x,dy=tp.y-fp.y;
+      var dx=tp.x-fp.x, dy=tp.y-fp.y;
       var dist=Math.sqrt(dx*dx+dy*dy)||0.01;
-      var att=dist*dist/k;
-      disp[lk.from].x+=dx/dist*att;disp[lk.from].y+=dy/dist*att;
-      disp[lk.to].x-=dx/dist*att;disp[lk.to].y-=dy/dist*att;
+      // Spring: attract if too far, repel handled above
+      if(dist>LINK_IDEAL){
+        var att=(dist-LINK_IDEAL)*0.08;
+        disp[lk.from].x+=dx/dist*att; disp[lk.from].y+=dy/dist*att;
+        disp[lk.to].x-=dx/dist*att;   disp[lk.to].y-=dy/dist*att;
+      }
     }
-    var maxD=k*cool*2;
+
+    // Apply displacements with cooling
+    var maxD=Math.max(mapW,mapH)*0.05*cool+2;
+    var pad=NODE_R+4;
     for(var i=0;i<n2;i++){
-      var id=notes[i].id,d=disp[id];
+      var id=notes[i].id, d=disp[id];
       var len=Math.sqrt(d.x*d.x+d.y*d.y)||0.01;
       var move=Math.min(len,maxD);
-      nodePos[id].x=Math.max(32,Math.min(mapW-32,nodePos[id].x+d.x/len*move));
-      nodePos[id].y=Math.max(32,Math.min(mapH-32,nodePos[id].y+d.y/len*move));
+      nodePos[id].x=Math.max(pad,Math.min(mapW-pad, nodePos[id].x+d.x/len*move));
+      nodePos[id].y=Math.max(pad,Math.min(mapH-pad, nodePos[id].y+d.y/len*move));
     }
   }
+
+  // Hard separation pass: guarantee no overlap between LINKED nodes
+  for(var pass=0;pass<30;pass++){
+    var moved=false;
+    for(var li=0;li<links.length;li++){
+      var lk=links[li];
+      var fp=nodePos[lk.from], tp=nodePos[lk.to];
+      if(!fp||!tp)continue;
+      var dx=tp.x-fp.x, dy=tp.y-fp.y;
+      var dist=Math.sqrt(dx*dx+dy*dy)||0.01;
+      if(dist<LINK_MIN){
+        var push=(LINK_MIN-dist)/2+1;
+        var nx=dx/dist, ny=dy/dist;
+        var pad=NODE_R+4;
+        nodePos[lk.from].x=Math.max(pad,Math.min(mapW-pad, nodePos[lk.from].x-nx*push));
+        nodePos[lk.from].y=Math.max(pad,Math.min(mapH-pad, nodePos[lk.from].y-ny*push));
+        nodePos[lk.to].x=Math.max(pad,Math.min(mapW-pad, nodePos[lk.to].x+nx*push));
+        nodePos[lk.to].y=Math.max(pad,Math.min(mapH-pad, nodePos[lk.to].y+ny*push));
+        moved=true;
+      }
+    }
+    if(!moved)break;
+  }
+
   saveData();
 }
 

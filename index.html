@@ -108,6 +108,20 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 #mapCanvas{width:100%;height:65vh;min-height:400px;position:relative;overflow:hidden;background:#f9f9f9;border-bottom:1px solid #e5e5e5;touch-action:none;-webkit-user-select:none;user-select:none;}
 #mapSvg{position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible;}
 .map-node{cursor:grab;}.map-node:active{cursor:grabbing;}
+#mapPopup{position:absolute;display:none;background:#fff;border-radius:14px;border:1px solid #e0e0e0;box-shadow:0 4px 20px rgba(0,0,0,0.15);padding:14px 16px;min-width:220px;max-width:300px;z-index:20;pointer-events:auto;}
+#mapPopup.open{display:block;}
+.mp-badge{font-size:10px;padding:2px 8px;border-radius:99px;font-weight:600;color:#fff;display:inline-block;margin-bottom:8px;}
+.mp-title{font-size:14px;font-weight:700;line-height:1.4;margin-bottom:8px;color:#1c1c1e;}
+.mp-subject{font-size:11px;padding:2px 8px;border-radius:99px;display:inline-block;margin-bottom:8px;}
+.mp-links{display:flex;flex-direction:column;gap:4px;margin-bottom:10px;}
+.mp-link-row{display:flex;align-items:center;gap:6px;font-size:11px;}
+.mp-link-badge{padding:1px 6px;border-radius:99px;color:#fff;font-size:10px;font-weight:600;flex-shrink:0;}
+.mp-link-name{color:#007AFF;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(0,122,255,0.3);}
+.mp-goto{width:100%;padding:8px;background:#007AFF;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:2px;}
+.mp-goto:active{background:#0062cc;}
+.mp-close{position:absolute;top:8px;right:10px;background:none;border:none;font-size:18px;color:#aaa;cursor:pointer;line-height:1;padding:2px 4px;}
+.mp-close:active{color:#333;}
+.mp-no-links{font-size:11px;color:#bbb;}
 .map-node circle{transition:r 0.15s;}
 .map-node:active circle{opacity:0.8;}
 .node-selected circle{stroke-width:3px !important;}
@@ -299,6 +313,15 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
     <button class="zoom-btn" id="zoomFit">&#36969;&#21512;&#30059;&#38754;</button>
   </div>
   <div id="mapCanvas">
+  <div id="mapPopup">
+    <button class="mp-close" id="mpClose">&#215;</button>
+    <span class="mp-badge" id="mpBadge"></span>
+    <div class="mp-title" id="mpTitle"></div>
+    <span class="mp-subject" id="mpSubject"></span>
+    <div class="mp-links" id="mpLinks"></div>
+    <button class="mp-goto" id="mpGoto">&#128269; &#26597;&#30475;&#23436;&#25972;&#31558;&#35352; &#8594;</button>
+  </div>
+
     <svg id="mapSvg" style="will-change:transform;">
       <defs>
         <marker id="arrowBlue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
@@ -321,7 +344,6 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
       <g id="nodesLayer"></g>
     </svg>
   </div>
-  <div id="mapInfo">&#40670;&#25802;&#31680;&#40670;&#26597;&#30475;&#31558;&#35352;&#36039;&#35338;</div>
 </div>
 
 
@@ -752,10 +774,35 @@ function moveNodeEl(id,x,y){
   var grps=nl.querySelectorAll('.map-node');
   for(var i=0;i<grps.length;i++){
     if(parseInt(grps[i].getAttribute('data-id'))===id){
-      var circ=grps[i].querySelector('circle');
-      var txt=grps[i].querySelector('text');
-      if(circ){circ.setAttribute('cx',x);circ.setAttribute('cy',y);}
-      if(txt){txt.setAttribute('x',x);txt.setAttribute('y',y+32);}
+      var circles=grps[i].querySelectorAll('circle');
+      var texts=grps[i].querySelectorAll('text');
+      // main circle
+      if(circles[0]){
+        circles[0].setAttribute('cx',x);
+        circles[0].setAttribute('cy',y);
+      }
+      // badge circle (connection count dot)
+      if(circles[1]){
+        var r=parseFloat(circles[0].getAttribute('r'))||24;
+        circles[1].setAttribute('cx',x+r-4);
+        circles[1].setAttribute('cy',y-r+4);
+      }
+      // badge text
+      if(texts[0]){
+        var r2=parseFloat(circles[0]?circles[0].getAttribute('r'):24)||24;
+        if(texts[1]){
+          // has badge text + label text
+          texts[0].setAttribute('x',x+r2-4);
+          texts[0].setAttribute('y',y-r2+4);
+          texts[1].setAttribute('x',x);
+          texts[1].setAttribute('y',y+r2+12);
+        } else {
+          // only label text
+          var r3=parseFloat(circles[0]?circles[0].getAttribute('r'):24)||24;
+          texts[0].setAttribute('x',x);
+          texts[0].setAttribute('y',y+r3+12);
+        }
+      }
       break;
     }
   }
@@ -889,36 +936,105 @@ function drawMap(){
 }
 
 function showMapInfo(id){
-  var n=noteById(id);if(!n)return;
+  var n=noteById(id); if(!n)return;
   var tp3=typeByKey(n.type);
+  var sb=subByKey(n.subject);
   var related=links.filter(function(l){return l.from===id||l.to===id;});
-  var relHtml=related.map(function(l){
-    var otherId=l.from===id?l.to:l.from;
-    var other=noteById(otherId);
-    return'<span style="display:inline-block;background:'+l.color+';color:#fff;border-radius:99px;padding:2px 8px;font-size:11px;font-weight:600;margin:2px;">'+l.rel+' '+(other?other.title.slice(0,12):'?')+'</span>';
-  }).join('');
-  g('mapInfo').innerHTML=
-    '<span style="background:'+tp3.color+';color:#fff;border-radius:99px;padding:2px 9px;font-size:11px;font-weight:600;">'+tp3.label+'</span> '+
-    '<b style="font-size:14px;">'+n.title+'</b>'+
-    (relHtml?'<div style="margin-top:6px;">'+relHtml+'</div>':'');
+
+  g('mpBadge').textContent=tp3.label;
+  g('mpBadge').style.background=tp3.color;
+  g('mpTitle').textContent=n.title;
+  g('mpSubject').textContent=sb.label;
+  g('mpSubject').style.background=sb.color+'22';
+  g('mpSubject').style.color=sb.color;
+
+  var linksEl=g('mpLinks');
+  if(!related.length){
+    linksEl.innerHTML='<span class="mp-no-links">'+'\u5c1a\u7121\u95dc\u806f'+'</span>';
+  } else {
+    linksEl.innerHTML=related.map(function(l){
+      var otherId=l.from===id?l.to:l.from;
+      var other=noteById(otherId);
+      var dir=l.from===id?'\u2192':'\u2190';
+      var name=other?other.title:'\uff08\u5df2\u522a\u9664\uff09';
+      return('<div class="mp-link-row">'+
+        '<span class="mp-link-badge" style="background:'+l.color+'">'+dir+' '+l.rel+'</span>'+
+        '<span class="mp-link-name" data-nid="'+otherId+'">'+name.slice(0,18)+(name.length>18?'..':'')+'</span>'+
+        '</div>');
+    }).join('');
+    var jumps=linksEl.querySelectorAll('.mp-link-name');
+    for(var i=0;i<jumps.length;i++){
+      (function(el){
+        el.addEventListener('click',function(){
+          closeMapPopup();
+          var tid=parseInt(el.getAttribute('data-nid'));
+          showMapInfo(tid);
+          highlightNode(tid);
+        });
+      })(jumps[i]);
+    }
+  }
+
+  // Position popup near the node, stay within canvas
+  var canvas=g('mapCanvas');
+  var cw=canvas.offsetWidth||800, ch=canvas.offsetHeight||500;
+  var pos=nodePos[id];
+  var sx=pos.x*mapScale+mapOffX;
+  var sy=pos.y*mapScale+mapOffY;
+  var popup=g('mapPopup');
+  popup.classList.add('open');
+  var pw=popup.offsetWidth||240, ph2=popup.offsetHeight||160;
+  var px=sx+30, py=sy-ph2/2;
+  if(px+pw>cw-10) px=sx-pw-30;
+  if(px<10) px=10;
+  if(py<10) py=10;
+  if(py+ph2>ch-10) py=ch-ph2-10;
+  popup.style.left=px+'px';
+  popup.style.top=py+'px';
+
+  // goto button
+  g('mpGoto').onclick=function(){
+    closeMapPopup();
+    isMapOpen=false;
+    g('notesView').style.display='block';
+    g('mapView').classList.remove('open');
+    g('subbar').style.display='flex';
+    setTimeout(function(){openNote(id);},80);
+  };
+}
+
+function closeMapPopup(){
+  g('mapPopup').classList.remove('open');
+}
+
+function highlightNode(id){
+  var grps=g('nodesLayer').querySelectorAll('.map-node');
+  for(var i=0;i<grps.length;i++){
+    grps[i].classList.remove('map-node-highlight');
+    if(parseInt(grps[i].getAttribute('data-id'))===id)
+      grps[i].classList.add('map-node-highlight');
+  }
 }
 
 function startDrag(e,id){
   e.preventDefault();
+  e.stopPropagation();
+  closeMapPopup();
   dragNode=id;
   var pos=nodePos[id];
   var rect=g('mapCanvas').getBoundingClientRect();
-  dragOffX=e.clientX-rect.left-pos.x;
-  dragOffY=e.clientY-rect.top-pos.y;
+  // dragOff = screen offset from node center (in screen pixels)
+  dragOffX=e.clientX-rect.left-(pos.x*mapScale+mapOffX);
+  dragOffY=e.clientY-rect.top-(pos.y*mapScale+mapOffY);
 }
 function startDragTouch(e,id){
-  e.preventDefault();
+  e.stopPropagation();
   dragNode=id;
   var pos=nodePos[id];
   var rect=g('mapCanvas').getBoundingClientRect();
   var touch=e.touches[0];
-  dragOffX=touch.clientX-rect.left-pos.x;
-  dragOffY=touch.clientY-rect.top-pos.y;
+  dragOffX=touch.clientX-rect.left-(pos.x*mapScale+mapOffX);
+  dragOffY=touch.clientY-rect.top-(pos.y*mapScale+mapOffY);
 }
 
 function openTagMgr(){
@@ -1320,7 +1436,10 @@ window.addEventListener('load',function(){
     if(zlB)zlB.textContent=Math.round(sc*100)+'%';
     drawMap();
   });}
+  var mpCloseBtn=g('mpClose');
+  if(mpCloseBtn)mpCloseBtn.addEventListener('click',closeMapPopup);
   var auB=g('mapAutoBtn');
+
   if(auB){auB.addEventListener('click',function(){nodePos={};mapScale=1;mapOffX=0;mapOffY=0;forceLayout();drawMap();if(zlB)zlB.textContent='100%';showToast('\u5df2\u81ea\u52d5\u6392\u5217');});}
   // Pinch zoom
   var pinchDist=0,mc=g('mapCanvas');
@@ -1338,34 +1457,74 @@ window.addEventListener('load',function(){
 
   var canvas=g('mapCanvas');
   var rafId=null;
+  var panStart=null;
+  var panOffXStart=0,panOffYStart=0;
+
   function onDragMove(x,y){
     var rect=canvas.getBoundingClientRect();
-    var nx=x-rect.left-dragOffX, ny=y-rect.top-dragOffY;
-    nx=Math.max(22,Math.min(mapW-22,nx));
-    ny=Math.max(22,Math.min(mapH-22,ny));
-    nodePos[dragNode]={x:nx,y:ny};
+    var nx=(x-rect.left-dragOffX);
+    var ny=(y-rect.top-dragOffY);
+    // Convert screen coords to canvas coords accounting for zoom/pan
+    var cx=(nx-mapOffX)/mapScale;
+    var cy=(ny-mapOffY)/mapScale;
+    cx=Math.max(22,Math.min(mapW-22,cx));
+    cy=Math.max(22,Math.min(mapH-22,cy));
+    nodePos[dragNode]={x:cx,y:cy};
     if(rafId)cancelAnimationFrame(rafId);
     rafId=requestAnimationFrame(function(){
-      moveNodeEl(dragNode,nx,ny);
+      moveNodeEl(dragNode,cx,cy);
       redrawLines();
       rafId=null;
     });
   }
+
+  function onPanMove(x,y){
+    if(!panStart)return;
+    mapOffX=panOffXStart+(x-panStart.x);
+    mapOffY=panOffYStart+(y-panStart.y);
+    if(rafId)cancelAnimationFrame(rafId);
+    rafId=requestAnimationFrame(function(){
+      var gw=g('mapSvg').querySelector('#mapWrap');
+      if(gw)gw.setAttribute('transform','translate('+mapOffX+','+mapOffY+') scale('+mapScale+')');
+      redrawLines();
+      rafId=null;
+    });
+  }
+
+  canvas.addEventListener('mousedown',function(e){
+    if(!dragNode){
+      panStart={x:e.clientX,y:e.clientY};
+      panOffXStart=mapOffX;panOffYStart=mapOffY;
+      canvas.style.cursor='grabbing';
+    }
+  });
   canvas.addEventListener('mousemove',function(e){
-    if(!dragNode)return;
-    onDragMove(e.clientX,e.clientY);
+    if(dragNode){onDragMove(e.clientX,e.clientY);}
+    else if(panStart){onPanMove(e.clientX,e.clientY);}
   });
   canvas.addEventListener('mouseup',function(){
     if(dragNode){if(rafId)cancelAnimationFrame(rafId);saveData();dragNode=null;}
+    panStart=null;canvas.style.cursor='';
+  });
+  canvas.addEventListener('mouseleave',function(){
+    panStart=null;canvas.style.cursor='';
   });
   canvas.addEventListener('touchmove',function(e){
-    if(!dragNode)return;
-    e.preventDefault();
-    onDragMove(e.touches[0].clientX,e.touches[0].clientY);
+    if(e.touches.length===1){
+      if(dragNode){e.preventDefault();onDragMove(e.touches[0].clientX,e.touches[0].clientY);}
+      else if(panStart){e.preventDefault();onPanMove(e.touches[0].clientX,e.touches[0].clientY);}
+    }
   },{passive:false});
   canvas.addEventListener('touchend',function(){
     if(dragNode){if(rafId)cancelAnimationFrame(rafId);saveData();dragNode=null;}
+    panStart=null;
   });
+  canvas.addEventListener('touchstart',function(e){
+    if(e.touches.length===1&&!dragNode){
+      panStart={x:e.touches[0].clientX,y:e.touches[0].clientY};
+      panOffXStart=mapOffX;panOffYStart=mapOffY;
+    }
+  },{passive:true});
 
   // ===== MUSIC PLAYER INIT =====
   var musicPanel = document.getElementById('music-panel');

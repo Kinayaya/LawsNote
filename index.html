@@ -325,8 +325,10 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
     </div>
     <div id="lp-from-title" style="font-size:13px;color:#555;margin-bottom:10px;"></div>
     <label class="flbl" style="margin-top:0">&#36899;&#25509;&#21040;&#21738;&#31558;&#31558;&#35352;&#65311;</label>
-    <select class="fs" id="lp-target"></select>
-    <label class="flbl">&#38364;&#20418;&#39006;&#22411;</label>
+    <div style="display:flex;gap:8px;margin-bottom:6px;"><input class="fi" id="lp-search" placeholder="&#128269; &#25628;&#23563;&#27161;&#38988;&#12289;&#31185;&#30446;..." style="flex:1;margin-bottom:0;"><select class="fs" id="lp-filter-sub" style="min-width:90px;margin-bottom:0;"><option value="all">&#20840;&#37096;&#31185;&#30446;</option></select></div>
+    <select class="fs" id="lp-target" size="6" style="height:150px;background:#f8f8f8;font-size:12px;"></select>
+    <div id="lp-count" style="font-size:11px;color:#aaa;margin:3px 0 6px;"></div>
+    <label class="flbl" style="margin-top:4px;">&#38364;&#20418;&#39006;&#22411;</label>
     <div class="rel-btns" id="relBtns"></div>
     <input class="fi" id="lp-rel-custom" placeholder="&#25110;&#36664;&#20837;&#33258;&#35330;&#38364;&#20418;..." style="margin-top:8px;">
     <div class="frow">
@@ -699,14 +701,32 @@ function deleteNote(){
   saveData();closeDetail();render();showToast('\u5df2\u522a\u9664');
 }
 
+function buildLpTarget(){
+  var sel=g('lp-target');
+  var sq=(g('lp-search').value||'').toLowerCase();
+  var sf=g('lp-filter-sub').value||'all';
+  var filtered=notes.filter(function(x){
+    if(x.id===openId)return false;
+    if(sf!=='all'&&x.subject!==sf)return false;
+    if(sq&&(x.title+' '+x.subject).toLowerCase().indexOf(sq)===-1)return false;
+    return true;
+  });
+  sel.innerHTML=filtered.map(function(x){
+    return'<option value="'+x.id+'">['+typeByKey(x.type).label+'] '+x.subject+' - '+x.title+'</option>';
+  }).join('');
+  var cnt=g('lp-count');if(cnt)cnt.textContent='\u5171 '+filtered.length+' \u7b46';
+}
+
 function openLinkPanel(){
   if(!openId)return;
   var n=noteById(openId);
   g('lp-from-title').textContent='\u5f9e\uff1a'+n.title;
+  var sfSel=g('lp-filter-sub');
+  sfSel.innerHTML='<option value="all">\u5168\u90e8\u79d1\u76ee</option>'+subjects.map(function(s){return'<option value="'+s.key+'">'+s.label+'</option>';}).join('');
+  sfSel.value='all';
+  g('lp-search').value='';
+  buildLpTarget();
   var sel=g('lp-target');
-  sel.innerHTML=notes.filter(function(x){return x.id!==openId;}).map(function(x){
-    return'<option value="'+x.id+'">'+x.title+'</option>';
-  }).join('');
   selectedRel=REL_TYPES[0];
   var rb=g('relBtns');
   rb.innerHTML=REL_TYPES.map(function(r){
@@ -1487,9 +1507,12 @@ function execShortcut(id){
 var sortMode='date_desc';
 function sortedNotes(arr){var a=arr.slice();if(sortMode==='date_desc')a.sort(function(x,y){return y.date.localeCompare(x.date)||y.id-x.id;});else if(sortMode==='date_asc')a.sort(function(x,y){return x.date.localeCompare(y.date)||x.id-y.id;});else if(sortMode==='title_asc')a.sort(function(x,y){return x.title.localeCompare(y.title,'zh');});else if(sortMode==='title_desc')a.sort(function(x,y){return y.title.localeCompare(x.title,'zh');});else if(sortMode==='subject')a.sort(function(x,y){return x.subject.localeCompare(y.subject,'zh')||x.title.localeCompare(y.title,'zh');});else if(sortMode==='type')a.sort(function(x,y){return x.type.localeCompare(y.type)||x.title.localeCompare(y.title,'zh');});return a;}
 function openStats(){var sp=g('statsPanel');if(sp.classList.contains('open')){sp.classList.remove('open');return;}var total=notes.length,byT={},byS={};for(var i=0;i<notes.length;i++){var n_=notes[i];byT[n_.type]=(byT[n_.type]||0)+1;byS[n_.subject]=(byS[n_.subject]||0)+1;}var lnk={};for(var i=0;i<links.length;i++){lnk[links[i].from]=true;lnk[links[i].to]=true;}var lc_=Object.keys(lnk).length;var h_='<div class="stats-grid"><div class="stat-card"><div class="stat-num">'+total+'</div><div class="stat-lbl">'+'\u7b46\u8a18\u7e3d\u6578'+'</div></div><div class="stat-card"><div class="stat-num">'+links.length+'</div><div class="stat-lbl">'+'\u95dc\u806f\u6578\u91cf'+'</div></div><div class="stat-card"><div class="stat-num">'+lc_+'</div><div class="stat-lbl">'+'\u6709\u95dc\u806f\u7b46\u8a18'+'</div></div><div class="stat-card"><div class="stat-num">'+subjects.length+'</div><div class="stat-lbl">'+'\u79d1\u76ee\u6578'+'</div></div></div>';h_+='<div style="font-size:11px;font-weight:700;color:#888;margin-bottom:8px;text-transform:uppercase;">'+'\u5404\u79d1\u76ee\u7b46\u8a18\u6578'+'</div>';Object.keys(byS).sort(function(a_,b_){return byS[b_]-byS[a_];}).forEach(function(sk_){var s_=subByKey(sk_),c_=byS[sk_],p_=Math.round(c_/Math.max(total,1)*100);h_+='<div class="stats-bar-row"><span class="stats-bar-label">'+s_.label+'</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:'+p_+'%;background:'+s_.color+'"></div></div><span class="stats-bar-count">'+c_+'</span></div>';});h_+='<div style="font-size:11px;font-weight:700;color:#888;margin:12px 0 8px;text-transform:uppercase;">'+'\u5404\u985e\u578b\u7b46\u8a18\u6578'+'</div>';Object.keys(byT).sort(function(a_,b_){return byT[b_]-byT[a_];}).forEach(function(tk_){var t_=typeByKey(tk_),c_=byT[tk_],p_=Math.round(c_/Math.max(total,1)*100);h_+='<div class="stats-bar-row"><span class="stats-bar-label">'+t_.label+'</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:'+p_+'%;background:'+t_.color+'"></div></div><span class="stats-bar-count">'+c_+'</span></div>';});sp.innerHTML=h_;sp.classList.add('open');setTimeout(function(){sp.scrollIntoView({behavior:'smooth',block:'nearest'});},60);}
-var flashDeck=[],flashIdx=0,flashShowing=false,flashSubFilter='all',flashHard=[];
-function buildFlashDeck(){var pool=notes.filter(function(n_){return flashSubFilter==='all'||n_.subject===flashSubFilter;});for(var i=pool.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var tmp=pool[i];pool[i]=pool[j];pool[j]=tmp;}flashDeck=pool;flashIdx=0;flashShowing=false;flashHard=[];}
-function openFlash(){var fs_=g('flashFilter');fs_.innerHTML='<option value="all">'+'\u5168\u90e8\u79d1\u76ee'+'</option>'+subjects.map(function(s_){return'<option value="'+s_.key+'">'+s_.label+'</option>';}).join('');fs_.value=flashSubFilter;buildFlashDeck();
+var flashDeck=[],flashIdx=0,flashShowing=false,flashSubFilter='all',flashTypeFilter2='all',flashHard=[];
+function buildFlashDeck(){var pool=notes.filter(function(n_){if(flashSubFilter!=='all'&&n_.subject!==flashSubFilter)return false;if(flashTypeFilter2!=='all'&&n_.type!==flashTypeFilter2)return false;return true;});for(var i=pool.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var tmp=pool[i];pool[i]=pool[j];pool[j]=tmp;}flashDeck=pool;flashIdx=0;flashShowing=false;flashHard=[];}
+function openFlash(){var fs_=g('flashFilter');fs_.innerHTML='<option value="all">'+'\u5168\u90e8\u79d1\u76ee'+'</option>'+subjects.map(function(s_){return'<option value="'+s_.key+'">'+s_.label+'</option>';}).join('');fs_.value=flashSubFilter;
+  var ftf2_=g('flashTypeFilter');
+  if(ftf2_){ftf2_.innerHTML='<option value="all">'+'\u5168\u90e8\u985e\u578b'+'</option>'+types.map(function(t_){return'<option value="'+t_.key+'">'+t_.label+'</option>';}).join('');ftf2_.value=flashTypeFilter2;}
+  buildFlashDeck();
 if(flashDeck.length===0){showToast('\u6b64\u79d1\u76ee\u6c92\u6709\u7b46\u8a18');return;}
 g('notesView').style.display='none';g('flashView').classList.add('open');renderFlashCard();}
 function closeFlash(){g('flashView').classList.remove('open');g('notesView').style.display='block';}
@@ -1642,6 +1665,8 @@ window.addEventListener('load',function(){
   var fsh_=g('flashShuffleBtn');if(fsh_)fsh_.addEventListener('click',function(){buildFlashDeck();renderFlashCard();});
   var frs_=g('flashRestartBtn');if(frs_)frs_.addEventListener('click',function(){buildFlashDeck();renderFlashCard();});
   var ffil_=g('flashFilter');if(ffil_)ffil_.addEventListener('change',function(){flashSubFilter=ffil_.value;buildFlashDeck();renderFlashCard();});
+  var fftf2_=g('flashTypeFilter');if(fftf2_)fftf2_.addEventListener('change',function(){flashTypeFilter2=fftf2_.value;buildFlashDeck();renderFlashCard();});
+
   var ftv_=g('ft');if(ftv_)ftv_.addEventListener('change',function(){toggleTemplate(ftv_.value==='case');});
   var si=g('searchInput'),sc=g('searchClear');
   si.addEventListener('input',function(){searchQ=si.value;sc.style.display=searchQ?'block':'none';render();});
@@ -1653,6 +1678,9 @@ window.addEventListener('load',function(){
   g('lpSave').addEventListener('click',saveLinkPanel);
   g('lpClose').addEventListener('click',function(){g('lp').classList.remove('open');g('dp').classList.add('open');});
   g('lpCancel').addEventListener('click',function(){g('lp').classList.remove('open');g('dp').classList.add('open');});
+  var lpSr=g('lp-search');if(lpSr)lpSr.addEventListener('input',buildLpTarget);
+  var lpFb=g('lp-filter-sub');if(lpFb)lpFb.addEventListener('change',buildLpTarget);
+
   g('dpClose').addEventListener('click',closeDetail);
   g('fpClose').addEventListener('click',closeForm);g('fpCancel').addEventListener('click',closeForm);
   g('fpSave').addEventListener('click',saveNote);
@@ -1979,7 +2007,7 @@ window.addEventListener('load',function(){
 </script>
 
 <div id="flashView">
-<div id="flashToolbar"><button class="add-btn" style="font-size:12px;padding:5px 12px;" id="flashBackBtn">&#8592; &#36820;&#22238;</button><span id="flashProgress"></span><select id="flashFilter" class="map-filter-sel"><option value="all">&#20840;&#37096;&#31185;&#30446;</option></select><button class="tool-btn" id="flashShuffleBtn">&#127922; &#38568;&#27231;</button><button class="tool-btn" id="flashRestartBtn">&#8634; &#37325;&#26032;&#38283;&#22987;</button></div>
+<div id="flashToolbar"><button class="add-btn" style="font-size:12px;padding:5px 12px;" id="flashBackBtn">&#8592; &#36820;&#22238;</button><span id="flashProgress"></span><select id="flashFilter" class="map-filter-sel"><option value="all">&#20840;&#37096;&#31185;&#30446;</option></select><select id="flashTypeFilter" class="map-filter-sel"><option value="all">&#20840;&#37096;&#39006;&#22411;</option></select><button class="tool-btn" id="flashShuffleBtn">&#127922; &#38568;&#27231;</button><button class="tool-btn" id="flashRestartBtn">&#8634; &#37325;&#26032;&#38283;&#22987;</button></div>
 <div id="flashProgressBar"><div id="flashProgressFill" style="width:0%"></div></div>
 <div id="flashBody"></div>
 </div>

@@ -3,12 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>&#27861;&#24459;&#23416;&#32722;&#31558;&#35352;</title>
+<title>KLaws</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 38 38'><rect width='38' height='38' rx='11' fill='%230f172a'/><rect x='10' y='9' width='3.5' height='20' rx='1.2' fill='%234a9eff'/><rect x='13.5' y='9' width='14' height='3.2' rx='1' fill='%234a9eff' transform='rotate(35 13.5 9)'/><rect x='13.5' y='26.8' width='14' height='3.2' rx='1' fill='%234a9eff' transform='rotate(-35 13.5 26.8)'/><circle cx='30' cy='10' r='2' fill='%23a0c4ff'/></svg>">
+
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,"PingFang TC",sans-serif;font-size:14px;background:#f2f2f7;color:#1c1c1e;}
 button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appearance:none;}
 .sync-bar{background:#E6F1FB;border-bottom:1px solid #B5D4F4;padding:7px 14px;font-size:12px;color:#0C447C;display:flex;align-items:center;gap:6px;}
+.brand-wrap{display:flex;align-items:center;gap:9px;flex-shrink:0;}
+.klaws-logo{flex-shrink:0;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(26,26,46,0.18);}
+.brand-text{display:flex;flex-direction:column;line-height:1.1;}
+.brand-name{font-size:17px;font-weight:800;letter-spacing:-0.5px;color:#1a1a2e;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",sans-serif;}
+.brand-by{font-size:10px;color:#888;font-weight:400;letter-spacing:0.3px;margin-top:1px;}
 #topbar{background:#fff;padding:10px 14px 8px;border-bottom:1px solid #e5e5e5;position:sticky;top:0;z-index:50;}
 .title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;}
 .app-title{font-size:16px;font-weight:700;flex-shrink:0;}
@@ -117,7 +124,29 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 </div>
 <div id="topbar">
   <div class="title-row">
-    <span class="app-title">&#9878; &#27861;&#24459;&#31558;&#35352;</span>
+    <div class="brand-wrap">
+      <div class="klaws-logo" aria-label="KLaws">
+        <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Background -->
+          <rect width="38" height="38" rx="11" fill="#0f172a"/>
+          <!-- Subtle grid lines for legal/structured feel -->
+          <line x1="0" y1="19" x2="38" y2="19" stroke="#4a9eff" stroke-width="0.4" opacity="0.2"/>
+          <!-- K letterform: pure geometric paths -->
+          <!-- Vertical stroke of K -->
+          <rect x="10" y="9" width="3.5" height="20" rx="1.2" fill="#4a9eff"/>
+          <!-- Upper diagonal of K -->
+          <rect x="13.5" y="9" width="14" height="3.2" rx="1" fill="#4a9eff" transform="rotate(35 13.5 9)"/>
+          <!-- Lower diagonal of K -->
+          <rect x="13.5" y="26.8" width="14" height="3.2" rx="1" fill="#4a9eff" transform="rotate(-35 13.5 26.8)"/>
+          <!-- Small accent dot: top right -->
+          <circle cx="30" cy="10" r="2" fill="#a0c4ff" opacity="0.7"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <span class="brand-name">KLaws</span>
+        <span class="brand-by">by Kina</span>
+      </div>
+    </div>
     <div class="search-wrap">
       <span class="search-icon">&#128269;</span>
       <input id="searchInput" placeholder="&#25628;&#23563;&#27161;&#38988;&#12289;&#27161;&#31844;...">

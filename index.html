@@ -107,6 +107,35 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 .link-del{padding:3px 8px;border-radius:6px;border:1px solid #FFCDD2;background:#FFF0F0;font-size:11px;color:#D92B2B;cursor:pointer;}
 .rel-btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
 .rel-btn{padding:5px 12px;border-radius:99px;border:2px solid;font-size:12px;font-weight:600;cursor:pointer;background:#fff;}
+
+/* ===== MUSIC PLAYER ===== */
+#music-fab{position:fixed;bottom:24px;right:20px;z-index:200;display:flex;flex-direction:column;align-items:flex-end;gap:8px;}
+#music-toggle{width:48px;height:48px;border-radius:50%;background:#0f172a;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,0.25);transition:transform 0.2s;}
+#music-toggle:active{transform:scale(0.92);}
+#music-toggle svg{width:22px;height:22px;}
+#music-panel{display:none;background:#0f172a;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,0.3);width:320px;overflow:hidden;}
+#music-panel.open{display:block;}
+#music-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 10px;}
+#music-title{font-size:13px;font-weight:600;color:#e2e8f0;letter-spacing:0.2px;}
+#music-close{background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;line-height:1;padding:2px 4px;}
+#music-close:active{color:#e2e8f0;}
+#music-url-row{display:flex;gap:8px;padding:0 14px 10px;}
+#music-url-input{flex:1;padding:7px 10px;border:1px solid #334155;border-radius:8px;font-size:12px;background:#1e293b;color:#e2e8f0;font-family:inherit;outline:none;}
+#music-url-input:focus{border-color:#4a9eff;}
+#music-url-input::placeholder{color:#64748b;}
+#music-load-btn{padding:7px 12px;background:#4a9eff;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;}
+#music-load-btn:active{background:#2563eb;}
+#music-frame-wrap{position:relative;width:100%;height:0;padding-bottom:56.25%;background:#000;}
+#music-frame-wrap iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none;}
+#music-note{padding:8px 14px 12px;font-size:11px;color:#64748b;line-height:1.5;}
+#music-presets{display:flex;gap:6px;padding:0 14px 10px;flex-wrap:wrap;}
+.music-preset{padding:4px 10px;border-radius:99px;border:1px solid #334155;background:none;font-size:11px;color:#94a3b8;cursor:pointer;font-family:inherit;}
+.music-preset:active{background:#1e293b;color:#e2e8f0;}
+/* pulsing note icon when playing */
+#music-toggle.playing{background:#1e3a5f;}
+@keyframes pulse-music{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
+#music-toggle.playing{animation:pulse-music 2s infinite;}
+/* ===== END MUSIC PLAYER ===== */
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.75);color:#fff;padding:9px 20px;border-radius:99px;font-size:13px;z-index:999;display:none;white-space:nowrap;}
 .sc-item{display:flex;align-items:center;gap:10px;background:#f8f8f8;border-radius:10px;padding:9px 12px;border:1px solid #eee;}
 .sc-label{flex:1;font-size:13px;color:#333;font-weight:500;}
@@ -1112,6 +1141,134 @@ window.addEventListener('load',function(){
     if(dragNode){if(rafId)cancelAnimationFrame(rafId);saveData();dragNode=null;}
   });
 });
+
+// ===== MUSIC PLAYER =====
+(function(){
+  var panel = document.getElementById('music-panel');
+  var toggle = document.getElementById('music-toggle');
+  var closeBtn = document.getElementById('music-close');
+  var urlInput = document.getElementById('music-url-input');
+  var loadBtn = document.getElementById('music-load-btn');
+  var iframe = document.getElementById('music-iframe');
+  var isPlaying = false;
+
+  function extractVideoId(str) {
+    str = (str || '').trim();
+    // Already an ID (11 chars alphanumeric)
+    if (/^[a-zA-Z0-9_-]{11}$/.test(str)) return {type:'video', id:str};
+    // youtube.com/watch?v=ID
+    var m = str.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+    if (m) return {type:'video', id:m[1]};
+    // youtu.be/ID
+    m = str.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+    if (m) return {type:'video', id:m[1]};
+    // playlist
+    m = str.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+    if (m) return {type:'playlist', id:m[1]};
+    // youtube.com/embed/ID
+    m = str.match(/embed\/([a-zA-Z0-9_-]{11})/);
+    if (m) return {type:'video', id:m[1]};
+    return null;
+  }
+
+  function loadVideo(str) {
+    var result = extractVideoId(str);
+    if (!result) {
+      showToast('\u8acb\u8f38\u5165\u6709\u6548\u7684 YouTube \u7db2\u5740');
+      return;
+    }
+    var src;
+    if (result.type === 'playlist') {
+      src = 'https://www.youtube.com/embed/videoseries?list=' + result.id + '&autoplay=1&loop=1';
+    } else {
+      src = 'https://www.youtube.com/embed/' + result.id + '?autoplay=1&loop=1&playlist=' + result.id;
+    }
+    iframe.src = src;
+    isPlaying = true;
+    toggle.classList.add('playing');
+    // Save last URL
+    try { localStorage.setItem('klaws_music_last', str); } catch(e){}
+  }
+
+  toggle.addEventListener('click', function(){
+    if (panel.classList.contains('open')) {
+      panel.classList.remove('open');
+    } else {
+      panel.classList.add('open');
+    }
+  });
+
+  closeBtn.addEventListener('click', function(){
+    panel.classList.remove('open');
+  });
+
+  loadBtn.addEventListener('click', function(){
+    loadVideo(urlInput.value);
+    panel.classList.remove('open');
+  });
+
+  urlInput.addEventListener('keydown', function(e){
+    if (e.key === 'Enter') { loadVideo(urlInput.value); panel.classList.remove('open'); }
+  });
+
+  // Preset buttons
+  var presets = document.querySelectorAll('.music-preset');
+  for (var i = 0; i < presets.length; i++) {
+    (function(btn){
+      btn.addEventListener('click', function(){
+        var vid = btn.getAttribute('data-vid');
+        urlInput.value = vid;
+        loadVideo(vid);
+        panel.classList.remove('open');
+      });
+    })(presets[i]);
+  }
+
+  // Restore last URL
+  try {
+    var last = localStorage.getItem('klaws_music_last');
+    if (last) urlInput.value = last;
+  } catch(e){}
+})();
+// ===== END MUSIC PLAYER =====
+
 </script>
+
+<!-- ===== MUSIC PLAYER ===== -->
+<div id="music-fab">
+  <div id="music-panel">
+    <div id="music-header">
+      <span id="music-title">&#127926; &#32972;&#26223;&#38899;&#27138;</span>
+      <button id="music-close">&#215;</button>
+    </div>
+    <div id="music-presets">
+      <button class="music-preset" data-vid="jfKfPfyJRdk">Lo-fi</button>
+      <button class="music-preset" data-vid="5qap5aO4i9A">Chill</button>
+      <button class="music-preset" data-vid="DWcJFNfaw9c">&#21476;&#20856;</button>
+      <button class="music-preset" data-vid="n61ULEU7CO0">&#29237;&#22763;</button>
+    </div>
+    <div id="music-url-row">
+      <input id="music-url-input" placeholder=+ent('貼上 YouTube 網址或影片 ID...')+>
+      <button id="music-load-btn">&#25773;&#25918;</button>
+    </div>
+    <div id="music-frame-wrap">
+      <iframe id="music-iframe"
+        src=""
+        allow="autoplay; encrypted-media"
+        allowfullscreen>
+      </iframe>
+    </div>
+    <div id="music-note">&#9432; &#25552;&#31034;&#65306;&#25773;&#25918;&#24460;&#21487;&#25910;&#36215;&#38754;&#26495;&#65292;&#38899;&#27138;&#32380;&#32396;&#25773;&#25918;&#12290;&#25903;&#25588; YouTube &#24433;&#29255;&#25110;&#27468;&#21934;&#36899;&#32080;&#12290;</div>
+  </div>
+  <button id="music-toggle" title="&#32972;&#26223;&#38899;&#27138;">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#4a9eff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 18V5l12-2v13"/>
+      <circle cx="6" cy="18" r="3"/>
+      <circle cx="18" cy="16" r="3"/>
+    </svg>
+  </button>
+</div>
+<!-- ===== END MUSIC PLAYER ===== -->
+
 </body>
 </html>

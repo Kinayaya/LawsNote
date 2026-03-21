@@ -401,10 +401,18 @@ function renderLinksForNote(id){
     return'<div class="link-item">'+
       '<div class="link-dot" style="background:'+l.color+'"></div>'+
       '<span class="link-rel" style="background:'+l.color+'">'+dir+' '+l.rel+'</span>'+
-      '<span class="link-title">'+(other?other.title:'\uff08\u5df2\u522a\u9664\uff09')+'</span>'+
+      '<span class="link-title link-jump" data-nid="'+otherId+'" style="cursor:pointer;color:#007AFF;text-decoration:underline;text-decoration-color:rgba(0,122,255,0.3);">'+(other?other.title:'\uff08\u5df2\u522a\u9664\uff09')+'</span>'+
       '<button class="link-del" data-lid="'+l.id+'">&#215;</button>'+
       '</div>';
   }).join('');
+  var jumps=el.querySelectorAll('.link-jump');
+  for(var i=0;i<jumps.length;i++){
+    (function(btn){btn.addEventListener('click',function(){
+      var nid2=parseInt(btn.getAttribute('data-nid'));
+      if(noteById(nid2))openNote(nid2);
+      else showToast('\u7b46\u8a18\u5df2\u88ab\u522a\u9664');
+    });})(jumps[i]);
+  }
   var dels=el.querySelectorAll('.link-del');
   for(var i=0;i<dels.length;i++){
     (function(btn){btn.addEventListener('click',function(){

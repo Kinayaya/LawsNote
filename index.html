@@ -204,6 +204,24 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 .dispute-section{background:#f8f8f8;border-radius:10px;padding:10px 12px;margin-bottom:8px;border-left:3px solid #007AFF;}
 .dispute-section-title{font-size:10px;font-weight:700;color:#007AFF;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;}
 .dispute-section-body{font-size:13px;color:#333;line-height:1.7;white-space:pre-wrap;}
+
+/* ── Multi-select ── */
+#selectBar{display:none;background:#1a1a2e;padding:8px 14px;border-bottom:1px solid #0f172a;position:sticky;top:0;z-index:51;align-items:center;gap:10px;flex-wrap:wrap;}
+#selectBar.open{display:flex;}
+#selectCount{font-size:13px;font-weight:600;color:#e2e8f0;flex:1;}
+.sel-btn{padding:6px 14px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+#selAllBtn{background:#334155;color:#e2e8f0;}
+#selAllBtn:active{background:#475569;}
+#selDeleteBtn{background:#D92B2B;color:#fff;}
+#selDeleteBtn:active{background:#b91c1c;}
+#selCancelBtn{background:#334155;color:#e2e8f0;}
+#selCancelBtn:active{background:#475569;}
+.card.selectable{cursor:pointer;}
+.card.selectable:active{background:#f0f7ff;}
+.card.selected{background:#EBF4FF;border-color:#007AFF;border-width:2px;}
+.card .sel-check{display:none;position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;border:2px solid #bbb;background:#fff;align-items:center;justify-content:center;font-size:13px;color:#007AFF;flex-shrink:0;z-index:2;}
+.card.selectable .sel-check{display:flex;}
+.card.selected .sel-check{background:#007AFF;border-color:#007AFF;color:#fff;}
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.75);color:#fff;padding:9px 20px;border-radius:99px;font-size:13px;z-index:999;display:none;white-space:nowrap;}
 .sc-item{display:flex;align-items:center;gap:10px;background:#f8f8f8;border-radius:10px;padding:9px 12px;border:1px solid #eee;}
 .sc-label{flex:1;font-size:13px;color:#333;font-weight:500;}
@@ -245,11 +263,13 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
       <button class="tool-btn" id="exportBtn">&#8593; &#21295;&#20986;</button>
       <label class="tool-btn" for="importFile" style="cursor:pointer;display:inline-block;">&#8595; &#21295;&#20837;</label>
       <input type="file" id="importFile" accept=".json" style="display:none">
+      <button class="tool-btn" id="multiSelBtn" style="background:#f0f0f0;">&#9745; &#22810;&#36984;</button>
       <button class="add-btn" id="addBtn">+ &#26032;&#22686;</button>
     </div>
   </div>
   <div class="filter-row" id="typeRow"></div>
 </div>
+<div id="selectBar"><span id="selectCount"></span><button class="sel-btn" id="selAllBtn">&#20840;&#36984;</button><button class="sel-btn" id="selDeleteBtn">&#128465; &#21034;&#38500;&#36984;&#21462;</button><button class="sel-btn" id="selCancelBtn">&#21462;&#28040;</button></div>
 <div id="subbar"></div>
 <div id="search-results-bar"></div>
 <div id="sortBar"><label>&#25490;&#24207;&#65306;</label><select id="sortSelect"><option value="date_desc">&#26368;&#26032;&#20778;&#20808;</option><option value="date_asc">&#26368;&#33290;&#20778;&#20808;</option><option value="title_asc">&#27161;&#38988; A-Z</option><option value="title_desc">&#27161;&#38988; Z-A</option><option value="subject">&#20381;&#31185;&#30446;</option><option value="type">&#20381;&#39006;&#22411;</option></select><button class="tool-btn" id="statsBtn" style="margin-left:auto;">&#128202; &#32113;&#35336;</button><button class="tool-btn" id="flashBtn">&#127183; &#35079;&#32722;</button></div>
@@ -462,7 +482,7 @@ function loadData(){
 }
 
 function saveData(){
-  try{localStorage.setItem(SKEY,JSON.stringify({notes:notes,links:links,nid:nid,lid:lid,types:types,subjects:subjects,nodePos:nodePos}));}catch(e){}
+  try{localStorage.setItem(SKEY,JSON.stringify({notes:notes,links:links,nid:nid,lid:lid,types:types,subjects:subjects,nodePos:nodePos,sortMode:sortMode}));}catch(e){}
 }
 
 function typeByKey(k){for(var i=0;i<types.length;i++){if(types[i].key===k)return types[i];}return{key:k,label:k,color:'#888'};}
@@ -529,7 +549,7 @@ function render(){
     var chips=n.tags.slice(0,2).map(function(t){return'<span class="chip">'+hl(t,q)+'</span>';}).join('');
     var lc=links.filter(function(l){return l.from===n.id||l.to===n.id;}).length;
     var linkBadge=lc>0?'<span class="chip" style="background:#EAF3DE;border-color:#97C459;color:#3B6D11;">&#128279; '+lc+'</span>':'';
-    return'<div class="card" data-id="'+n.id+'">'+
+    return'<div class="card" data-id="'+n.id+'">'+'<div class="sel-check"></div>'+
       '<div class="cbar" style="background:'+tp.color+'"></div>'+
       '<div class="ctop"><span class="ctag" style="background:'+tp.color+'">'+tp.label+'</span><span class="cdate">'+n.date+'</span></div>'+
       '<div class="ctitle">'+hl(n.title,q)+'</div>'+
@@ -537,7 +557,21 @@ function render(){
       '<div class="cfoot"><span class="chip" style="background:'+lightC(sb2.color)+';color:'+darkC(sb2.color)+';border-color:'+lightC(sb2.color)+'">'+sb2.label+'</span>'+chips+linkBadge+'</div></div>';
   }).join('');
   var cards=grid.querySelectorAll('.card');
-  for(var i=0;i<cards.length;i++){(function(c){c.addEventListener('click',function(){openNote(parseInt(c.getAttribute('data-id')));});})(cards[i]);}
+  for(var i=0;i<cards.length;i++){
+    if(multiSelMode) cards[i].classList.add('selectable');
+    if(selectedIds[parseInt(cards[i].getAttribute('data-id'))]){
+      cards[i].classList.add('selected');
+      var chk=cards[i].querySelector('.sel-check');
+      if(chk)chk.textContent='\u2713';
+    }
+    (function(c){
+      c.addEventListener('click',function(){
+        var cid=parseInt(c.getAttribute('data-id'));
+        if(multiSelMode){toggleCardSelect(cid);}
+        else{openNote(cid);}
+      });
+    })(cards[i]);
+  }
 }
 
 function openNote(id){
@@ -1480,10 +1514,118 @@ function renderFlashCard(){
   updateFlashProgress();
 }
 function toggleTemplate(show){var tt=g('templateToggle');if(tt)tt.style.display=show?'block':'none';}
+
+// \u2500\u2500 MULTI-SELECT \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+var multiSelMode = false;
+var selectedIds = {};
+
+function enterMultiSel() {
+  multiSelMode = true;
+  selectedIds = {};
+  g('selectBar').classList.add('open');
+  g('multiSelBtn').style.background = '#1a1a2e';
+  g('multiSelBtn').style.color = '#fff';
+  g('dp').classList.remove('open');
+  g('fp').classList.remove('open');
+  updateSelBar();
+  render();
+}
+
+function exitMultiSel() {
+  multiSelMode = false;
+  selectedIds = {};
+  g('selectBar').classList.remove('open');
+  g('multiSelBtn').style.background = '#f0f0f0';
+  g('multiSelBtn').style.color = '';
+  render();
+}
+
+function updateSelBar() {
+  var count = Object.keys(selectedIds).length;
+  g('selectCount').textContent = '\u5df2\u9078 ' + count + ' \u7b46';
+  g('selDeleteBtn').disabled = count === 0;
+  g('selDeleteBtn').style.opacity = count === 0 ? '0.4' : '1';
+}
+
+function toggleCardSelect(id) {
+  if (selectedIds[id]) {
+    delete selectedIds[id];
+  } else {
+    selectedIds[id] = true;
+  }
+  updateSelBar();
+  // Update card appearance
+  var cards = g('grid').querySelectorAll('.card');
+  for (var i = 0; i < cards.length; i++) {
+    var cid = parseInt(cards[i].getAttribute('data-id'));
+    if (cid === id) {
+      if (selectedIds[id]) {
+        cards[i].classList.add('selected');
+        var chk = cards[i].querySelector('.sel-check');
+        if (chk) chk.textContent = '\u2713';
+      } else {
+        cards[i].classList.remove('selected');
+        var chk = cards[i].querySelector('.sel-check');
+        if (chk) chk.textContent = '';
+      }
+      break;
+    }
+  }
+}
+
+function selectAll() {
+  var cards = g('grid').querySelectorAll('.card');
+  var allSelected = Object.keys(selectedIds).length === cards.length;
+  if (allSelected) {
+    // Deselect all
+    selectedIds = {};
+    for (var i = 0; i < cards.length; i++) {
+      cards[i].classList.remove('selected');
+      var chk = cards[i].querySelector('.sel-check');
+      if (chk) chk.textContent = '';
+    }
+  } else {
+    // Select all visible
+    for (var i = 0; i < cards.length; i++) {
+      var cid = parseInt(cards[i].getAttribute('data-id'));
+      selectedIds[cid] = true;
+      cards[i].classList.add('selected');
+      var chk = cards[i].querySelector('.sel-check');
+      if (chk) chk.textContent = '\u2713';
+    }
+  }
+  updateSelBar();
+}
+
+function deleteSelected() {
+  var ids = Object.keys(selectedIds);
+  if (!ids.length) return;
+  var count = ids.length;
+  if (!confirm('\u78ba\u5b9a\u522a\u9664\u9019 ' + count + ' \u7b46\u7b46\u8a18\uff1f\u6b64\u64cd\u4f5c\u7121\u6cd5\u5fa9\u539f\u3002')) return;
+  // Delete links too
+  var idNums = ids.map(function(x){ return parseInt(x); });
+  links = links.filter(function(l){
+    return idNums.indexOf(l.from) === -1 && idNums.indexOf(l.to) === -1;
+  });
+  notes = notes.filter(function(n){
+    return !selectedIds[n.id];
+  });
+  saveData();
+  exitMultiSel();
+  showToast('\u5df2\u522a\u9664 ' + count + ' \u7b46\u7b46\u8a18');
+}
+// \u2500\u2500 END MULTI-SELECT \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 window.addEventListener('load',function(){
-  loadData();buildTypeRow();buildSubRow();buildFormSelects();render();
+  loadData();buildTypeRow();buildSubRow();buildFormSelects();
+  var ss0_=g('sortSelect');if(ss0_)ss0_.value=sortMode;
+  render();
 
   var ss_=g('sortSelect');if(ss_)ss_.addEventListener('change',function(){sortMode=ss_.value;render();});
+  g('multiSelBtn').addEventListener('click',function(){if(multiSelMode)exitMultiSel();else enterMultiSel();});
+  g('selAllBtn').addEventListener('click',selectAll);
+  g('selDeleteBtn').addEventListener('click',deleteSelected);
+  g('selCancelBtn').addEventListener('click',exitMultiSel);
+
   var stB_=g('statsBtn');if(stB_)stB_.addEventListener('click',openStats);
   var flB_=g('flashBtn');if(flB_)flB_.addEventListener('click',openFlash);
   var fbk_=g('flashBackBtn');if(fbk_)fbk_.addEventListener('click',closeFlash);

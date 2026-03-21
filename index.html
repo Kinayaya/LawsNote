@@ -778,16 +778,18 @@ function importData(file){
 
 
 // ===== SHORTCUTS =====
+// Use e.code (physical key position) so Alt/Ctrl modifiers don't change the key value
+// e.g. Alt+N: e.key='\u00f1' but e.code='KeyN' - we always use e.code
 var DEFAULT_SHORTCUTS = [
-  {id:'new',     label:'\u65b0\u589e\u7b46\u8a18',      key:'n', ctrl:false, shift:false, alt:true},
-  {id:'search',  label:'\u641c\u5c0b',          key:'f', ctrl:false, shift:false, alt:true},
-  {id:'map',     label:'\u958b\u555f\u9ad4\u7cfb\u5716',    key:'m', ctrl:false, shift:false, alt:true},
-  {id:'back',    label:'\u8fd4\u56de\u7b46\u8a18\u5217\u8868',  key:'Escape', ctrl:false, shift:false, alt:false},
-  {id:'close',   label:'\u95dc\u9589\u9762\u677f',      key:'w', ctrl:false, shift:false, alt:true},
-  {id:'edit',    label:'\u7de8\u8f2f\u7576\u524d\u7b46\u8a18',  key:'e', ctrl:false, shift:false, alt:true},
-  {id:'link',    label:'\u65b0\u589e\u95dc\u806f',      key:'l', ctrl:false, shift:false, alt:true},
-  {id:'export',  label:'\u532f\u51fa\u5099\u4efd',      key:'s', ctrl:false, shift:false, alt:true},
-  {id:'shortcuts',label:'\u5feb\u6377\u9375\u8a2d\u5b9a',  key:'k', ctrl:false, shift:false, alt:true},
+  {id:'new',      label:'\u65b0\u589e\u7b46\u8a18',      code:'KeyN',    ctrl:false, shift:false, alt:true},
+  {id:'search',   label:'\u641c\u5c0b',          code:'KeyF',    ctrl:false, shift:false, alt:true},
+  {id:'map',      label:'\u958b\u555f\u9ad4\u7cfb\u5716',    code:'KeyM',    ctrl:false, shift:false, alt:true},
+  {id:'back',     label:'\u8fd4\u56de\u7b46\u8a18\u5217\u8868',  code:'Escape',  ctrl:false, shift:false, alt:false},
+  {id:'close',    label:'\u95dc\u9589\u9762\u677f',      code:'KeyW',    ctrl:false, shift:false, alt:true},
+  {id:'edit',     label:'\u7de8\u8f2f\u7576\u524d\u7b46\u8a18',  code:'KeyE',    ctrl:false, shift:false, alt:true},
+  {id:'link',     label:'\u65b0\u589e\u95dc\u806f',      code:'KeyL',    ctrl:false, shift:false, alt:true},
+  {id:'export',   label:'\u532f\u51fa\u5099\u4efd',      code:'KeyS',    ctrl:false, shift:false, alt:true},
+  {id:'shortcuts',label:'\u5feb\u6377\u9375\u8a2d\u5b9a',   code:'KeyK',    ctrl:false, shift:false, alt:true},
 ];
 var shortcuts = [];
 var recordingBtn = null;
@@ -796,25 +798,24 @@ function cloneShortcuts(src){
   var out=[];
   for(var i=0;i<src.length;i++){
     var s=src[i];
-    out.push({id:s.id,label:s.label,key:s.key,ctrl:s.ctrl,shift:s.shift,alt:s.alt});
+    out.push({id:s.id,label:s.label,code:s.code,ctrl:!!s.ctrl,shift:!!s.shift,alt:!!s.alt});
   }
   return out;
 }
 
 function loadShortcuts(){
   try{
-    var raw=localStorage.getItem('legal_shortcuts');
+    var raw=localStorage.getItem('legal_shortcuts_v2');
     if(raw){
       var parsed=JSON.parse(raw);
-      // Merge: keep default entries, overlay saved keys
       shortcuts=cloneShortcuts(DEFAULT_SHORTCUTS);
       for(var i=0;i<shortcuts.length;i++){
         for(var j=0;j<parsed.length;j++){
           if(parsed[j].id===shortcuts[i].id){
-            shortcuts[i].key=parsed[j].key;
-            shortcuts[i].ctrl=parsed[j].ctrl;
-            shortcuts[i].shift=parsed[j].shift;
-            shortcuts[i].alt=parsed[j].alt;
+            shortcuts[i].code=parsed[j].code||'';
+            shortcuts[i].ctrl=!!parsed[j].ctrl;
+            shortcuts[i].shift=!!parsed[j].shift;
+            shortcuts[i].alt=!!parsed[j].alt;
             break;
           }
         }
@@ -828,34 +829,33 @@ function loadShortcuts(){
 }
 
 function saveShortcuts(){
-  try{localStorage.setItem('legal_shortcuts',JSON.stringify(shortcuts));}catch(e){}
+  try{localStorage.setItem('legal_shortcuts_v2',JSON.stringify(shortcuts));}catch(e){}
 }
 
-function scById(id){
-  for(var i=0;i<shortcuts.length;i++){if(shortcuts[i].id===id)return shortcuts[i];}
-  return null;
-}
-
-function normalizeKey(k){
-  if(!k)return '';
-  if(k.length===1)return k.toLowerCase();
-  return k;
+function codeToDisplay(code){
+  if(!code)return '\u672a\u8a2d\u5b9a';
+  if(code==='Escape')return 'Esc';
+  if(code==='Space')return 'Space';
+  if(code==='Backspace')return 'Backspace';
+  if(code==='Enter')return 'Enter';
+  if(code==='Tab')return 'Tab';
+  if(code==='ArrowUp')return '\u2191';
+  if(code==='ArrowDown')return '\u2193';
+  if(code==='ArrowLeft')return '\u2190';
+  if(code==='ArrowRight')return '\u2192';
+  if(code.indexOf('Key')===0)return code.slice(3).toUpperCase();
+  if(code.indexOf('Digit')===0)return code.slice(5);
+  if(code.indexOf('F')===0&&code.length<=3)return code;
+  return code;
 }
 
 function fmtKey(sc){
-  if(!sc.key) return '\u672a\u8a2d\u5b9a';
+  if(!sc.code)return '\u672a\u8a2d\u5b9a';
   var parts=[];
-  if(sc.ctrl) parts.push('Ctrl');
-  if(sc.alt) parts.push('Alt');
-  if(sc.shift) parts.push('Shift');
-  var k=sc.key==='Escape'?'Esc':
-        sc.key==='ArrowUp'?'\u2191':
-        sc.key==='ArrowDown'?'\u2193':
-        sc.key==='ArrowLeft'?'\u2190':
-        sc.key==='ArrowRight'?'\u2192':
-        sc.key===' '?'Space':
-        sc.key.length===1?sc.key.toUpperCase():sc.key;
-  parts.push(k);
+  if(sc.ctrl)parts.push('Ctrl');
+  if(sc.alt)parts.push('Alt');
+  if(sc.shift)parts.push('Shift');
+  parts.push(codeToDisplay(sc.code));
   return parts.join(' + ');
 }
 
@@ -864,7 +864,7 @@ function renderShortcutList(){
   list.innerHTML=shortcuts.map(function(sc,idx){
     return'<div class="sc-item">'+
       '<span class="sc-label">'+sc.label+'</span>'+
-      '<button class="sc-key'+(sc.key?' has-key':'')+'" data-idx="'+idx+'">'+fmtKey(sc)+'</button>'+
+      '<button class="sc-key'+(sc.code?' has-key':'')+'" data-idx="'+idx+'">'+fmtKey(sc)+'</button>'+
       '<button style="padding:4px 8px;border-radius:6px;border:1px solid #FFCDD2;background:#FFF0F0;font-size:11px;color:#D92B2B;cursor:pointer;" data-clear="'+idx+'">&#215;</button>'+
       '</div>';
   }).join('');
@@ -874,8 +874,8 @@ function renderShortcutList(){
       btn.addEventListener('click',function(){
         if(recordingBtn&&recordingBtn!==btn){
           recordingBtn.classList.remove('recording');
-          var prevIdx=parseInt(recordingBtn.getAttribute('data-idx'));
-          recordingBtn.textContent=fmtKey(shortcuts[prevIdx]);
+          var prev=parseInt(recordingBtn.getAttribute('data-idx'));
+          recordingBtn.textContent=fmtKey(shortcuts[prev]);
         }
         recordingBtn=btn;
         btn.classList.add('recording');
@@ -889,7 +889,7 @@ function renderShortcutList(){
     (function(btn){
       btn.addEventListener('click',function(){
         var idx2=parseInt(btn.getAttribute('data-clear'));
-        shortcuts[idx2].key='';
+        shortcuts[idx2].code='';
         shortcuts[idx2].ctrl=false;shortcuts[idx2].shift=false;shortcuts[idx2].alt=false;
         saveShortcuts();renderShortcutList();
       });
@@ -919,21 +919,20 @@ function showShortcutHint(text){
 }
 
 function handleGlobalKey(e){
-  // Recording mode: capture any key press
+  // Recording mode
   if(recordingBtn){
-    if(['Control','Shift','Alt','Meta','CapsLock','Tab'].indexOf(e.key)!==-1)return;
-    e.preventDefault();
-    e.stopPropagation();
-    if(e.key==='Escape'){
-      // Cancel recording
+    var skip=['Control','Shift','Alt','Meta','CapsLock','Tab'];
+    for(var si=0;si<skip.length;si++){if(e.key===skip[si])return;}
+    e.preventDefault();e.stopPropagation();
+    if(e.code==='Escape'){
       recordingBtn.classList.remove('recording');
-      var prevIdx=parseInt(recordingBtn.getAttribute('data-idx'));
-      recordingBtn.textContent=fmtKey(shortcuts[prevIdx]);
+      var prev=parseInt(recordingBtn.getAttribute('data-idx'));
+      recordingBtn.textContent=fmtKey(shortcuts[prev]);
       recordingBtn=null;
       return;
     }
     var idx2=parseInt(recordingBtn.getAttribute('data-idx'));
-    shortcuts[idx2].key=normalizeKey(e.key);
+    shortcuts[idx2].code=e.code;
     shortcuts[idx2].ctrl=e.ctrlKey||e.metaKey;
     shortcuts[idx2].shift=e.shiftKey;
     shortcuts[idx2].alt=e.altKey;
@@ -944,19 +943,15 @@ function handleGlobalKey(e){
     saveShortcuts();
     return;
   }
-
-  // Skip if typing in input/textarea/select
+  // Skip input fields
   var tag=(e.target.tagName||'').toLowerCase();
   if(tag==='input'||tag==='textarea'||tag==='select')return;
 
   var ctrl=e.ctrlKey||e.metaKey;
-  var eKey=normalizeKey(e.key);
-
   for(var i=0;i<shortcuts.length;i++){
     var sc=shortcuts[i];
-    if(!sc.key)continue;
-    var scKey=normalizeKey(sc.key);
-    if(scKey===eKey && sc.ctrl===ctrl && sc.shift===e.shiftKey && sc.alt===e.altKey){
+    if(!sc.code)continue;
+    if(sc.code===e.code && sc.ctrl===ctrl && sc.shift===e.shiftKey && sc.alt===e.altKey){
       e.preventDefault();
       e.stopPropagation();
       execShortcut(sc.id);
@@ -971,11 +966,7 @@ function execShortcut(id){
       if(!isMapOpen){openForm(false);showShortcutHint('\u65b0\u589e\u7b46\u8a18');}
       break;
     case 'search':
-      if(!isMapOpen){
-        var si=g('searchInput');
-        si.focus();si.select();
-        showShortcutHint('\u641c\u5c0b');
-      }
+      if(!isMapOpen){var si=g('searchInput');si.focus();si.select();showShortcutHint('\u641c\u5c0b');}
       break;
     case 'map':
       if(!isMapOpen){
@@ -1006,14 +997,10 @@ function execShortcut(id){
       showShortcutHint('\u95dc\u9589');
       break;
     case 'edit':
-      if(openId&&g('dp').classList.contains('open')){
-        openForm(true);showShortcutHint('\u7de8\u8f2f\u7b46\u8a18');
-      }
+      if(openId&&g('dp').classList.contains('open')){openForm(true);showShortcutHint('\u7de8\u8f2f\u7b46\u8a18');}
       break;
     case 'link':
-      if(openId&&g('dp').classList.contains('open')){
-        openLinkPanel();showShortcutHint('\u65b0\u589e\u95dc\u806f');
-      }
+      if(openId&&g('dp').classList.contains('open')){openLinkPanel();showShortcutHint('\u65b0\u589e\u95dc\u806f');}
       break;
     case 'export':
       exportData();showShortcutHint('\u532f\u51fa\u5099\u4efd');
@@ -1024,6 +1011,7 @@ function execShortcut(id){
   }
 }
 // ===== END SHORTCUTS =====
+
 
 
 window.addEventListener('load',function(){

@@ -135,11 +135,12 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 .rel-btn{padding:5px 12px;border-radius:99px;border:2px solid;font-size:12px;font-weight:600;cursor:pointer;background:#fff;}
 
 /* ===== MUSIC PLAYER ===== */
-#music-fab{position:fixed;bottom:24px;right:20px;z-index:200;display:flex;flex-direction:column;align-items:flex-end;gap:8px;}
+#music-fab{position:fixed;bottom:24px;right:20px;z-index:200;display:flex;flex-direction:column;align-items:flex-end;gap:8px;touch-action:none;user-select:none;-webkit-user-select:none;}
+#music-fab.dragging{opacity:0.82;}
 #music-toggle{width:48px;height:48px;border-radius:50%;background:#0f172a;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,0.25);transition:transform 0.2s;}
 #music-toggle:active{transform:scale(0.92);}
 #music-toggle svg{width:22px;height:22px;}
-#music-panel{display:none;background:#0f172a;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,0.3);width:320px;overflow:hidden;}
+#music-panel{display:none;background:#0f172a;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,0.3);width:320px;overflow:hidden;position:absolute;bottom:56px;right:0;}
 #music-panel.open{display:block;}
 #music-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 10px;}
 #music-title{font-size:13px;font-weight:600;color:#e2e8f0;letter-spacing:0.2px;}
@@ -1705,13 +1706,63 @@ window.addEventListener('load',function(){
   }
 
   if (musicToggle) {
-    musicToggle.addEventListener('click', function() {
-      if (musicPanel.classList.contains('open')) {
-        musicPanel.classList.remove('open');
-      } else {
-        musicPanel.classList.add('open');
-      }
-    });
+    // Drag support for music FAB
+  var fabDragging=false,fabMoved=false,fabSX=0,fabSY=0,fabLX=0,fabLY=0;
+
+  function fabSetPos(x,y){
+    var fw=musicFab.offsetWidth||56,fh=musicFab.offsetHeight||56;
+    var ww=window.innerWidth,wh=window.innerHeight;
+    x=Math.max(8,Math.min(ww-fw-8,x));
+    y=Math.max(8,Math.min(wh-fh-8,y));
+    musicFab.style.left=x+'px';
+    musicFab.style.top=y+'px';
+    musicFab.style.right='auto';
+    musicFab.style.bottom='auto';
+    musicPanel.style.left=(x+fw/2>ww/2)?'auto':'0';
+    musicPanel.style.right=(x+fw/2>ww/2)?'0':'auto';
+  }
+
+  function fabDown(cx,cy){
+    fabDragging=true;fabMoved=false;
+    var r=musicFab.getBoundingClientRect();
+    fabLX=r.left;fabLY=r.top;
+    fabSX=cx;fabSY=cy;
+    musicFab.classList.add('dragging');
+  }
+  function fabMove(cx,cy){
+    if(!fabDragging)return;
+    var dx=cx-fabSX,dy=cy-fabSY;
+    if(Math.abs(dx)>5||Math.abs(dy)>5)fabMoved=true;
+    if(fabMoved)fabSetPos(fabLX+dx,fabLY+dy);
+  }
+  function fabUp(){
+    if(!fabDragging)return;
+    fabDragging=false;
+    musicFab.classList.remove('dragging');
+    if(!fabMoved){
+      if(musicPanel.classList.contains('open'))musicPanel.classList.remove('open');
+      else musicPanel.classList.add('open');
+    } else {
+      try{localStorage.setItem('klaws_fab',JSON.stringify({l:musicFab.style.left,t:musicFab.style.top}));}catch(z){}
+    }
+  }
+
+  musicFab.addEventListener('mousedown',function(e){if(!e.target.closest('#music-panel')){fabDown(e.clientX,e.clientY);e.preventDefault();}});
+  document.addEventListener('mousemove',function(e){fabMove(e.clientX,e.clientY);});
+  document.addEventListener('mouseup',fabUp);
+  musicFab.addEventListener('touchstart',function(e){if(!e.target.closest('#music-panel')&&e.touches.length===1){fabDown(e.touches[0].clientX,e.touches[0].clientY);}},{passive:true});
+  document.addEventListener('touchmove',function(e){if(fabDragging&&e.touches.length===1){fabMove(e.touches[0].clientX,e.touches[0].clientY);if(fabMoved&&e.cancelable)e.preventDefault();}},{passive:false});
+  document.addEventListener('touchend',function(){fabUp();});
+
+  // Restore saved FAB position
+  try{
+    var sp=JSON.parse(localStorage.getItem('klaws_fab')||'null');
+    if(sp&&sp.l&&sp.t){musicFab.style.left=sp.l;musicFab.style.top=sp.t;musicFab.style.right='auto';musicFab.style.bottom='auto';}
+  }catch(z){}
+
+  musicToggle.addEventListener('click', function() {
+    // handled in fabUp
+  });
   }
 
   if (musicClose) {
@@ -1785,7 +1836,7 @@ window.addEventListener('load',function(){
     </div>
     <div id="music-note">&#9432; &#25552;&#31034;&#65306;&#25773;&#25918;&#24460;&#21487;&#25910;&#36215;&#38754;&#26495;&#65292;&#38899;&#27138;&#32380;&#32396;&#25773;&#25918;&#12290;&#25903;&#25588; YouTube &#24433;&#29255;&#25110;&#27468;&#21934;&#36899;&#32080;&#12290;</div>
   </div>
-  <button id="music-toggle" title="&#32972;&#26223;&#38899;&#27138;">
+  <button id="music-toggle" title="\u9577\u6309\u62d6\u66f3 \u00b7 \u9ede\u64ca\u958b\u95dc" title="&#32972;&#26223;&#38899;&#27138;">
     <svg viewBox="0 0 24 24" fill="none" stroke="#4a9eff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M9 18V5l12-2v13"/>
       <circle cx="6" cy="18" r="3"/>

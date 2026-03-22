@@ -1967,7 +1967,7 @@ function gradeEssay(exam,ans,used,timeUp){
       'HTTP-Referer':'https://kinayaya.github.io/LawsNote',
       'X-Title':'KLaws'
     },
-    body:JSON.stringify({model:(function(){try{return localStorage.getItem('klaws_ai_model')||'meta-llama/llama-3.3-70b-instruct:free';}catch(e){return 'meta-llama/llama-3.3-70b-instruct:free';}}()),max_tokens:2000,messages:[{role:'user',content:prompt}]})
+    body:JSON.stringify({model:(function(){try{return localStorage.getItem('klaws_ai_model')||'openrouter/free';}catch(e){return 'openrouter/free';}}()),max_tokens:2000,messages:[{role:'user',content:prompt}]})
   })
   .then(function(r){return r.json();})
   .then(function(d){
@@ -2329,42 +2329,55 @@ window.addEventListener('load',function(){
   });
 
   var AI_MODELS = [
-    {id:'meta-llama/llama-3.3-70b-instruct:free', label:'Llama 3.3 70B（推薦）'},
-    {id:'google/gemini-2.0-flash-exp:free',        label:'Gemini 2.0 Flash'},
-    {id:'mistralai/mistral-small-3.1-24b-instruct:free', label:'Mistral Small 3.1'},
-    {id:'openrouter/auto',                          label:'自動選最佳免費模型'}
+    {id:'openrouter/free',                                  label:'🔀 自動選最佳免費模型（推薦）'},
+    {id:'meta-llama/llama-3.3-70b-instruct:free',          label:'Llama 3.3 70B（Meta）'},
+    {id:'google/gemini-2.0-flash-exp:free',                 label:'Gemini 2.0 Flash（Google）'},
+    {id:'deepseek/deepseek-r1:free',                        label:'DeepSeek R1（推理強）'},
+    {id:'mistralai/mistral-small-3.1-24b-instruct:free',    label:'Mistral Small 3.1'}
   ];
 
-  function getAiModel(){ try{return localStorage.getItem('klaws_ai_model')||AI_MODELS[0].id;}catch(e){return AI_MODELS[0].id;} }
+  function getAiModel(){ try{return localStorage.getItem('klaws_ai_model')||AI_MODELS[0].id;}catch(e){return 'openrouter/free';} }
   function saveAiModel(m){ try{localStorage.setItem('klaws_ai_model',m);}catch(e){} }
 
   function callAI(key, prompt, onSuccess, onError){
     var model = getAiModel();
-    fetch('https://openrouter.ai/api/v1/chat/completions',{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'Authorization':'Bearer '+key,
-        'HTTP-Referer':'https://kinayaya.github.io/LawsNote',
-        'X-Title':'KLaws'
-      },
-      body:JSON.stringify({
-        model: model,
-        max_tokens: 2000,
-        messages:[{role:'user',content:prompt}]
+    function doFetch(m, isRetry){
+      fetch('https://openrouter.ai/api/v1/chat/completions',{
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'Authorization':'Bearer '+key,
+          'HTTP-Referer':'https://kinayaya.github.io/LawsNote',
+          'X-Title':'KLaws'
+        },
+        body:JSON.stringify({
+          model: m,
+          max_tokens: 2000,
+          messages:[{role:'user',content:prompt}]
+        })
       })
-    })
-    .then(function(r){return r.json();})
-    .then(function(d){
-      if(d.error){ onError(d.error.message||'API 錯誤'); return; }
-      var raw = ((d.choices||[{}])[0].message||{}).content||'';
-      var txt = raw.replace(/```json|```/g,'').trim();
-      var start=txt.indexOf('{'), end=txt.lastIndexOf('}');
-      if(start!==-1&&end!==-1) txt=txt.slice(start,end+1);
-      try{ onSuccess(JSON.parse(txt)); }
-      catch(e){ onError('AI 回應格式錯誤，請重試（'+raw.slice(0,80)+'）'); }
-    })
-    .catch(function(e){ onError('連線失敗：'+e.message); });
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.error){
+          // 若是 provider 錯誤且還沒重試過，自動換 openrouter/free 重試
+          if(!isRetry && m !== 'openrouter/free'){
+            showToast('模型暫時不可用，自動切換重試...');
+            doFetch('openrouter/free', true);
+            return;
+          }
+          onError(d.error.message||'API 錯誤');
+          return;
+        }
+        var raw = ((d.choices||[{}])[0].message||{}).content||'';
+        var txt = raw.replace(/```json|```/g,'').trim();
+        var start=txt.indexOf('{'), end=txt.lastIndexOf('}');
+        if(start!==-1&&end!==-1) txt=txt.slice(start,end+1);
+        try{ onSuccess(JSON.parse(txt)); }
+        catch(e){ onError('AI 回應格式錯誤，請重試（'+raw.slice(0,80)+'）'); }
+      })
+      .catch(function(e){ onError('連線失敗：'+e.message); });
+    }
+    doFetch(model, false);
   }
 
   // ── AI 補充爭點/要件/結論 ──

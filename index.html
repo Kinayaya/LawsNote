@@ -1857,7 +1857,23 @@ var examTimer_=null;
 var examSec=0,examTotal=0;
 var currentExam=null;
 
-function loadExams(){try{var r=localStorage.getItem(EXAM_SK);if(r)examList=JSON.parse(r);}catch(e){examList=[];}}
+function loadExams(){
+  try{
+    var r=localStorage.getItem(EXAM_SK);
+    if(r){
+      examList=JSON.parse(r);
+      // 修復：exam.subject 可能是壞掉的 tag_s_ key，轉換成正確 label
+      var examChanged=false;
+      for(var i=0;i<examList.length;i++){
+        if(/^tag_s_|^tag_t_/.test(examList[i].subject)){
+          examList[i].subject=subByKey(examList[i].subject).label;
+          examChanged=true;
+        }
+      }
+      if(examChanged)saveExams();
+    }
+  }catch(e){examList=[];}
+}
 function saveExams(){try{localStorage.setItem(EXAM_SK,JSON.stringify(examList));}catch(e){}}
 
 function openExamPanel(){
@@ -1879,7 +1895,7 @@ function renderExamList(){
   }
   el.innerHTML=examList.map(function(ex,i){
     return'<div class="exam-item" data-idx="'+i+'">'
-      +'<div><div class="exam-item-title">'+ex.subject+' | '+ex.question.slice(0,35)+(ex.question.length>35?'...':'')+'</div>'
+      +'<div><div class="exam-item-title">'+subByKey(ex.subject).label+' | '+ex.question.slice(0,35)+(ex.question.length>35?'...':'')+'</div>'
       +'<div class="exam-item-meta">'+ex.timeLimit+'\u5206\u9418</div></div>'
       +'<button class="exam-item-del" data-del="'+i+'">&#128465;</button>'
       +'</div>';
@@ -1918,7 +1934,7 @@ function startExam(exam){
   g('examIssueChips').innerHTML=(exam.issues||[]).map(function(iss){return'<span class="exam-issue-chip">'+iss+'</span>';}).join('');
   g('examAnswerBox').value='';
   g('examWordCount').textContent='0 \u5b57';
-  g('examHeaderTitle').textContent='\u2712 '+exam.subject;
+  g('examHeaderTitle').textContent='\u2712 '+subByKey(exam.subject).label;
   examTotal=exam.timeLimit*60;
   examSec=examTotal;
   clearInterval(examTimer_);
@@ -1951,14 +1967,14 @@ function doSubmit(timeUp){
 }
 
 function gradeEssay(exam,ans,used,timeUp){
-  var prompt='\u4f60\u662f\u53f0\u7063\u5927\u5b78\u6cd5\u5f8b\u7cfb\u6559\u6388\uff0c\u8acb\u4f9d\u64da\u4ee5\u4e0b\u8cc7\u8a0a\u5c0d\u5b78\u751f\u7523\u8a66\u984c\u4f5c\u7b54\u9032\u884c\u8a55\u5206\u3002\n\n'
-    +'\u300a\u79d1\u76ee\u300b\uff1a'+exam.subject+'\n'
-    +'\u300a\u984c\u76ee\u300b\uff1a\n'+exam.question+'\n'
-    +'\u300a\u722d\u9ede\u300b\uff1a'+(exam.issues||[]).join('\u3001')+'\n'
-    +'\u300a\u4f5c\u7b54\u300b\uff1a\n'+(ans||'(\u672a\u4f5c\u7b54)')+'\n'
-    +'\u300a\u4f5c\u7b54\u6642\u9593\u300b\uff1a'+used+'\u5206\u9418'+(timeUp?' (\u6642\u9593\u5230)':'')+'\n\n'
-    +'\u8acb\u4ee5 JSON \u683c\u5f0f\u56de\u8986\uff08\u50c5\u8f38\u51fa JSON\uff0c\u52ff\u52a0\u5176\u4ed6\u6587\u5b57\uff09\uff1a\n'
-    +'{"score":<0-100>,"comment":"<\u7e3d\u8a55150\u5b57>","strengths":["<\u512a\u9ede>"],"weaknesses":["<\u5f31\u9ede>"],"suggestions":["<\u5efa\u8b70>"],"reference":"<\u53c3\u8003\u8981\u9ede150\u5b57>"}';
+  var prompt='你是台灣大學法律系教授，請對以下申論題作答評分。\n\n'
+    +'科目：'+subByKey(exam.subject).label+'\n'
+    +'題目：'+exam.question.slice(0,200)+'\n'
+    +'爭點：'+(exam.issues||[]).join('、')+'\n'
+    +'作答：\n'+(ans||'(未作答)').slice(0,3000)+'\n'
+    +'作答時間：'+used+'分鐘'+(timeUp?' (時間到)':'')+'\n\n'
+    +'請只輸出 JSON，不要加任何其他文字或 markdown：\n'
+    +'{"score":<0-100>,"comment":"<60字總評>","strengths":["<優點1>","<優點2>"],"weaknesses":["<缺點1>","<缺點2>"],"suggestions":["<建議1>"],"reference":"<參考要點80字>"}';
   fetch('https://openrouter.ai/api/v1/chat/completions',{
     method:'POST',
     headers:{
@@ -1967,7 +1983,7 @@ function gradeEssay(exam,ans,used,timeUp){
       'HTTP-Referer':'https://kinayaya.github.io/LawsNote',
       'X-Title':'KLaws'
     },
-    body:JSON.stringify({model:(function(){try{return localStorage.getItem('klaws_ai_model')||'openrouter/free';}catch(e){return 'openrouter/free';}}()),max_tokens:2000,messages:[{role:'user',content:prompt}]})
+    body:JSON.stringify({model:(function(){try{return localStorage.getItem('klaws_ai_model')||'openrouter/free';}catch(e){return 'openrouter/free';}}()),max_tokens:5000,messages:[{role:'user',content:prompt}]})
   })
   .then(function(r){return r.json();})
   .then(function(d){

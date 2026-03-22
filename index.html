@@ -330,6 +330,7 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
       <button class="map-btn" id="mapToggleBtn">&#128279; &#39636;&#31995;&#22294;</button>
       <button class="tool-btn" id="examBtn" style="background:#FFF0F0;color:#8B1A1A;border-color:#FFCDD2;font-weight:600;">&#9997; &#30003;&#35542;&#28204;&#39511;</button>
       <button class="tool-btn" id="shortcutMgrBtn">&#9000; &#24555;&#25463;&#37749;</button>
+      <button class="tool-btn" id="aiSettingsBtn" style="background:#0f172a;color:#93c5fd;border-color:#334155;">&#129302; AI &#35373;&#23450;</button>
       <button class="tool-btn" id="exportBtn">&#8593; &#21295;&#20986;</button>
       <label class="tool-btn" for="importFile" style="cursor:pointer;display:inline-block;">&#8595; &#21295;&#20837;</label>
       <input type="file" id="importFile" accept=".json" style="display:none">
@@ -1956,14 +1957,19 @@ function gradeEssay(exam,ans,used,timeUp){
     +'\u300a\u4f5c\u7b54\u6642\u9593\u300b\uff1a'+used+'\u5206\u9418'+(timeUp?' (\u6642\u9593\u5230)':'')+'\n\n'
     +'\u8acb\u4ee5 JSON \u683c\u5f0f\u56de\u8986\uff08\u50c5\u8f38\u51fa JSON\uff0c\u52ff\u52a0\u5176\u4ed6\u6587\u5b57\uff09\uff1a\n'
     +'{"score":<0-100>,"comment":"<\u7e3d\u8a55150\u5b57>","strengths":["<\u512a\u9ede>"],"weaknesses":["<\u5f31\u9ede>"],"suggestions":["<\u5efa\u8b70>"],"reference":"<\u53c3\u8003\u8981\u9ede150\u5b57>"}';
-  fetch('https://api.anthropic.com/v1/messages',{
+  fetch('https://openrouter.ai/api/v1/chat/completions',{
     method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})
+    headers:{
+      'Content-Type':'application/json',
+      'Authorization':'Bearer '+(function(){try{return localStorage.getItem('klaws_ai_key')||'';}catch(e){return '';}}()),
+      'HTTP-Referer':'https://kinayaya.github.io/LawsNote',
+      'X-Title':'KLaws'
+    },
+    body:JSON.stringify({model:(function(){try{return localStorage.getItem('klaws_ai_model')||'meta-llama/llama-3.3-70b-instruct:free';}catch(e){return 'meta-llama/llama-3.3-70b-instruct:free';}}()),max_tokens:1000,messages:[{role:'user',content:prompt}]})
   })
   .then(function(r){return r.json();})
   .then(function(d){
-    var txt=((d.content||[]).map(function(c){return c.text||'';}).join('')).replace(/```json|```/g,'').trim();
+    var txt=(((d.choices||[{}])[0].message||{}).content||'').replace(/```json|```/g,'').trim();
     showResult(JSON.parse(txt));
   })
   .catch(function(e){
@@ -2071,7 +2077,10 @@ window.addEventListener('load',function(){
     g('examWordCount').textContent=eans_.value.replace(/\s/g,'').length+' \u5b57';
   });
   // \u2500\u2500 End exam wiring \u2500\u2500
-    g('importFile').addEventListener('change',function(e){if(e.target.files&&e.target.files[0])importData(e.target.files[0]);e.target.value='';});
+    var aiSetBtn = g('aiSettingsBtn');
+  if(aiSetBtn) aiSetBtn.addEventListener('click', openAiSettings);
+
+  g('importFile').addEventListener('change',function(e){if(e.target.files&&e.target.files[0])importData(e.target.files[0]);e.target.value='';});
   g('shortcutMgrBtn').addEventListener('click',openShortcutMgr);
   g('scpClose').addEventListener('click',closeShortcutMgr);
   g('scpDone').addEventListener('click',closeShortcutMgr);
@@ -2263,31 +2272,76 @@ window.addEventListener('load',function(){
     _aiPendingAction = action;
     var inp = g('aiKeyInput');
     if(inp) inp.value='';
+    // 填充模型選單
+    var sel = g('aiModelSel');
+    if(sel){
+      sel.innerHTML = AI_MODELS.map(function(m){
+        return '<option value="'+m.id+'"'+(m.id===getAiModel()?' selected':'')+'>'+m.label+'</option>';
+      }).join('');
+    }
+    g('aiKeyModal').classList.add('open');
+  }
+
+  // 也讓已設定 key 的使用者可以從設定按鈕重新開啟 modal
+  function openAiSettings(){
+    var inp = g('aiKeyInput');
+    if(inp) inp.value = getAiKey();
+    var sel = g('aiModelSel');
+    if(sel){
+      sel.innerHTML = AI_MODELS.map(function(m){
+        return '<option value="'+m.id+'"'+(m.id===getAiModel()?' selected':'')+'>'+m.label+'</option>';
+      }).join('');
+    }
+    _aiPendingAction = null;
     g('aiKeyModal').classList.add('open');
   }
 
   g('aiKeySave').addEventListener('click', function(){
     var k = (g('aiKeyInput').value||'').trim();
-    if(!k){ showToast('請輸入 API Key'); return; }
+    if(!k){ showToast('請輸入 OpenRouter API Key'); return; }
     saveAiKey(k);
+    var sel = g('aiModelSel');
+    if(sel && sel.value) saveAiModel(sel.value);
     g('aiKeyModal').classList.remove('open');
     if(_aiPendingAction){ _aiPendingAction(k); _aiPendingAction=null; }
+    else showToast('AI 設定已儲存！');
   });
   g('aiKeyCancel').addEventListener('click', function(){
     g('aiKeyModal').classList.remove('open');
     _aiPendingAction=null;
   });
 
+  var AI_MODELS = [
+    {id:'meta-llama/llama-3.3-70b-instruct:free', label:'Llama 3.3 70B（推薦）'},
+    {id:'google/gemini-2.0-flash-exp:free',        label:'Gemini 2.0 Flash'},
+    {id:'mistralai/mistral-small-3.1-24b-instruct:free', label:'Mistral Small 3.1'},
+    {id:'openrouter/auto',                          label:'自動選最佳免費模型'}
+  ];
+
+  function getAiModel(){ try{return localStorage.getItem('klaws_ai_model')||AI_MODELS[0].id;}catch(e){return AI_MODELS[0].id;} }
+  function saveAiModel(m){ try{localStorage.setItem('klaws_ai_model',m);}catch(e){} }
+
   function callAI(key, prompt, onSuccess, onError){
-    fetch('https://api.anthropic.com/v1/messages',{
+    var model = getAiModel();
+    fetch('https://openrouter.ai/api/v1/chat/completions',{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+key,
+        'HTTP-Referer':'https://kinayaya.github.io/LawsNote',
+        'X-Title':'KLaws'
+      },
+      body:JSON.stringify({
+        model: model,
+        max_tokens: 1000,
+        messages:[{role:'user',content:prompt}]
+      })
     })
     .then(function(r){return r.json();})
     .then(function(d){
       if(d.error){ onError(d.error.message||'API 錯誤'); return; }
-      var txt=((d.content||[]).map(function(c){return c.text||'';}).join('')).replace(/```json[\s\S]*?```|```/g,function(m){return m.replace(/```json|```/g,'');}).trim();
+      var txt = ((d.choices||[{}])[0].message||{}).content||'';
+      txt = txt.replace(/```json|```/g,'').trim();
       try{ onSuccess(JSON.parse(txt)); }
       catch(e){ onError('AI 回應格式錯誤，請重試'); }
     })
@@ -2583,14 +2637,22 @@ window.addEventListener('load',function(){
 <!-- AI KEY MODAL -->
 <div id="aiKeyModal">
   <div id="aiKeyBox">
-    <h3>&#129302; 設定 Anthropic API Key</h3>
-    <p>KLaws AI 功能需要 Anthropic API Key。Key 只存於您的瀏覽器本地，不會上傳至任何伺服器。</p>
-    <input id="aiKeyInput" type="password" placeholder="sk-ant-...">
+    <h3>🤖 設定 AI（OpenRouter）</h3>
+    <p>KLaws 使用 <b>OpenRouter</b> 提供的免費 AI 模型。<br>註冊免費帳號後取得 API Key 即可使用，<b>每天最多 200 次，不需信用卡</b>。</p>
+    <div style="background:#f0f7ff;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:#0C447C;line-height:1.8;">
+      1. 前往 <b>openrouter.ai</b> 免費註冊<br>
+      2. 右上角頭像 → <b>Keys</b> → <b>Create Key</b><br>
+      3. 複製 <b>sk-or-v1-...</b> 貼到下方
+    </div>
+    <label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:4px;">API Key</label>
+    <input id="aiKeyInput" type="password" placeholder="sk-or-v1-...">
+    <label style="font-size:11px;font-weight:600;color:#555;display:block;margin:10px 0 4px;">AI 模型</label>
+    <select id="aiModelSel" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#f8f8f8;font-family:inherit;margin-bottom:12px;"></select>
     <div class="ai-key-row">
       <button class="fbtn bcl" id="aiKeyCancel" style="flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:600;border:none;cursor:pointer;">取消</button>
       <button class="fbtn bsv" id="aiKeySave" style="flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:600;border:none;cursor:pointer;">儲存並繼續</button>
     </div>
-    <div style="margin-top:10px;font-size:11px;color:#bbb;text-align:center;">已有 Key？可直接輸入覆蓋</div>
+    <div style="margin-top:10px;font-size:11px;color:#bbb;text-align:center;">Key 僅存於瀏覽器本地，不會上傳至任何伺服器</div>
   </div>
 </div>
 

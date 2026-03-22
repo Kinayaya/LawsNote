@@ -365,7 +365,7 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
       <button class="del-btn" id="delBtn">&#128465; &#21034;&#38500;</button>
     </div>
     <div class="action-row" style="margin-top:6px;">
-      <button class="ai-btn" id="aiFillBtn" style="flex:1;">&#129302; AI &#35013;&#20805;&#722d;&#40670;&#12289;&#35201;&#20214;&#12289;&#32080;&#35542;</button>
+      <button class="ai-btn" id="aiFillBtn" style="flex:1;">&#129302; AI 補充爭點、要件、結論</button>
     </div>
   </div>
   <div class="panel" id="fp">
@@ -557,23 +557,25 @@ function loadData(){
       subjects=d.subjects||DEFAULT_SUBJECTS.slice();
       nodePos=d.nodePos||{};
       if(d.sortMode)sortMode=d.sortMode;
-      // 遷移：舊資料 key 可能是中文，統一補上穩定 key
-      var changed=false;
+      // 修復：若之前遷移產生了 tag_t_ / tag_s_ 格式的壞 key，還原成 label
+      var repaired=false;
       for(var i=0;i<types.length;i++){
-        if(types[i].key===types[i].label&&/[^\x00-\x7F]/.test(types[i].key)){
-          types[i].key='tag_t_'+i+'_'+types[i].key.charCodeAt(0);changed=true;
-          // 同步更新所有筆記的 type
-          for(var j=0;j<notes.length;j++){if(notes[j].type===types[i].label)notes[j].type=types[i].key;}
+        if(/^tag_t_/.test(types[i].key)){
+          var oldKey=types[i].key, newKey=types[i].label;
+          types[i].key=newKey;
+          for(var j=0;j<notes.length;j++){if(notes[j].type===oldKey)notes[j].type=newKey;}
+          repaired=true;
         }
       }
       for(var i=0;i<subjects.length;i++){
-        if(subjects[i].key===subjects[i].label&&/[^\x00-\x7F]/.test(subjects[i].key)){
-          subjects[i].key='tag_s_'+i+'_'+subjects[i].key.charCodeAt(0);changed=true;
-          // 同步更新所有筆記的 subject
-          for(var j=0;j<notes.length;j++){if(notes[j].subject===subjects[i].label)notes[j].subject=subjects[i].key;}
+        if(/^tag_s_/.test(subjects[i].key)){
+          var oldKey=subjects[i].key, newKey=subjects[i].label;
+          subjects[i].key=newKey;
+          for(var j=0;j<notes.length;j++){if(notes[j].subject===oldKey)notes[j].subject=newKey;}
+          repaired=true;
         }
       }
-      if(changed)saveData();
+      if(repaired)saveData();
     } else {
       notes=DEFAULT_NOTES.slice(); links=DEFAULT_LINKS.slice();
       types=DEFAULT_TYPES.slice(); subjects=DEFAULT_SUBJECTS.slice();
@@ -1965,12 +1967,27 @@ function gradeEssay(exam,ans,used,timeUp){
       'HTTP-Referer':'https://kinayaya.github.io/LawsNote',
       'X-Title':'KLaws'
     },
-    body:JSON.stringify({model:(function(){try{return localStorage.getItem('klaws_ai_model')||'meta-llama/llama-3.3-70b-instruct:free';}catch(e){return 'meta-llama/llama-3.3-70b-instruct:free';}}()),max_tokens:1000,messages:[{role:'user',content:prompt}]})
+    body:JSON.stringify({model:(function(){try{return localStorage.getItem('klaws_ai_model')||'meta-llama/llama-3.3-70b-instruct:free';}catch(e){return 'meta-llama/llama-3.3-70b-instruct:free';}}()),max_tokens:2000,messages:[{role:'user',content:prompt}]})
   })
   .then(function(r){return r.json();})
   .then(function(d){
-    var txt=(((d.choices||[{}])[0].message||{}).content||'').replace(/```json|```/g,'').trim();
-    showResult(JSON.parse(txt));
+    if(d.error){
+      g('resultScoreNum').textContent='?';
+      g('resultComment').textContent='AI 錯誤：'+(d.error.message||JSON.stringify(d.error));
+      return;
+    }
+    var raw=(((d.choices||[{}])[0].message||{}).content||'');
+    // 從回傳內容中擷取第一個完整 JSON 物件，避免截斷或多餘文字造成 parse 失敗
+    var txt=raw.replace(/```json|```/g,'').trim();
+    var start=txt.indexOf('{'), end=txt.lastIndexOf('}');
+    if(start!==-1&&end!==-1) txt=txt.slice(start,end+1);
+    try{
+      showResult(JSON.parse(txt));
+    }catch(e){
+      // JSON 仍然壞掉時，顯示原始文字給使用者參考
+      g('resultScoreNum').textContent='?';
+      g('resultComment').textContent='AI 回應無法解析，原始內容：\n'+raw.slice(0,300);
+    }
   })
   .catch(function(e){
     g('resultScoreNum').textContent='?';
@@ -2333,17 +2350,19 @@ window.addEventListener('load',function(){
       },
       body:JSON.stringify({
         model: model,
-        max_tokens: 1000,
+        max_tokens: 2000,
         messages:[{role:'user',content:prompt}]
       })
     })
     .then(function(r){return r.json();})
     .then(function(d){
       if(d.error){ onError(d.error.message||'API 錯誤'); return; }
-      var txt = ((d.choices||[{}])[0].message||{}).content||'';
-      txt = txt.replace(/```json|```/g,'').trim();
+      var raw = ((d.choices||[{}])[0].message||{}).content||'';
+      var txt = raw.replace(/```json|```/g,'').trim();
+      var start=txt.indexOf('{'), end=txt.lastIndexOf('}');
+      if(start!==-1&&end!==-1) txt=txt.slice(start,end+1);
       try{ onSuccess(JSON.parse(txt)); }
-      catch(e){ onError('AI 回應格式錯誤，請重試'); }
+      catch(e){ onError('AI 回應格式錯誤，請重試（'+raw.slice(0,80)+'）'); }
     })
     .catch(function(e){ onError('連線失敗：'+e.message); });
   }

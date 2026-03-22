@@ -16,7 +16,7 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 .brand-text{display:flex;flex-direction:column;line-height:1.1;}
 .brand-name{font-size:17px;font-weight:800;letter-spacing:-0.5px;color:#1a1a2e;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",sans-serif;}
 .brand-by{font-size:10px;color:#888;font-weight:400;letter-spacing:0.3px;margin-top:1px;}
-#topbar{background:#fff;padding:10px 14px 8px;border-bottom:1px solid #e5e5e5;position:sticky;top:0;z-index:50;}
+#topbar{background:#fff;padding:7px 14px 5px;border-bottom:1px solid #e5e5e5;position:sticky;top:0;z-index:50;}
 .title-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;}
 .app-title{font-size:16px;font-weight:700;flex-shrink:0;}
 .search-wrap{flex:1;position:relative;max-width:240px;}
@@ -41,7 +41,7 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 #search-results-bar{display:none;background:#fff7e6;border-bottom:1px solid #ffe0a0;padding:6px 14px;font-size:12px;color:#b36a00;}
 #content{padding:14px;}
 #grid{display:grid;gap:11px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));}
-.card{background:#fff;border-radius:14px;border:1px solid #e5e5e5;padding:13px 13px 12px 17px;position:relative;cursor:pointer;}
+.card{background:#fff;border-radius:8px;border:1px solid #ebebeb;padding:10px 11px 10px 14px;position:relative;cursor:pointer;}
 .card:active{background:#f8f8f8;}
 .cbar{position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:0 2px 2px 0;}
 .ctop{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;}
@@ -282,6 +282,11 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 .result-tag.good{background:#EAF3DE;color:#3B6D11;}
 .result-tag.bad{background:#FFF0F0;color:#8B1A1A;}
 .result-tag.ok{background:#E6F1FB;color:#0C447C;}
+.issue-analysis-item{background:#f8f8f8;border-radius:10px;padding:12px 14px;margin-bottom:8px;border-left:3px solid #ddd;}
+.issue-analysis-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.issue-analysis-name{font-size:13px;font-weight:700;color:#1c1c1e;flex:1;}
+.issue-hit-badge{font-size:11px;font-weight:600;color:#fff;padding:2px 8px;border-radius:99px;flex-shrink:0;}
+.issue-analysis-body{font-size:13px;color:#444;line-height:1.7;}
 #examListPanel{display:none;margin:12px 14px;background:#fff;border-radius:14px;border:1px solid #e0e0e0;padding:18px;}
 #examListPanel.open{display:block;}
 .exam-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f8f8f8;border-radius:10px;border:1px solid #eee;margin-bottom:8px;cursor:pointer;}
@@ -526,11 +531,39 @@ var REL_TYPES=['\u5f15\u7528','\u76f8\u95dc','\u88dc\u5145','\u5c0d\u6bd4','\u53
 var REL_COLORS={'\u5f15\u7528':'#378ADD','\u76f8\u95dc':'#1D9E75','\u88dc\u5145':'#7F77DD','\u5c0d\u6bd4':'#D85A30','\u5305\u542b':'#E6A817','\u5ef6\u4f38':'#888'};
 var SKEY='legal_notes_v4';
 var gridPage=1,PAGE_SIZE=10;
+
+function initSM2(n){
+  if(!n.sm2){
+    n.sm2={ease:2.5,interval:1,reps:0};
+  }
+}
+
 function debounce(fn,ms){var t;return function(){clearTimeout(t);var a=arguments,c=this;t=setTimeout(function(){fn.apply(c,a);},ms);};}
+var optimizedSearch=debounce(function(v){searchQ=v;render();},200);
 var _saveTimer;
-function saveDataDeferred(){clearTimeout(_saveTimer);_saveTimer=setTimeout(saveData,500);}
+function saveDataDeferred(){clearTimeout(_saveTimer);_saveTimer=setTimeout(function(){checkStorageSize();saveData();},500);}
+
+function checkStorageSize(){
+  try{
+    var size = JSON.stringify({notes:notes,links:links}).length;
+    if(size > 4500000){
+      showToast("⚠️ 資料接近儲存上限");
+    }
+  }catch(e){}
+}
+
 
 var notes=[],links=[],nid=10,lid=10,types=[],subjects=[];
+
+function parseAIContent(txt){
+  try{
+    var j=JSON.parse(txt);
+    return j;
+  }catch(e){
+    return {issue:'',rule:'',analysis:txt,conclusion:''};
+  }
+}
+
 var cv='all',cs='all',searchQ='',openId=null,editMode=false,selectedRel='';
 var nodePos={};
 var dragNode=null,dragOffX=0,dragOffY=0,mapW=800,mapH=500;
@@ -538,12 +571,78 @@ var mapScale=1,mapOffX=0,mapOffY=0;
 var mapFilter={sub:"all",type:"all",q:""};
 var mapLinkedOnly=true; // always hide unlinked nodes by default
 var nodeEls={};
+
+function getClusterColor(sub){
+  var map={};
+  var i=0;
+  for(var k in subjects){
+    map[subjects[k].key]=subjects[k].color||'#888';
+  }
+  return map[sub]||'#888';
+}
+
+
+function isInView(x,y){
+  var w=window.innerWidth,h=window.innerHeight;
+  return x>-200 && y>-200 && x<w+200 && y<h+200;
+}
+
+
+function limitMapNodes(nodes){
+  if(nodes.length > 150){
+    showToast("節點過多，已限制顯示");
+    return nodes.slice(0,150);
+  }
+  return nodes;
+}
+
 var linkElsMap={};
 var nodeLinksIndex={};
 var isMapOpen=false;
 
 function g(id){return document.getElementById(id);}
 function showToast(m){var t=g('toast');t.textContent=m;t.style.display='block';setTimeout(function(){t.style.display='none';},2200);}
+async function syncToGist(token,gistId){
+  try{
+    var data=localStorage.getItem(SKEY);
+    await fetch("https://api.github.com/gists/"+gistId,{
+      method:"PATCH",
+      headers:{
+        "Authorization":"token "+token,
+        "Content-Type":"application/json"
+      },
+      body:JSON.stringify({
+        files:{"klaws_data.json":{content:data}}
+      })
+    });
+    showToast("已同步到 GitHub");
+  }catch(e){
+    showToast("同步失敗");
+  }
+}
+
+async function loadFromGist(token,gistId){
+  try{
+    var res=await fetch("https://api.github.com/gists/"+gistId,{
+      headers:{ "Authorization":"token "+token }
+    });
+    var j=await res.json();
+    var content=j.files["klaws_data.json"].content;
+    localStorage.setItem(SKEY,content);
+    location.reload();
+  }catch(e){
+    showToast("載入失敗");
+  }
+}
+
+function autoLinkLaw(text){
+  return text.replace(/(民法第?\s*\d+條)/g,function(m){
+    var num=m.match(/\d+/);
+    if(!num)return m;
+    return '<span class="law-link" data-law="'+num[0]+'" style="color:#007AFF;text-decoration:underline;cursor:pointer;">'+m+'</span>';
+  });
+}
+
 
 function loadData(){
   try{
@@ -1967,14 +2066,25 @@ function doSubmit(timeUp){
 }
 
 function gradeEssay(exam,ans,used,timeUp){
-  var prompt='你是台灣大學法律系教授，請對以下申論題作答評分。\n\n'
-    +'科目：'+subByKey(exam.subject).label+'\n'
-    +'題目：'+exam.question.slice(0,200)+'\n'
-    +'爭點：'+(exam.issues||[]).join('、')+'\n'
-    +'作答：\n'+(ans||'(未作答)').slice(0,3000)+'\n'
-    +'作答時間：'+used+'分鐘'+(timeUp?' (時間到)':'')+'\n\n'
-    +'請只輸出 JSON，不要加任何其他文字或 markdown：\n'
-    +'{"score":<0-100>,"comment":"<60字總評>","strengths":["<優點1>","<優點2>"],"weaknesses":["<缺點1>","<缺點2>"],"suggestions":["<建議1>"],"reference":"<參考要點80字>"}';
+  var issueList=(exam.issues||[]).join('、');
+  var prompt='你是台灣大學法律系教授，正在批改學生的申論題作答。請給予詳細、具體、有教育價值的評語。\n\n'
+    +'【科目】'+subByKey(exam.subject).label+'\n'
+    +'【題目】\n'+exam.question.slice(0,300)+'\n'
+    +'【預設爭點】'+issueList+'\n'
+    +'【學生作答】\n'+(ans||'(未作答)').slice(0,3000)+'\n'
+    +'【作答時間】'+used+'分鐘'+(timeUp?' (時間到，作答可能不完整)':'')+'\n\n'
+    +'請依下列 JSON 格式輸出評分（只輸出 JSON，不加任何其他文字或 markdown）：\n'
+    +'{\n'
+    +'  "score": <0-100整數>,\n'
+    +'  "comment": "<100-150字整體總評，包含作答整體印象與主要問題>",\n'
+    +'  "issue_analysis": [\n'
+    +'    {"issue":"<爭點名稱>","hit":<true/false>,"analysis":"<針對此爭點的詳細評析，80-120字，說明學生寫得好或不足的地方、應補充的法律概念>"}\n'
+    +'  ],\n'
+    +'  "strengths": ["<具體優點1，30-50字>","<具體優點2，30-50字>"],\n'
+    +'  "weaknesses": ["<具體缺點1，30-50字>","<具體缺點2，30-50字>","<具體缺點3，30-50字>"],\n'
+    +'  "suggestions": ["<具體改進建議1，30-50字>","<具體改進建議2，30-50字>"],\n'
+    +'  "reference": "<參考答題要點，120-150字，列出本題應涵蓋的核心法律概念、法條、判例>"\n'
+    +'}';
   fetch('https://openrouter.ai/api/v1/chat/completions',{
     method:'POST',
     headers:{
@@ -2016,6 +2126,28 @@ function showResult(r){
   var sc=g('resultScoreNum').parentElement;
   sc.style.background=r.score>=80?'#1D9E75':r.score>=60?'#378ADD':r.score>=40?'#D85A30':'#8B1A1A';
   g('resultComment').textContent=r.comment||'';
+
+  // 逐爭點分析
+  var ia=r.issue_analysis||[];
+  var iaEl=g('resultIssueAnalysis');
+  if(iaEl){
+    if(ia.length){
+      iaEl.innerHTML=ia.map(function(item){
+        var hitColor=item.hit?'#1D9E75':'#D85A30';
+        var hitLabel=item.hit?'✔ 有涵蓋':'✘ 未涵蓋';
+        return '<div class="issue-analysis-item">'
+          +'<div class="issue-analysis-head">'
+          +'<span class="issue-analysis-name">'+item.issue+'</span>'
+          +'<span class="issue-hit-badge" style="background:'+hitColor+'">'+hitLabel+'</span>'
+          +'</div>'
+          +'<div class="issue-analysis-body">'+item.analysis+'</div>'
+          +'</div>';
+      }).join('');
+    } else {
+      iaEl.innerHTML='';
+    }
+  }
+
   var tags='';
   (r.strengths||[]).forEach(function(s){tags+='<span class="result-tag good">\u2714 '+s+'</span>';});
   (r.weaknesses||[]).forEach(function(s){tags+='<span class="result-tag bad">\u2716 '+s+'</span>';});
@@ -2624,6 +2756,7 @@ window.addEventListener('load',function(){
   <div id="examResult">
     <div class="result-score-card"><div class="result-score-num" id="resultScoreNum">--</div><div class="result-score-label">/ 100 &#20998;</div></div>
     <div class="result-section"><h3>&#128221; AI &#25945;&#25480;&#35413;&#35486;</h3><p id="resultComment">&#35413;&#20998;&#20013;...</p></div>
+    <div class="result-section" id="resultIssueSection"><h3>&#128269; &#36887;&#722d;&#40670;&#20998;&#26512;</h3><div id="resultIssueAnalysis"></div></div>
     <div class="result-section"><h3>&#128200; &#21508;&#38917;&#34920;&#29694;</h3><div id="resultTags"></div></div>
     <div class="result-section"><h3>&#128218; &#21443;&#32771;&#31572;&#26696;&#35201;&#40670;</h3><p id="resultRef"></p></div>
     <div class="exam-action-row" style="padding:0 0 20px;"><button class="exam-btn exam-btn-end" id="examRetryBtn">&#8634; &#20877;&#20570;&#19968;&#38988;</button><button class="exam-btn exam-btn-cancel" id="examBackBtn2">&#8592; &#36820;&#22238;&#31558;&#35352;</button></div>

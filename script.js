@@ -1,2228 +1,635 @@
-// JavaScript file
+// JavaScript file - 完整優化版
 <script>
-var DEFAULT_NOTES=[
-{id:1,type:'article',subject:'\u6c11\u6cd5',title:'\u6c11\u6cd5\u7b2c 184 \u689d \u2014 \u4fb5\u6b0a\u884c\u70ba',body:'\u56e0\u6545\u610f\u6216\u904e\u5931\uff0c\u4e0d\u6cd5\u4fb5\u5bb3\u4ed6\u4eba\u4e4b\u6b0a\u5229\u8005\uff0c\u8ca0\u640d\u5bb3\u8ce0\u511f\u8cac\u4efb\u3002',tags:['\u4fb5\u6b0a\u884c\u70ba','\u640d\u5bb3\u8ce0\u511f'],date:'2025-03-10',detail:'\u69cb\u6210\u8981\u4ef6\uff1a\n1. \u9808\u6709\u52a0\u5bb3\u884c\u70ba\n2. \u884c\u70ba\u9808\u4e0d\u6cd5\n3. \u9808\u6709\u6545\u610f\u6216\u904e\u5931\n4. \u9808\u6709\u640d\u5bb3\n5. \u52a0\u5bb3\u884c\u70ba\u8207\u640d\u5bb3\u9593\u6709\u56e0\u679c\u95dc\u4fc2'},
-{id:2,type:'case',subject:'\u5211\u6cd5',title:'\u91cb\u5b57\u7b2c 775 \u865f \u2014 \u7d2f\u72af\u52a0\u91cd\u898f\u5b9a',body:'\u7d2f\u72af\u4e00\u5f8b\u52a0\u91cd\u6700\u4f4e\u672c\u5211\uff0c\u9055\u53cd\u61b2\u6cd5\u6bd4\u4f8b\u539f\u5247\uff0c\u61c9\u4f9d\u500b\u6848\u5be9\u67e5\u3002',tags:['\u7d2f\u72af','\u6bd4\u4f8b\u539f\u5247'],date:'2025-02-28',detail:'\u5927\u6cd5\u5b98\u8a8d\u5b9a\u76f8\u95dc\u898f\u5b9a\u9055\u61b2\uff0c\u6cd5\u9662\u61c9\u4f9d\u500b\u6848\u60c5\u5f62\u5be9\u67e5\uff0c\u4e0d\u5f97\u6a5f\u68b0\u5f0f\u9069\u7528\u52a0\u91cd\u3002'},
-{id:3,type:'concept',subject:'\u61b2\u6cd5',title:'\u6bd4\u4f8b\u539f\u5247\u4e09\u5c64\u6b21',body:'\u9069\u7576\u6027\u539f\u5247\u3001\u5fc5\u8981\u6027\u539f\u5247\uff08\u6700\u5c0f\u4fb5\u5bb3\uff09\u3001\u8861\u91cf\u6027\u539f\u5247\uff08\u72f9\u7fa9\u6bd4\u4f8b\uff09\u3002',tags:['\u6bd4\u4f8b\u539f\u5247','\u57fa\u672c\u6b0a'],date:'2025-03-15',detail:'\u4e00\u3001\u9069\u7576\u6027\uff1a\u624b\u6bb5\u80fd\u9054\u6210\u76ee\u7684\n\u4e8c\u3001\u5fc5\u8981\u6027\uff1a\u6700\u5c0f\u4fb5\u5bb3\u624b\u6bb5\n\u4e09\u3001\u8861\u91cf\u6027\uff1a\u640d\u5bb3\u4e0d\u5f97\u8207\u76ee\u7684\u5229\u76ca\u986f\u5931\u5747\u8861'},
-{id:4,type:'article',subject:'\u884c\u653f\u6cd5',title:'\u884c\u653f\u7a0b\u5e8f\u6cd5\u7b2c 7 \u689d \u2014 \u6bd4\u4f8b\u539f\u5247',body:'\u884c\u653f\u884c\u70ba\u61c9\u6709\u52a9\u76ee\u7684\u9054\u6210\uff0c\u9078\u64c7\u640d\u5bb3\u6700\u5c11\u624b\u6bb5\uff0c\u640d\u5bb3\u8207\u76ee\u7684\u4e0d\u5f97\u986f\u5931\u5747\u8861\u3002',tags:['\u6bd4\u4f8b\u539f\u5247','\u884c\u653f\u884c\u70ba'],date:'2025-03-01',detail:'\u884c\u653f\u6cd5\u660e\u6587\u5316\u6bd4\u4f8b\u539f\u5247\u4e09\u5c64\u6b21\uff0c\u9069\u7528\u65bc\u884c\u653f\u6a5f\u95dc\u4e4b\u516c\u6b0a\u529b\u884c\u4f7f\u3002'},
-{id:5,type:'case',subject:'\u6c11\u6cd5',title:'\u6700\u9ad8\u6cd5\u9662 109 \u53f0\u4e0a 1234 \u2014 \u91ab\u7642\u7cfe\u7d1b',body:'\u91ab\u5e2b\u672a\u76e1\u5584\u826f\u7ba1\u7406\u4eba\u6ce8\u610f\u7fa9\u52d9\u81f4\u640d\u5bb3\uff0c\u61c9\u8ca0\u4fb5\u6b0a\u884c\u70ba\u640d\u5bb3\u8ce0\u511f\u8cac\u4efb\u3002',tags:['\u91ab\u7642\u8cac\u4efb','\u6ce8\u610f\u7fa9\u52d9'],date:'2025-02-20',detail:'\u6cd5\u9662\u898b\u89e3\uff1a\u91ab\u5e2b\u61c9\u4f9d\u91ab\u7642\u5e38\u898f\u5224\u65b7\u904e\u5931\uff0c\u672a\u76e1\u8aaa\u660e\u7fa9\u52d9\u4ea6\u69cb\u6210\u904e\u5931\u3002'},
-{id:6,type:'concept',subject:'\u5211\u6cd5',title:'\u7f6a\u5211\u6cd5\u5b9a\u539f\u5247',body:'\u5211\u6cd5\u7b2c 1 \u689d\uff1a\u884c\u70ba\u4e4b\u8655\u7f70\uff0c\u4ee5\u884c\u70ba\u6642\u4e4b\u6cd5\u5f8b\u6709\u660e\u6587\u898f\u5b9a\u8005\u70ba\u9650\u3002',tags:['\u7f6a\u5211\u6cd5\u5b9a','\u985e\u63a8\u7981\u6b62'],date:'2025-03-18',detail:'\u56db\u500b\u5b50\u539f\u5247\uff1a\u6210\u6587\u6cd5\u4e3b\u7fa9\u3001\u7981\u6b62\u985e\u63a8\u3001\u7981\u6b62\u6eaf\u53ca\u65e2\u5f80\u3001\u5211\u7f70\u660e\u78ba\u6027\u3002'}
+// ==================== 資料定義 ====================
+const DEFAULTS = {
+  notes: [
+    {id:1,type:'article',subject:'民法',title:'民法第 184 條 — 侵權行為',body:'因故意或過失，不法侵害他人之權利者，負損害賠償責任。',tags:['侵權行為','損害賠償'],date:'2025-03-10',detail:'構成要件：\n1. 須有加害行為\n2. 行為須不法\n3. 須有故意或過失\n4. 須有損害\n5. 加害行為與損害間有因果關係'},
+    {id:2,type:'case',subject:'刑法',title:'釋字第 775 號 — 累犯加重規定',body:'累犯一律加重最低本刑，違反憲法比例原則，應依個案審查。',tags:['累犯','比例原則'],date:'2025-02-28',detail:'大法官認定相關規定違憲，法院應依個案情形審查，不得機械式適用加重。'},
+    {id:3,type:'concept',subject:'憲法',title:'比例原則三層次',body:'適當性原則、必要性原則（最小侵害）、衡量性原則（狹義比例）。',tags:['比例原則','基本權'],date:'2025-03-15',detail:'一、適當性：手段能達成目的\n二、必要性：最小侵害手段\n三、衡量性：損害不得與目的利益顯失均衡'},
+    {id:4,type:'article',subject:'行政法',title:'行政程序法第 7 條 — 比例原則',body:'行政行為應有助目的達成，選擇損害最少手段，損害與目的不得顯失均衡。',tags:['比例原則','行政行為'],date:'2025-03-01',detail:'行政法明文化比例原則三層次，適用於行政機關之公權力行使。'},
+    {id:5,type:'case',subject:'民法',title:'最高法院 109 台上 1234 — 醫療糾紛',body:'醫師未盡善良管理人注意義務致損害，應負侵權行為損害賠償責任。',tags:['醫療責任','注意義務'],date:'2025-02-20',detail:'法院見解：醫師應依醫療常規判斷過失，未盡說明義務亦構成過失。'},
+    {id:6,type:'concept',subject:'刑法',title:'罪刑法定原則',body:'刑法第 1 條：行為之處罰，以行為時之法律有明文規定者為限。',tags:['罪刑法定','類推禁止'],date:'2025-03-18',detail:'四個子原則：成文法主義、禁止類推、禁止溯及既往、刑罰明確性。'}
+  ],
+  links: [
+    {id:1,from:3,to:4,rel:'引用',color:'#378ADD'},
+    {id:2,from:3,to:2,rel:'相關',color:'#1D9E75'},
+    {id:3,from:1,to:5,rel:'補充',color:'#7F77DD'}
+  ],
+  types: [{key:'article',label:'條文',color:'#007AFF'},{key:'case',label:'案例',color:'#1D9E75'},{key:'concept',label:'概念',color:'#7F77DD'}],
+  subjects: [{key:'民法',label:'民法',color:'#D85A30'},{key:'刑法',label:'刑法',color:'#1D9E75'},{key:'憲法',label:'憲法',color:'#7F77DD'},{key:'行政法',label:'行政法',color:'#378ADD'}]
+};
+const REL_TYPES = ['引用','相關','補充','對比','包含','延伸'];
+const REL_COLORS = {引用:'#378ADD',相關:'#1D9E75',補充:'#7F77DD',對比:'#D85A30',包含:'#E6A817',延伸:'#888'};
+const SKEY = 'legal_notes_v4', PAGE_SIZE = 10;
+const AI_MODELS = [
+  {id:'openrouter/free', label:'🔀 自動選最佳免費模型（推薦）'},
+  {id:'meta-llama/llama-3.3-70b-instruct:free', label:'Llama 3.3 70B（Meta）'},
+  {id:'google/gemini-2.0-flash-exp:free', label:'Gemini 2.0 Flash（Google）'},
+  {id:'deepseek/deepseek-r1:free', label:'DeepSeek R1（推理強）'},
+  {id:'mistralai/mistral-small-3.1-24b-instruct:free', label:'Mistral Small 3.1'}
 ];
-var DEFAULT_LINKS=[
-{id:1,from:3,to:4,rel:'\u5f15\u7528',color:'#378ADD'},
-{id:2,from:3,to:2,rel:'\u76f8\u95dc',color:'#1D9E75'},
-{id:3,from:1,to:5,rel:'\u88dc\u5145',color:'#7F77DD'}
+const DEFAULT_SHORTCUTS = [
+  {id:'new', label:'新增筆記', code:'KeyN', alt:true}, {id:'search', label:'搜尋', code:'KeyF', alt:true},
+  {id:'map', label:'開啟體系圖', code:'KeyM', alt:true}, {id:'back', label:'返回筆記列表', code:'Escape'},
+  {id:'close', label:'關閉面板', code:'KeyW', alt:true}, {id:'edit', label:'編輯當前筆記', code:'KeyE', alt:true},
+  {id:'link', label:'新增關聯', code:'KeyL', alt:true}, {id:'export', label:'匯出備份', code:'KeyS', alt:true},
+  {id:'shortcuts', label:'快捷鍵設定', code:'KeyK', alt:true}, {id:'flash', label:'複習模式', code:'KeyR', alt:true},
+  {id:'stats', label:'統計', code:'KeyI', alt:true}
 ];
-var DEFAULT_TYPES=[{key:'article',label:'\u689d\u6587',color:'#007AFF'},{key:'case',label:'\u6848\u4f8b',color:'#1D9E75'},{key:'concept',label:'\u6982\u5ff5',color:'#7F77DD'}];
-var DEFAULT_SUBJECTS=[{key:'\u6c11\u6cd5',label:'\u6c11\u6cd5',color:'#D85A30'},{key:'\u5211\u6cd5',label:'\u5211\u6cd5',color:'#1D9E75'},{key:'\u61b2\u6cd5',label:'\u61b2\u6cd5',color:'#7F77DD'},{key:'\u884c\u653f\u6cd5',label:'\u884c\u653f\u6cd5',color:'#378ADD'}];
-var REL_TYPES=['\u5f15\u7528','\u76f8\u95dc','\u88dc\u5145','\u5c0d\u6bd4','\u5305\u542b','\u5ef6\u4f38'];
-var REL_COLORS={'\u5f15\u7528':'#378ADD','\u76f8\u95dc':'#1D9E75','\u88dc\u5145':'#7F77DD','\u5c0d\u6bd4':'#D85A30','\u5305\u542b':'#E6A817','\u5ef6\u4f38':'#888'};
-var SKEY='legal_notes_v4';
-var gridPage=1,PAGE_SIZE=10;
 
-function initSM2(n){
-  if(!n.sm2){
-    n.sm2={ease:2.5,interval:1,reps:0};
-  }
-}
+// ==================== 全域變數 ====================
+let notes=[], links=[], nid=10, lid=10, types=[], subjects=[];
+let cv='all', cs='all', searchQ='', openId=null, editMode=false, selectedRel='';
+let nodePos={}, dragNode=null, dragOffX=0, dragOffY=0, mapW=800, mapH=500;
+let mapScale=1, mapOffX=0, mapOffY=0, mapFilter={sub:"all",type:"all",q:""}, mapLinkedOnly=true;
+let nodeEls={}, linkElsMap={}, nodeLinksIndex={}, isMapOpen=false;
+let gridPage=1, sortMode='date_desc', multiSelMode=false, selectedIds={};
+let flashDeck=[], flashIdx=0, flashShowing=false, flashSubFilter='all', flashTypeFilter2='all', flashHard=[];
+let examList=[], examTimer=null, examSec=0, examTotal=0, currentExam=null;
+let shortcuts=[], recordingBtn=null, _aiPendingAction=null, _saveTimer=null, rafId=null;
 
-function debounce(fn,ms){var t;return function(){clearTimeout(t);var a=arguments,c=this;t=setTimeout(function(){fn.apply(c,a);},ms);};}
-var optimizedSearch=debounce(function(v){searchQ=v;render();},200);
-var _saveTimer;
-function saveDataDeferred(){clearTimeout(_saveTimer);_saveTimer=setTimeout(function(){checkStorageSize();saveData();},500);}
+// ==================== 工具函數 ====================
+const g = id => document.getElementById(id);
+const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+const showToast = m => { let t=g('toast'); t.textContent=m; t.style.display='block'; setTimeout(()=>t.style.display='none',2200); };
+const saveDataDeferred = () => { clearTimeout(_saveTimer); _saveTimer = setTimeout(()=>{ if(JSON.stringify({notes,links}).length>4500000) showToast("⚠️ 資料接近儲存上限"); saveData(); },500); };
+const typeByKey = k => types.find(t=>t.key===k) || {key:k,label:k,color:'#888'};
+const subByKey = k => subjects.find(s=>s.key===k) || {key:k,label:k,color:'#888'};
+const noteById = id => notes.find(n=>n.id===id);
+const hexRgb = hex => { if(hex.length===4) hex='#'+hex[1]+hex[1]+hex[2]+hex[2]+hex[3]+hex[3]; return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)]; };
+const lightC = hex => `rgba(${hexRgb(hex).join(',')},0.12)`;
+const darkC = hex => { let r=hexRgb(hex); return `rgb(${Math.round(r[0]*0.55)},${Math.round(r[1]*0.55)},${Math.round(r[2]*0.55)})`; };
+const hl = (text, q) => !q ? text : text.replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<span class="hl">$1</span>');
+const sortedNotes = arr => arr.slice().sort((a,b)=> sortMode==='date_desc'?b.date.localeCompare(a.date):sortMode==='date_asc'?a.date.localeCompare(b.date):sortMode==='title_asc'?a.title.localeCompare(b.title,'zh'):sortMode==='title_desc'?b.title.localeCompare(a.title,'zh'):sortMode==='subject'?a.subject.localeCompare(b.subject)||a.title.localeCompare(b.title):a.type.localeCompare(b.type)||a.title.localeCompare(b.title));
+const getAiKey = () => localStorage.getItem('klaws_ai_key') || '';
+const saveAiKey = k => localStorage.setItem('klaws_ai_key', k);
+const getAiModel = () => localStorage.getItem('klaws_ai_model') || 'openrouter/free';
+const saveAiModel = m => localStorage.setItem('klaws_ai_model', m);
 
-function checkStorageSize(){
-  try{
-    var size = JSON.stringify({notes:notes,links:links}).length;
-    if(size > 4500000){
-      showToast("⚠️ 資料接近儲存上限");
-    }
-  }catch(e){}
-}
-
-
-var notes=[],links=[],nid=10,lid=10,types=[],subjects=[];
-
-function parseAIContent(txt){
-  try{
-    var j=JSON.parse(txt);
-    return j;
-  }catch(e){
-    return {issue:'',rule:'',analysis:txt,conclusion:''};
-  }
-}
-
-var cv='all',cs='all',searchQ='',openId=null,editMode=false,selectedRel='';
-var nodePos={};
-var dragNode=null,dragOffX=0,dragOffY=0,mapW=800,mapH=500;
-var mapScale=1,mapOffX=0,mapOffY=0;
-var mapFilter={sub:"all",type:"all",q:""};
-var mapLinkedOnly=true; // always hide unlinked nodes by default
-var nodeEls={};
-
-function getClusterColor(sub){
-  var map={};
-  var i=0;
-  for(var k in subjects){
-    map[subjects[k].key]=subjects[k].color||'#888';
-  }
-  return map[sub]||'#888';
-}
-
-
-function isInView(x,y){
-  var w=window.innerWidth,h=window.innerHeight;
-  return x>-200 && y>-200 && x<w+200 && y<h+200;
-}
-
-
-function limitMapNodes(nodes){
-  if(nodes.length > 150){
-    showToast("節點過多，已限制顯示");
-    return nodes.slice(0,150);
-  }
-  return nodes;
-}
-
-var linkElsMap={};
-var nodeLinksIndex={};
-var isMapOpen=false;
-
-function g(id){return document.getElementById(id);}
-function showToast(m){var t=g('toast');t.textContent=m;t.style.display='block';setTimeout(function(){t.style.display='none';},2200);}
-async function syncToGist(token,gistId){
-  try{
-    var data=localStorage.getItem(SKEY);
-    await fetch("https://api.github.com/gists/"+gistId,{
-      method:"PATCH",
-      headers:{
-        "Authorization":"token "+token,
-        "Content-Type":"application/json"
-      },
-      body:JSON.stringify({
-        files:{"klaws_data.json":{content:data}}
-      })
-    });
-    showToast("已同步到 GitHub");
-  }catch(e){
-    showToast("同步失敗");
-  }
-}
-
-async function loadFromGist(token,gistId){
-  try{
-    var res=await fetch("https://api.github.com/gists/"+gistId,{
-      headers:{ "Authorization":"token "+token }
-    });
-    var j=await res.json();
-    var content=j.files["klaws_data.json"].content;
-    localStorage.setItem(SKEY,content);
-    location.reload();
-  }catch(e){
-    showToast("載入失敗");
-  }
-}
-
-function autoLinkLaw(text){
-  return text.replace(/(民法第?\s*\d+條)/g,function(m){
-    var num=m.match(/\d+/);
-    if(!num)return m;
-    return '<span class="law-link" data-law="'+num[0]+'" style="color:#007AFF;text-decoration:underline;cursor:pointer;">'+m+'</span>';
-  });
-}
-
-
-function loadData(){
-  try{
-    var raw=localStorage.getItem(SKEY);
-    if(raw){
-      var d=JSON.parse(raw);
-      notes=d.notes||DEFAULT_NOTES.slice();
-      links=d.links||DEFAULT_LINKS.slice();
-      nid=d.nid||10; lid=d.lid||10;
-      types=d.types||DEFAULT_TYPES.slice();
-      subjects=d.subjects||DEFAULT_SUBJECTS.slice();
-      nodePos=d.nodePos||{};
-      if(d.sortMode)sortMode=d.sortMode;
-      // 修復：若之前遷移產生了 tag_t_ / tag_s_ 格式的壞 key，還原成 label
-      var repaired=false;
-      for(var i=0;i<types.length;i++){
-        if(/^tag_t_/.test(types[i].key)){
-          var oldKey=types[i].key, newKey=types[i].label;
-          types[i].key=newKey;
-          for(var j=0;j<notes.length;j++){if(notes[j].type===oldKey)notes[j].type=newKey;}
-          repaired=true;
-        }
-      }
-      for(var i=0;i<subjects.length;i++){
-        if(/^tag_s_/.test(subjects[i].key)){
-          var oldKey=subjects[i].key, newKey=subjects[i].label;
-          subjects[i].key=newKey;
-          for(var j=0;j<notes.length;j++){if(notes[j].subject===oldKey)notes[j].subject=newKey;}
-          repaired=true;
-        }
-      }
-      if(repaired)saveData();
+// ==================== 資料儲存 ====================
+function loadData() {
+  try {
+    const raw = localStorage.getItem(SKEY);
+    if(raw) {
+      const d = JSON.parse(raw);
+      notes = d.notes || DEFAULTS.notes.slice();
+      links = d.links || DEFAULTS.links.slice();
+      nid = d.nid || 10; lid = d.lid || 10;
+      types = d.types || DEFAULTS.types.slice();
+      subjects = d.subjects || DEFAULTS.subjects.slice();
+      nodePos = d.nodePos || {};
+      if(d.sortMode) sortMode = d.sortMode;
+      let repaired = false;
+      types.forEach(t=>{ if(/^tag_t_/.test(t.key)) { let old=t.key; t.key=t.label; notes.forEach(n=>{if(n.type===old)n.type=t.label;}); repaired=true; } });
+      subjects.forEach(s=>{ if(/^tag_s_/.test(s.key)) { let old=s.key; s.key=s.label; notes.forEach(n=>{if(n.subject===old)n.subject=s.label;}); repaired=true; } });
+      if(repaired) saveData();
     } else {
-      notes=DEFAULT_NOTES.slice(); links=DEFAULT_LINKS.slice();
-      types=DEFAULT_TYPES.slice(); subjects=DEFAULT_SUBJECTS.slice();
+      notes = DEFAULTS.notes.slice(); links = DEFAULTS.links.slice();
+      types = DEFAULTS.types.slice(); subjects = DEFAULTS.subjects.slice();
       saveData();
     }
-  }catch(e){
-    notes=DEFAULT_NOTES.slice(); links=DEFAULT_LINKS.slice();
-    types=DEFAULT_TYPES.slice(); subjects=DEFAULT_SUBJECTS.slice();
+  } catch(e) {
+    notes = DEFAULTS.notes.slice(); links = DEFAULTS.links.slice();
+    types = DEFAULTS.types.slice(); subjects = DEFAULTS.subjects.slice();
   }
 }
+function saveData() { try { localStorage.setItem(SKEY, JSON.stringify({notes,links,nid,lid,types,subjects,nodePos,sortMode})); } catch(e) {} }
 
-function rebuildUI(){buildTypeRow();buildSubRow();buildFormSelects();}
-function saveData(){
-  try{localStorage.setItem(SKEY,JSON.stringify({notes:notes,links:links,nid:nid,lid:lid,types:types,subjects:subjects,nodePos:nodePos,sortMode:sortMode}));}catch(e){}
+// ==================== UI 建構 ====================
+function buildTypeRow() {
+  const row = g('typeRow');
+  row.innerHTML = `<button class="tab ${cv==='all'?'on':''}" data-v="all">全部</button>` + 
+    types.map(t => `<button class="tab ${cv===t.key?'on':''}" data-v="${t.key}" style="${cv===t.key?`background:${t.color};`:''}">${t.label}</button>`).join('') +
+    `<button class="tag-mgr-btn" id="tagMgrBtn">⚙️ 管理標籤</button>`;
+  row.querySelectorAll('.tab[data-v]').forEach(btn => btn.addEventListener('click', () => { cv = btn.dataset.v; gridPage=1; buildTypeRow(); render(); }));
+  g('tagMgrBtn')?.addEventListener('click', openTagMgr);
 }
-
-function typeByKey(k){for(var i=0;i<types.length;i++){if(types[i].key===k)return types[i];}return{key:k,label:k,color:'#888'};}
-function subByKey(k){for(var i=0;i<subjects.length;i++){if(subjects[i].key===k)return subjects[i];}return{key:k,label:k,color:'#888'};}
-function noteById(id){for(var i=0;i<notes.length;i++){if(notes[i].id===id)return notes[i];}return null;}
-
-function hexRgb(hex){
-  // Expand 3-char shorthand (#abc \u2192 #aabbcc)
-  if(hex.length===4)hex='#'+hex[1]+hex[1]+hex[2]+hex[2]+hex[3]+hex[3];
-  return[parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)];
+function buildSubRow() {
+  const row = g('subbar');
+  row.innerHTML = `<button class="sc ${cs==='all'?'on':''}" data-s="all">全部科目</button>` + 
+    subjects.map(s => `<button class="sc ${cs===s.key?'on':''}" data-s="${s.key}" style="${cs===s.key?`background:${s.color};color:#fff;`:''}">${s.label}</button>`).join('');
+  row.querySelectorAll('.sc').forEach(btn => btn.addEventListener('click', () => { cs = btn.dataset.s; gridPage=1; buildSubRow(); render(); }));
 }
-function lightC(hex){var r=hexRgb(hex);return 'rgba('+r[0]+','+r[1]+','+r[2]+',0.12)';}
-function darkC(hex){var r=hexRgb(hex);return 'rgb('+Math.round(r[0]*0.55)+','+Math.round(r[1]*0.55)+','+Math.round(r[2]*0.55)+')';}
-function hl(text,q){
-  if(!q)return text;
-  var idx=text.toLowerCase().indexOf(q.toLowerCase());
-  if(idx===-1)return text;
-  return text.slice(0,idx)+'<span class="hl">'+text.slice(idx,idx+q.length)+'</span>'+text.slice(idx+q.length);
-}
+function buildFormSelects() { g('ft').innerHTML = types.map(t=>`<option value="${t.key}">${t.label}</option>`).join(''); g('fs2').innerHTML = subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join(''); }
+function rebuildUI() { buildTypeRow(); buildSubRow(); buildFormSelects(); }
 
-function buildTypeRow(){
-  var row=g('typeRow');
-  var btns='<button class="tab '+(cv==='all'?'on':'')+'" data-v="all" style="'+(cv==='all'?'background:#555;':'')+'">\u5168\u90e8</button>';
-  for(var i=0;i<types.length;i++){
-    var t=types[i],on=cv===t.key;
-    btns+='<button class="tab '+(on?'on':'')+'" data-v="'+t.key+'" style="'+(on?'background:'+t.color+';':'')+'">'+t.label+'</button>';
-  }
-  btns+='<button class="tag-mgr-btn" id="tagMgrBtn">&#9881; \u7ba1\u7406\u6a19\u7c64</button>';
-  row.innerHTML=btns;
-  var tabs=row.querySelectorAll('.tab[data-v]');
-  for(var j=0;j<tabs.length;j++){(function(btn){btn.addEventListener('click',function(){cv=btn.getAttribute('data-v');gridPage=1;buildTypeRow();render();});})(tabs[j]);}
-  var mb=g('tagMgrBtn');if(mb)mb.addEventListener('click',openTagMgr);
-}
-
-function buildSubRow(){
-  var row=g('subbar');
-  var h='<button class="sc '+(cs==='all'?'on':'')+'" data-s="all" style="'+(cs==='all'?'background:#555;color:#fff;border-color:#555;':'')+'">\u5168\u90e8\u79d1\u76ee</button>';
-  for(var i=0;i<subjects.length;i++){
-    var s=subjects[i],on=cs===s.key;
-    h+='<button class="sc '+(on?'on':'')+'" data-s="'+s.key+'" style="'+(on?'background:'+s.color+';color:#fff;border-color:'+s.color+';':'')+'">'+s.label+'</button>';
-  }
-  row.innerHTML=h;
-  var scs=row.querySelectorAll('.sc');
-  for(var j=0;j<scs.length;j++){(function(btn){btn.addEventListener('click',function(){cs=btn.getAttribute('data-s');gridPage=1;buildSubRow();render();});})(scs[j]);}
-}
-
-function buildFormSelects(){
-  var ft=g('ft'),fs2=g('fs2');
-  ft.innerHTML=types.map(function(t){return'<option value="'+t.key+'">'+t.label+'</option>';}).join('');
-  fs2.innerHTML=subjects.map(function(s){return'<option value="'+s.key+'">'+s.label+'</option>';}).join('');
-}
-
-function render(){
-  var q=searchQ.trim().toLowerCase();
-  var f=sortedNotes(notes).filter(function(n){
-    if(cv!=='all'&&n.type!==cv)return false;
-    if(cs!=='all'&&n.subject!==cs)return false;
-    if(q){var hay=(n.title+' '+n.body+' '+n.subject+' '+n.tags.join(' ')).toLowerCase();if(hay.indexOf(q)===-1)return false;}
-    return true;
-  });
-  var sb=g('search-results-bar');
-  if(q){sb.style.display='block';sb.textContent='\u641c\u5c0b\u300c'+searchQ+'\u300d\uff1a\u627e\u5230 '+f.length+' \u7b46\u7b46\u8a18';}
-  else sb.style.display='none';
-  var grid=g('grid');
-  if(!f.length){grid.innerHTML='<div class="empty">\u6c92\u6709\u7b26\u5408\u7684\u7b46\u8a18</div>';return;}
-  var maxPg=Math.max(1,Math.ceil(f.length/PAGE_SIZE));
-  if(gridPage>maxPg)gridPage=maxPg;
-  var pgF=f.slice((gridPage-1)*PAGE_SIZE,gridPage*PAGE_SIZE);
-  grid.innerHTML=pgF.map(function(n){
-    var tp=typeByKey(n.type),sb2=subByKey(n.subject);
-    var chips=n.tags.slice(0,2).map(function(t){return'<span class="chip">'+hl(t,q)+'</span>';}).join('');
-    var lc=links.filter(function(l){return l.from===n.id||l.to===n.id;}).length;
-    var linkBadge=lc>0?'<span class="chip" style="background:#EAF3DE;border-color:#97C459;color:#3B6D11;">&#128279; '+lc+'</span>':'';
-    return'<div class="card" data-id="'+n.id+'">'+'<div class="sel-check"></div>'+
-      '<div class="cbar" style="background:'+tp.color+'"></div>'+
-      '<div class="ctop"><span class="ctag" style="background:'+tp.color+'">'+tp.label+'</span><span class="cdate">'+n.date+'</span></div>'+
-      '<div class="ctitle">'+hl(n.title,q)+'</div>'+
-      '<div class="cbody">'+n.body+'</div>'+
-      '<div class="cfoot"><span class="chip" style="background:'+lightC(sb2.color)+';color:'+darkC(sb2.color)+';border-color:'+lightC(sb2.color)+'">'+sb2.label+'</span>'+chips+linkBadge+'</div></div>';
+// ==================== 渲染 ====================
+function render() {
+  const q = searchQ.trim().toLowerCase();
+  const filtered = sortedNotes(notes).filter(n => (cv==='all'||n.type===cv) && (cs==='all'||n.subject===cs) && (!q || `${n.title} ${n.body} ${n.subject} ${n.tags.join(' ')}`.toLowerCase().includes(q)));
+  const sb = g('search-results-bar');
+  if(q) { sb.style.display='block'; sb.textContent=`搜尋「${searchQ}」：找到 ${filtered.length} 筆筆記`; } else sb.style.display='none';
+  const grid = g('grid');
+  if(!filtered.length) { grid.innerHTML='<div class="empty">沒有符合的筆記</div>'; return; }
+  const maxPg = Math.ceil(filtered.length/PAGE_SIZE);
+  if(gridPage>maxPg) gridPage=maxPg;
+  const pgF = filtered.slice((gridPage-1)*PAGE_SIZE, gridPage*PAGE_SIZE);
+  grid.innerHTML = pgF.map(n => {
+    const tp = typeByKey(n.type), sb2 = subByKey(n.subject);
+    const chips = n.tags.slice(0,2).map(t=>`<span class="chip">${hl(t,q)}</span>`).join('');
+    const lc = links.filter(l=>l.from===n.id||l.to===n.id).length;
+    return `<div class="card" data-id="${n.id}"><div class="sel-check"></div><div class="cbar" style="background:${tp.color}"></div><div class="ctop"><span class="ctag" style="background:${tp.color}">${tp.label}</span><span class="cdate">${n.date}</span></div><div class="ctitle">${hl(n.title,q)}</div><div class="cbody">${n.body}</div><div class="cfoot"><span class="chip" style="background:${lightC(sb2.color)};color:${darkC(sb2.color)}">${sb2.label}</span>${chips}${lc?`<span class="chip" style="background:#EAF3DE">🔗 ${lc}</span>`:''}</div></div>`;
   }).join('');
-  var cards=grid.querySelectorAll('.card');
-  for(var i=0;i<cards.length;i++){
-    if(multiSelMode) cards[i].classList.add('selectable');
-    if(selectedIds[parseInt(cards[i].getAttribute('data-id'))]){
-      cards[i].classList.add('selected');
-      var chk=cards[i].querySelector('.sel-check');
-      if(chk)chk.textContent='\u2713';
-    }
-    (function(c){
-      c.addEventListener('click',function(){
-        var cid=parseInt(c.getAttribute('data-id'));
-        if(multiSelMode){toggleCardSelect(cid);}
-        else{openNote(cid);}
-      });
-    })(cards[i]);
-  }
-  // Pagination bar
-  var ep=g('gridPager');if(ep)ep.remove();
-  if(f.length>PAGE_SIZE){
-    var totalPg=Math.ceil(f.length/PAGE_SIZE);
-    var pager=document.createElement('div');
-    pager.id='gridPager';
-    pager.style.cssText='display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 14px 28px;';
-    if(gridPage>1){
-      var pb=document.createElement('button');pb.className='tool-btn';pb.textContent='\u2190 \u4e0a\u4e00\u9801';
-      pb.addEventListener('click',function(){gridPage--;render();window.scrollTo(0,0);});
-      pager.appendChild(pb);
-    }
-    var pi=document.createElement('span');
-    pi.style.cssText='font-size:12px;color:#888;';
-    pi.textContent='\u7b2c '+gridPage+' / '+totalPg+' \u9801\uff08\u5171 '+f.length+' \u7b46\uff09';
-    pager.appendChild(pi);
-    if(gridPage<totalPg){
-      var nb=document.createElement('button');nb.className='tool-btn';nb.textContent='\u4e0b\u4e00\u9801 \u2192';
-      nb.addEventListener('click',function(){gridPage++;render();window.scrollTo(0,0);});
-      pager.appendChild(nb);
-    }
+  grid.querySelectorAll('.card').forEach(c => {
+    const id = parseInt(c.dataset.id);
+    if(multiSelMode) c.classList.add('selectable');
+    if(selectedIds[id]) { c.classList.add('selected'); c.querySelector('.sel-check').textContent='✓'; }
+    c.addEventListener('click', () => multiSelMode ? toggleCardSelect(id) : openNote(id));
+  });
+  if(filtered.length>PAGE_SIZE) {
+    const totalPg = Math.ceil(filtered.length/PAGE_SIZE);
+    const pager = document.createElement('div'); pager.id='gridPager'; pager.style.cssText='display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 14px 28px;';
+    if(gridPage>1) { const pb=document.createElement('button'); pb.className='tool-btn'; pb.textContent='← 上一頁'; pb.onclick=()=>{gridPage--;render();window.scrollTo(0,0);}; pager.appendChild(pb); }
+    const pi=document.createElement('span'); pi.style.cssText='font-size:12px;color:#888;'; pi.textContent=`第 ${gridPage} / ${totalPg} 頁（共 ${filtered.length} 筆）`; pager.appendChild(pi);
+    if(gridPage<totalPg) { const nb=document.createElement('button'); nb.className='tool-btn'; nb.textContent='下一頁 →'; nb.onclick=()=>{gridPage++;render();window.scrollTo(0,0);}; pager.appendChild(nb); }
     g('content').appendChild(pager);
   }
 }
 
-function openNote(id){
-  var n=noteById(id);if(!n)return;
-  openId=id;
-  var tp=typeByKey(n.type),sb=subByKey(n.subject);
-  g('dp-badge').textContent=tp.label;g('dp-badge').style.background=tp.color;
-  g('dp-title').textContent=n.title;
-  g('dp-body').textContent=n.body;
-  if(n.dispute||n.f_article||n.f_elements||n.f_conclusion){
-    var dh_='';
-    if(n.dispute)dh_+='<div class="dispute-section"><div class="dispute-section-title">\u722d\u9ede</div><div class="dispute-section-body">'+n.dispute+'</div></div>';
-    if(n.f_article)dh_+='<div class="dispute-section" style="border-color:#1D9E75"><div class="dispute-section-title" style="color:#1D9E75">\u9069\u7528\u6cd5\u689d</div><div class="dispute-section-body">'+n.f_article+'</div></div>';
-    if(n.f_elements)dh_+='<div class="dispute-section" style="border-color:#7F77DD"><div class="dispute-section-title" style="color:#7F77DD">\u69cb\u6210\u8981\u4ef6</div><div class="dispute-section-body">'+n.f_elements+'</div></div>';
-    if(n.f_conclusion)dh_+='<div class="dispute-section" style="border-color:#D85A30"><div class="dispute-section-title" style="color:#D85A30">\u7d50\u8ad6</div><div class="dispute-section-body">'+n.f_conclusion+'</div></div>';
-    if(n.detail)dh_+='<div class="dp-lbl" style="margin-top:14px;">\u88dc\u5145\u7b46\u8a18</div><div class="dp-txt">'+n.detail+'</div>';
-    g('dp-detail').innerHTML=dh_;
-  } else {
-    g('dp-detail').textContent=n.detail||'\uff08\u5c1a\u7121\u8a73\u7d30\u7b46\u8a18\uff09';
-  }
-  var c='<span class="chip" style="background:'+lightC(sb.color)+';color:'+darkC(sb.color)+';border-color:'+lightC(sb.color)+'">'+sb.label+'</span>';
-  for(var k=0;k<n.tags.length;k++)c+='<span class="chip">'+n.tags[k]+'</span>';
-  g('dp-chips').innerHTML=c;
+function openNote(id) {
+  const n = noteById(id); if(!n) return;
+  openId = id;
+  const tp = typeByKey(n.type), sb = subByKey(n.subject);
+  g('dp-badge').textContent = tp.label; g('dp-badge').style.background = tp.color;
+  g('dp-title').textContent = n.title; g('dp-body').textContent = n.body;
+  const dh = [];
+  if(n.dispute) dh.push(`<div class="dispute-section"><div class="dispute-section-title">爭點</div><div class="dispute-section-body">${n.dispute}</div></div>`);
+  if(n.f_article) dh.push(`<div class="dispute-section" style="border-color:#1D9E75"><div class="dispute-section-title" style="color:#1D9E75">適用法條</div><div class="dispute-section-body">${n.f_article}</div></div>`);
+  if(n.f_elements) dh.push(`<div class="dispute-section" style="border-color:#7F77DD"><div class="dispute-section-title" style="color:#7F77DD">構成要件</div><div class="dispute-section-body">${n.f_elements}</div></div>`);
+  if(n.f_conclusion) dh.push(`<div class="dispute-section" style="border-color:#D85A30"><div class="dispute-section-title" style="color:#D85A30">結論</div><div class="dispute-section-body">${n.f_conclusion}</div></div>`);
+  g('dp-detail').innerHTML = dh.length ? dh.join('') + (n.detail?`<div class="dp-lbl" style="margin-top:14px;">補充筆記</div><div class="dp-txt">${n.detail}</div>`:'') : (n.detail||'（尚無詳細筆記）');
+  g('dp-chips').innerHTML = `<span class="chip" style="background:${lightC(sb.color)};color:${darkC(sb.color)}">${sb.label}</span>` + n.tags.map(t=>`<span class="chip">${t}</span>`).join('');
   renderLinksForNote(id);
-  g('dp').classList.add('open');g('fp').classList.remove('open');g('lp').classList.remove('open');g('tp').classList.remove('open');
-  setTimeout(function(){g('dp').scrollIntoView({behavior:'smooth',block:'nearest'});},60);
+  g('dp').classList.add('open'); ['fp','lp','tp'].forEach(p=>g(p).classList.remove('open'));
+  setTimeout(()=>g('dp').scrollIntoView({behavior:'smooth',block:'nearest'}),60);
 }
 
-function renderLinksForNote(id){
-  var related=links.filter(function(l){return l.from===id||l.to===id;});
-  var el=g('dp-links');
-  if(!related.length){el.innerHTML='<span style="font-size:12px;color:#bbb">\u5c1a\u7121\u95dc\u806f</span>';return;}
-  el.innerHTML=related.map(function(l){
-    var otherId=l.from===id?l.to:l.from;
-    var other=noteById(otherId);
-    var dir=l.from===id?'&#8594;':'&#8592;';
-    return'<div class="link-item">'+
-      '<div class="link-dot" style="background:'+l.color+'"></div>'+
-      '<span class="link-rel" style="background:'+l.color+'">'+dir+' '+l.rel+'</span>'+
-      '<span class="link-title link-jump" data-nid="'+otherId+'" style="cursor:pointer;color:#007AFF;text-decoration:underline;text-decoration-color:rgba(0,122,255,0.3);">'+(other?other.title:'\uff08\u5df2\u522a\u9664\uff09')+'</span>'+
-      '<button class="link-del" data-lid="'+l.id+'">&#215;</button>'+
-      '</div>';
+function renderLinksForNote(id) {
+  const related = links.filter(l=>l.from===id||l.to===id);
+  const el = g('dp-links');
+  if(!related.length) { el.innerHTML='<span style="font-size:12px;color:#bbb">尚無關聯</span>'; return; }
+  el.innerHTML = related.map(l => {
+    const otherId = l.from===id ? l.to : l.from;
+    const other = noteById(otherId);
+    const dir = l.from===id ? '→' : '←';
+    return `<div class="link-item"><div class="link-dot" style="background:${l.color}"></div><span class="link-rel" style="background:${l.color}">${dir} ${l.rel}</span><span class="link-title link-jump" data-nid="${otherId}" style="cursor:pointer;color:#007AFF;text-decoration:underline;">${other?other.title:'（已刪除）'}</span><button class="link-del" data-lid="${l.id}">✕</button></div>`;
   }).join('');
-  var jumps=el.querySelectorAll('.link-jump');
-  for(var i=0;i<jumps.length;i++){
-    (function(btn){btn.addEventListener('click',function(){
-      var nid2=parseInt(btn.getAttribute('data-nid'));
-      if(noteById(nid2))openNote(nid2);
-      else showToast('\u7b46\u8a18\u5df2\u88ab\u522a\u9664');
-    });})(jumps[i]);
-  }
-  var dels=el.querySelectorAll('.link-del');
-  for(var i=0;i<dels.length;i++){
-    (function(btn){btn.addEventListener('click',function(){
-      var lid2=parseInt(btn.getAttribute('data-lid'));
-      links=links.filter(function(l){return l.id!==lid2;});
-      saveData();renderLinksForNote(id);render();showToast('\u95dc\u806f\u5df2\u522a\u9664');
-    });})(dels[i]);
-  }
+  el.querySelectorAll('.link-jump').forEach(btn=>btn.addEventListener('click',()=>{ const nid2=parseInt(btn.dataset.nid); noteById(nid2)?openNote(nid2):showToast('筆記已被刪除'); }));
+  el.querySelectorAll('.link-del').forEach(btn=>btn.addEventListener('click',()=>{ links=links.filter(l=>l.id!==parseInt(btn.dataset.lid)); saveData(); renderLinksForNote(id); render(); showToast('關聯已刪除'); }));
 }
 
-function closeDetail(){g('dp').classList.remove('open');openId=null;}
+function closeDetail() { g('dp').classList.remove('open'); openId=null; }
 
-function openForm(isEdit){
-  editMode=isEdit||false;buildFormSelects();
-  if(editMode){
-    var n=noteById(openId);if(!n)return;
-    g('form-title').textContent='\u7de8\u8f2f\u7b46\u8a18';
-    g('ft').value=n.type;g('fs2').value=n.subject;
-    g('fti').value=n.title;g('fbo').value=n.body;
-    g('fde').value=n.detail||'';g('fta').value=n.tags.join(', ');
-    var fde_=g('f-dispute'),fae_=g('f-article'),fee_=g('f-elements'),fce_=g('f-conclusion');
-    if(fde_)fde_.value=n.dispute||'';if(fae_)fae_.value=n.f_article||'';
-    if(fee_)fee_.value=n.f_elements||'';if(fce_)fce_.value=n.f_conclusion||'';
-    toggleTemplate(n.type==='case'||(n.dispute||n.f_article)?true:false);
+function openForm(isEdit) {
+  editMode = isEdit;
+  buildFormSelects();
+  if(editMode) {
+    const n = noteById(openId); if(!n) return;
+    g('form-title').textContent='編輯筆記';
+    g('ft').value=n.type; g('fs2').value=n.subject; g('fti').value=n.title; g('fbo').value=n.body;
+    g('fde').value=n.detail||''; g('fta').value=n.tags.join(', ');
+    ['f-dispute','f-article','f-elements','f-conclusion'].forEach((id,i)=>{ const el=g(id); if(el) el.value=[n.dispute,n.f_article,n.f_elements,n.f_conclusion][i]||''; });
+    toggleTemplate(n.type==='case'||(n.dispute||n.f_article));
   } else {
-    g('form-title').textContent='\u65b0\u589e\u7b46\u8a18';
-    g('fti').value='';g('fbo').value='';g('fde').value='';g('fta').value='';
-    var fdc_=g('f-dispute'),fac_=g('f-article'),fec_=g('f-elements'),fcc_=g('f-conclusion');
-    if(fdc_)fdc_.value='';if(fac_)fac_.value='';if(fec_)fec_.value='';if(fcc_)fcc_.value='';
-    var ftv2_=g('ft');toggleTemplate(ftv2_&&ftv2_.value==='case');
+    g('form-title').textContent='新增筆記';
+    ['fti','fbo','fde','fta','f-dispute','f-article','f-elements','f-conclusion'].forEach(id=>{ const el=g(id); if(el) el.value=''; });
+    toggleTemplate(g('ft').value==='case');
   }
-  g('fp').classList.add('open');g('dp').classList.remove('open');g('lp').classList.remove('open');g('tp').classList.remove('open');
-  setTimeout(function(){g('fp').scrollIntoView({behavior:'smooth',block:'nearest'});},60);
+  g('fp').classList.add('open'); ['dp','lp','tp'].forEach(p=>g(p).classList.remove('open'));
+  setTimeout(()=>g('fp').scrollIntoView({behavior:'smooth',block:'nearest'}),60);
 }
+function closeForm() { g('fp').classList.remove('open'); }
 
-function closeForm(){g('fp').classList.remove('open');}
-
-function saveNote(){
-  var title=(g('fti').value||'').replace(/^ +| +$/g,'');
-  if(!title){g('fti').style.borderColor='#FF3B30';showToast('\u8acb\u8f38\u5165\u6a19\u984c');return;}
+function saveNote() {
+  const title = (g('fti').value||'').trim();
+  if(!title) { g('fti').style.borderColor='#FF3B30'; showToast('請輸入標題'); return; }
   g('fti').style.borderColor='';
-  var tags=(g('fta').value||'').split(',').map(function(t){return t.replace(/^ +| +$/g,'');}).filter(Boolean);
-  if(editMode&&openId){
-    for(var i=0;i<notes.length;i++){
-      if(notes[i].id===openId){
-        notes[i].type=g('ft').value;notes[i].subject=g('fs2').value;notes[i].title=title;
-        notes[i].body=(g('fbo').value||'').replace(/^ +| +$/g,'');
-        notes[i].detail=(g('fde').value||'').replace(/^ +| +$/g,'');
-        notes[i].tags=tags;
-        var fde2_=g('f-dispute'),fae2_=g('f-article'),fee2_=g('f-elements'),fce2_=g('f-conclusion');
-        notes[i].dispute=fde2_?fde2_.value.replace(/^ +| +$/g,''):'';notes[i].f_article=fae2_?fae2_.value.replace(/^ +| +$/g,''):'';notes[i].f_elements=fee2_?fee2_.value.replace(/^ +| +$/g,''):'';notes[i].f_conclusion=fce2_?fce2_.value.replace(/^ +| +$/g,''):'';break;
-      }
-    }
-    saveData();closeForm();render();showToast('\u7b46\u8a18\u5df2\u66f4\u65b0\uff01');setTimeout(function(){openNote(openId);},150);
+  const tags = (g('fta').value||'').split(',').map(t=>t.trim()).filter(Boolean);
+  const getField = id => (g(id)?.value||'').trim();
+  if(editMode && openId) {
+    const idx = notes.findIndex(n=>n.id===openId);
+    if(idx!==-1) Object.assign(notes[idx], {
+      type:g('ft').value, subject:g('fs2').value, title, body:(g('fbo').value||'').trim(),
+      detail:(g('fde').value||'').trim(), tags, dispute:getField('f-dispute'), f_article:getField('f-article'),
+      f_elements:getField('f-elements'), f_conclusion:getField('f-conclusion')
+    });
+    saveData(); closeForm(); render(); showToast('筆記已更新！'); setTimeout(()=>openNote(openId),150);
   } else {
-    var d=new Date();
-    var dt=d.getFullYear()+'-'+(d.getMonth()<9?'0':'')+(d.getMonth()+1)+'-'+(d.getDate()<10?'0':'')+d.getDate();
-    var fd__=g('f-dispute'),fa__=g('f-article'),fe__=g('f-elements'),fc__=g('f-conclusion');
-    notes.unshift({id:nid++,type:g('ft').value,subject:g('fs2').value,title:title,
-      body:(g('fbo').value||'').replace(/^ +| +$/g,''),detail:(g('fde').value||'').replace(/^ +| +$/g,''),tags:tags,date:dt,
-      dispute:fd__?fd__.value.replace(/^ +| +$/g,''):'',f_article:fa__?fa__.value.replace(/^ +| +$/g,''):'',f_elements:fe__?fe__.value.replace(/^ +| +$/g,''):'',f_conclusion:fc__?fc__.value.replace(/^ +| +$/g,''):''});
-    saveData();closeForm();render();showToast('\u7b46\u8a18\u5df2\u5132\u5b58\uff01');
-    setTimeout(function(){window.scrollTo(0,0);setTimeout(function(){openNote(notes[0].id);},300);},100);
+    const d = new Date();
+    const dt = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    notes.unshift({id:nid++, type:g('ft').value, subject:g('fs2').value, title, body:(g('fbo').value||'').trim(),
+      detail:(g('fde').value||'').trim(), tags, date:dt, dispute:getField('f-dispute'), f_article:getField('f-article'),
+      f_elements:getField('f-elements'), f_conclusion:getField('f-conclusion')});
+    saveData(); closeForm(); render(); showToast('筆記已儲存！');
+    setTimeout(()=>{ window.scrollTo(0,0); setTimeout(()=>openNote(notes[0].id),300); },100);
   }
 }
+function deleteNote() { if(!openId||!confirm('確定刪除這筆筆記？相關關聯也會一起刪除。')) return; links=links.filter(l=>l.from!==openId&&l.to!==openId); notes=notes.filter(n=>n.id!==openId); saveData(); closeDetail(); render(); showToast('已刪除'); }
+function toggleTemplate(show) { const tt=g('templateToggle'); if(tt) tt.style.display=show?'block':'none'; }
 
-function deleteNote(){
-  if(!openId)return;
-  if(!confirm('\u78ba\u5b9a\u522a\u9664\u9019\u7b46\u7b46\u8a18\uff1f\u76f8\u95dc\u95dc\u806f\u4e5f\u6703\u4e00\u8d77\u522a\u9664\u3002'))return;
-  links=links.filter(function(l){return l.from!==openId&&l.to!==openId;});
-  notes=notes.filter(function(n){return n.id!==openId;});
-  saveData();closeDetail();render();showToast('\u5df2\u522a\u9664');
+// ==================== 關聯面板 ====================
+function buildLpTarget() {
+  const sel = g('lp-target');
+  const sq = (g('lp-search').value||'').toLowerCase();
+  const sf = g('lp-filter-sub').value||'all';
+  const filtered = notes.filter(x=> x.id!==openId && (sf==='all'||x.subject===sf) && (!sq||`${x.title} ${x.subject}`.toLowerCase().includes(sq)));
+  sel.innerHTML = filtered.map(x=>`<option value="${x.id}">[${typeByKey(x.type).label}] ${x.subject} - ${x.title}</option>`).join('');
+  g('lp-count').textContent=`共 ${filtered.length} 筆`;
 }
-
-function buildLpTarget(){
-  var sel=g('lp-target');
-  var sq=(g('lp-search').value||'').toLowerCase();
-  var sf=g('lp-filter-sub').value||'all';
-  var filtered=notes.filter(function(x){
-    if(x.id===openId)return false;
-    if(sf!=='all'&&x.subject!==sf)return false;
-    if(sq&&(x.title+' '+x.subject).toLowerCase().indexOf(sq)===-1)return false;
-    return true;
-  });
-  sel.innerHTML=filtered.map(function(x){
-    return'<option value="'+x.id+'">['+typeByKey(x.type).label+'] '+x.subject+' - '+x.title+'</option>';
-  }).join('');
-  var cnt=g('lp-count');if(cnt)cnt.textContent='\u5171 '+filtered.length+' \u7b46';
-}
-
-function openLinkPanel(){
-  if(!openId)return;
-  var n=noteById(openId);
-  g('lp-from-title').textContent='\u5f9e\uff1a'+n.title;
-  var sfSel=g('lp-filter-sub');
-  sfSel.innerHTML='<option value="all">\u5168\u90e8\u79d1\u76ee</option>'+subjects.map(function(s){return'<option value="'+s.key+'">'+s.label+'</option>';}).join('');
-  sfSel.value='all';
-  g('lp-search').value='';
+function openLinkPanel() {
+  if(!openId) return;
+  g('lp-from-title').textContent=`從：${noteById(openId).title}`;
+  const sfSel = g('lp-filter-sub');
+  sfSel.innerHTML = '<option value="all">全部科目</option>' + subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join('');
+  sfSel.value = 'all';
+  g('lp-search').value = '';
   buildLpTarget();
-  var sel=g('lp-target');
-  selectedRel=REL_TYPES[0];
-  var rb=g('relBtns');
-  rb.innerHTML=REL_TYPES.map(function(r){
-    var c=REL_COLORS[r]||'#888';
-    return'<button class="rel-btn" data-rel="'+r+'" style="color:'+c+';border-color:'+c+'">'+r+'</button>';
-  }).join('');
-  var rbtns=rb.querySelectorAll('.rel-btn');
-  for(var i=0;i<rbtns.length;i++){
-    (function(btn){btn.addEventListener('click',function(){
-      selectedRel=btn.getAttribute('data-rel');
-      rbtns.forEach(function(b){b.style.background='#fff';b.style.fontWeight='600';});
-      btn.style.background=REL_COLORS[selectedRel]||'#888';btn.style.color='#fff';
-    });})(rbtns[i]);
-  }
-  rbtns[0].style.background=REL_COLORS[REL_TYPES[0]]||'#888';rbtns[0].style.color='#fff';
-  g('lp-rel-custom').value='';
-  g('lp').classList.add('open');g('dp').classList.remove('open');
-  setTimeout(function(){g('lp').scrollIntoView({behavior:'smooth',block:'nearest'});},60);
+  selectedRel = REL_TYPES[0];
+  const rb = g('relBtns');
+  rb.innerHTML = REL_TYPES.map(r=>`<button class="rel-btn" data-rel="${r}" style="color:${REL_COLORS[r]||'#888'};border-color:${REL_COLORS[r]||'#888'}">${r}</button>`).join('');
+  const rbtns = rb.querySelectorAll('.rel-btn');
+  rbtns.forEach(btn=>btn.addEventListener('click',()=>{ selectedRel=btn.dataset.rel; rbtns.forEach(b=>{b.style.background='#fff';b.style.fontWeight='600';}); btn.style.background=REL_COLORS[selectedRel]||'#888'; btn.style.color='#fff'; }));
+  rbtns[0].style.background = REL_COLORS[REL_TYPES[0]]||'#888'; rbtns[0].style.color = '#fff';
+  g('lp-rel-custom').value = '';
+  g('lp').classList.add('open'); g('dp').classList.remove('open');
+  setTimeout(()=>g('lp').scrollIntoView({behavior:'smooth',block:'nearest'}),60);
+}
+function saveLinkPanel() {
+  const toId = parseInt(g('lp-target').value);
+  const rel = (g('lp-rel-custom').value||'').trim() || selectedRel || REL_TYPES[0];
+  const color = REL_COLORS[rel]||'#888';
+  if(links.some(l=>(l.from===openId&&l.to===toId)||(l.from===toId&&l.to===openId))) { showToast('這兩筆筆記已有關聯'); return; }
+  links.push({id:lid++, from:openId, to:toId, rel, color});
+  saveData(); g('lp').classList.remove('open'); renderLinksForNote(openId); render();
+  g('dp').classList.add('open'); showToast('關聯已建立！');
+  if(isMapOpen) drawMap();
 }
 
-function saveLinkPanel(){
-  var toId=parseInt(g('lp-target').value);
-  var rel=(g('lp-rel-custom').value||'').replace(/^ +| +$/g,'')||selectedRel||REL_TYPES[0];
-  var color=REL_COLORS[rel]||'#888';
-  var exists=links.filter(function(l){return(l.from===openId&&l.to===toId)||(l.from===toId&&l.to===openId);});
-  if(exists.length){showToast('\u9019\u5169\u7b46\u7b46\u8a18\u5df2\u6709\u95dc\u806f');return;}
-  links.push({id:lid++,from:openId,to:toId,rel:rel,color:color});
-  saveData();g('lp').classList.remove('open');renderLinksForNote(openId);render();
-  g('dp').classList.add('open');showToast('\u95dc\u806f\u5df2\u5efa\u7acb\uff01');
-  if(isMapOpen)drawMap();
+// ==================== 標籤管理 ====================
+function openTagMgr() { g('tp').classList.add('open'); ['dp','fp','lp'].forEach(p=>g(p).classList.remove('open')); renderTagLists(); setTimeout(()=>g('tp').scrollIntoView({behavior:'smooth',block:'nearest'}),60); }
+function renderTagLists() { renderTagList('typeTagList',types,'type'); renderTagList('subTagList',subjects,'sub'); }
+function renderTagList(cid,arr,kind) {
+  const el = g(cid);
+  if(!arr.length) { el.innerHTML='<div style="color:#bbb;font-size:13px;padding:8px 0">（尚無標籤）</div>'; return; }
+  el.innerHTML = arr.map((item,idx)=>`<div class="tag-item" data-idx="${idx}" data-kind="${kind}"><div class="tag-color-dot" style="background:${item.color}"></div><span class="tag-item-label">${item.label}</span><button class="tag-edit-btn" data-idx="${idx}" data-kind="${kind}">編輯</button><button class="tag-del-btn" data-idx="${idx}" data-kind="${kind}">刪除</button></div>`).join('');
+  el.querySelectorAll('.tag-edit-btn').forEach(b=>b.addEventListener('click',()=>editTag(parseInt(b.dataset.idx),b.dataset.kind)));
+  el.querySelectorAll('.tag-del-btn').forEach(b=>b.addEventListener('click',()=>deleteTag(parseInt(b.dataset.idx),b.dataset.kind)));
+}
+function editTag(idx,kind) {
+  const arr = kind==='type'?types:subjects, item=arr[idx];
+  const nl2 = prompt('修改標籤名稱：',item.label); if(!nl2) return;
+  const nv = nl2.trim(); if(!nv) { showToast('名稱不能為空'); return; }
+  if(arr.some((t,i)=>i!==idx&&t.label===nv)) { showToast('標籤名稱重複'); return; }
+  const nc = prompt('修改顏色（#RRGGBB）：',item.color); if(!nc) return;
+  const ncv = nc.trim(); if(!/^#[0-9A-Fa-f]{6}$/.test(ncv)) { showToast('顏色格式不正確'); return; }
+  arr[idx].label = nv; arr[idx].color = ncv;
+  saveData(); renderTagLists(); buildTypeRow(); buildSubRow(); render(); showToast('標籤已更新');
+}
+function deleteTag(idx,kind) {
+  const arr = kind==='type'?types:subjects;
+  if(!confirm(`確定刪除標籤「${arr[idx].label}」？`)) return;
+  arr.splice(idx,1); saveData(); renderTagLists(); rebuildUI(); render(); showToast('標籤已刪除');
+}
+function addTag(kind) {
+  const label = (g(kind==='type'?'newTypeLabel':'newSubLabel').value||'').trim();
+  const color = g(kind==='type'?'newTypeColor':'newSubColor').value;
+  if(!label) { showToast('請輸入標籤名稱'); return; }
+  const arr = kind==='type'?types:subjects;
+  if(arr.some(t=>t.label===label)) { showToast('標籤已存在'); return; }
+  arr.push({key:'tag_'+Date.now(), label, color});
+  g(kind==='type'?'newTypeLabel':'newSubLabel').value = '';
+  saveData(); renderTagLists(); rebuildUI(); showToast('標籤已新增！');
 }
 
-// ===== MAP =====
-function initNodePos(){
-  var canvas=g('mapCanvas');
-  mapW=canvas.offsetWidth||800;mapH=canvas.offsetHeight||500;
-  var cx=mapW/2,cy=mapH/2,r=Math.min(mapW,mapH)*0.38;
-  for(var i=0;i<notes.length;i++){
-    var n=notes[i];
-    if(!nodePos[n.id]){
-      var angle=(i/notes.length)*2*Math.PI;
-      nodePos[n.id]={x:cx+r*Math.cos(angle),y:cy+r*Math.sin(angle)};
-    }
-  }
+// ==================== 匯入/匯出 ====================
+function exportData() {
+  const json = JSON.stringify({notes,links,nid,lid,types,subjects,exported:new Date().toISOString()},null,2);
+  const blob = new Blob([json],{type:'application/json'});
+  const url = URL.createObjectURL(blob); const a = document.createElement('a');
+  const d = new Date();
+  a.download = `法律筆記備份_${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}.json`;
+  a.href = url; a.click(); URL.revokeObjectURL(url); showToast('已匯出！');
 }
-
-function forceLayout(){
-  var canvas=g('mapCanvas');
-  mapW=canvas.offsetWidth||800;mapH=canvas.offsetHeight||500;
-  // Only layout visible notes (respect mapLinkedOnly filter)
-  var layoutNotes=visibleNotes();
-  var n2=layoutNotes.length;
-  var _origNotes=notes; notes=layoutNotes; // temporarily replace for layout
-  if(!n2){notes=_origNotes;return;} // restore before early return!
-
-  // Node radius for layout (use max possible size + padding)
-  var NODE_R=38;
-  var LINK_IDEAL=NODE_R*5; // ideal distance between linked nodes
-  var LINK_MIN=NODE_R*2.2; // hard minimum between linked nodes
-
-  // Build linked-pair lookup
-  var linkedPairs={};
-  for(var li=0;li<links.length;li++){
-    var lk=links[li];
-    var key1=lk.from+'_'+lk.to, key2=lk.to+'_'+lk.from;
-    linkedPairs[key1]=true; linkedPairs[key2]=true;
-  }
-  function isLinked(a,b){ return !!linkedPairs[a+'_'+b]; }
-
-  // Initial grid placement
-  var cols=Math.ceil(Math.sqrt(n2*1.4));
-  var cellW=Math.max(mapW/(cols+1), NODE_R*3);
-  var cellH=Math.max(mapH/(Math.ceil(n2/cols)+1), NODE_R*3);
-  for(var i=0;i<n2;i++){
-    var col=i%cols, row=Math.floor(i/cols);
-    nodePos[notes[i].id]={
-      x: cellW*(col+1)+(Math.random()-0.5)*cellW*0.25,
-      y: cellH*(row+1)+(Math.random()-0.5)*cellH*0.25
-    };
-  }
-
-  // Force iterations
-  var iter=300;
-  for(var t=0;t<iter;t++){
-    var cool=Math.pow(1-t/iter, 1.5);
-    var disp={};
-    for(var i=0;i<n2;i++) disp[notes[i].id]={x:0,y:0};
-
-    // Repulsion: strong between LINKED pairs, weak between unlinked
-    for(var i=0;i<n2;i++){
-      for(var j=i+1;j<n2;j++){
-        var ai=notes[i].id, aj=notes[j].id;
-        var px=nodePos[ai],py=nodePos[aj];
-        var dx=px.x-py.x, dy=px.y-py.y;
-        var dist=Math.sqrt(dx*dx+dy*dy)||0.01;
-        var linked=isLinked(ai,aj);
-        var rep;
-        if(linked){
-          // Strong repulsion up to LINK_MIN - pushes apart if too close
-          rep = (dist < LINK_MIN*1.5) ? (LINK_MIN*LINK_MIN*6)/dist : 0;
-        } else {
-          // Very weak repulsion for unlinked - allow overlap
-          rep = (dist < NODE_R*1.2) ? (NODE_R*NODE_R*0.8)/dist : 0;
-        }
-        if(rep>0){
-          disp[ai].x+=dx/dist*rep; disp[ai].y+=dy/dist*rep;
-          disp[aj].x-=dx/dist*rep; disp[aj].y-=dy/dist*rep;
-        }
-      }
-    }
-
-    // Attraction: only for LINKED pairs, spring toward ideal distance
-    for(var li=0;li<links.length;li++){
-      var lk=links[li];
-      var fp=nodePos[lk.from], tp=nodePos[lk.to];
-      if(!fp||!tp)continue;
-      var dx=tp.x-fp.x, dy=tp.y-fp.y;
-      var dist=Math.sqrt(dx*dx+dy*dy)||0.01;
-      // Spring: attract if too far, repel handled above
-      if(dist>LINK_IDEAL){
-        var att=(dist-LINK_IDEAL)*0.08;
-        disp[lk.from].x+=dx/dist*att; disp[lk.from].y+=dy/dist*att;
-        disp[lk.to].x-=dx/dist*att;   disp[lk.to].y-=dy/dist*att;
-      }
-    }
-
-    // Apply displacements with cooling
-    var maxD=Math.max(mapW,mapH)*0.05*cool+2;
-    var pad=NODE_R+4;
-    for(var i=0;i<n2;i++){
-      var id=notes[i].id, d=disp[id];
-      var len=Math.sqrt(d.x*d.x+d.y*d.y)||0.01;
-      var move=Math.min(len,maxD);
-      nodePos[id].x=Math.max(pad,Math.min(mapW-pad, nodePos[id].x+d.x/len*move));
-      nodePos[id].y=Math.max(pad,Math.min(mapH-pad, nodePos[id].y+d.y/len*move));
-    }
-  }
-
-  // Hard separation pass: guarantee no overlap between LINKED nodes
-  for(var pass=0;pass<30;pass++){
-    var moved=false;
-    for(var li=0;li<links.length;li++){
-      var lk=links[li];
-      var fp=nodePos[lk.from], tp=nodePos[lk.to];
-      if(!fp||!tp)continue;
-      var dx=tp.x-fp.x, dy=tp.y-fp.y;
-      var dist=Math.sqrt(dx*dx+dy*dy)||0.01;
-      if(dist<LINK_MIN){
-        var push=(LINK_MIN-dist)/2+1;
-        var nx=dx/dist, ny=dy/dist;
-        var pad=NODE_R+4;
-        nodePos[lk.from].x=Math.max(pad,Math.min(mapW-pad, nodePos[lk.from].x-nx*push));
-        nodePos[lk.from].y=Math.max(pad,Math.min(mapH-pad, nodePos[lk.from].y-ny*push));
-        nodePos[lk.to].x=Math.max(pad,Math.min(mapW-pad, nodePos[lk.to].x+nx*push));
-        nodePos[lk.to].y=Math.max(pad,Math.min(mapH-pad, nodePos[lk.to].y+ny*push));
-        moved=true;
-      }
-    }
-    if(!moved)break;
-  }
-
-  notes=_origNotes; // restore
-  saveData();
-}
-
-function getArrowMarker(color){
-  var map={'#378ADD':'arrowBlue','#1D9E75':'arrowGreen','#7F77DD':'arrowPurple','#D85A30':'arrowOrange'};
-  return 'url(#'+(map[color]||'arrowGray')+')';
-}
-
-function moveNodeEl(id,x,y){
-  var grp=nodeEls[id];
-  if(!grp)return;
-  var circles=grp.querySelectorAll('circle');
-  var texts=grp.querySelectorAll('text');
-  if(circles[0]){circles[0].setAttribute('cx',x);circles[0].setAttribute('cy',y);}
-  var r=parseFloat(circles[0]?circles[0].getAttribute('r'):24)||24;
-  if(circles[1]){circles[1].setAttribute('cx',x+r-4);circles[1].setAttribute('cy',y-r+4);}
-  if(texts[1]){
-    texts[0].setAttribute('x',x+r-4);texts[0].setAttribute('y',y-r+4);
-    texts[1].setAttribute('x',x);texts[1].setAttribute('y',y+r+12);
-  } else if(texts[0]){
-    texts[0].setAttribute('x',x);texts[0].setAttribute('y',y+r+12);
-  }
-}
-
-function calcLinkPath(lk){
-  var fp=nodePos[lk.from],tp=nodePos[lk.to];
-  if(!fp||!tp)return null;
-  var dx=tp.x-fp.x,dy=tp.y-fp.y,dist=Math.sqrt(dx*dx+dy*dy)||1;
-  var nx=dx/dist,ny=dy/dist,nr=22;
-  var x1=fp.x+nx*nr,y1=fp.y+ny*nr,x2=tp.x-nx*(nr+8),y2=tp.y-ny*(nr+8);
-  var mx=(x1+x2)/2,my=(y1+y2)/2-14;
-  var lmx=(x1+x2)/2,lmy=(y1+y2)/2-18;
-  return{d:'M'+x1+','+y1+' Q'+mx+','+my+' '+x2+','+y2,lmx:lmx,lmy:lmy};
-}
-
-function redrawLines(affectedId){
-  var toUpdate;
-  if(affectedId!==undefined){
-    // Partial: only links touching the dragged node
-    var idxArr=nodeLinksIndex[affectedId]||[];
-    toUpdate=[];
-    for(var _i=0;_i<idxArr.length;_i++)toUpdate.push(links[idxArr[_i]]);
-  } else {
-    toUpdate=links;
-  }
-  for(var i=0;i<toUpdate.length;i++){
-    var lk=toUpdate[i];
-    var els=linkElsMap[lk.id];
-    if(!els||!els.p)continue;
-    var c=calcLinkPath(lk);
-    if(!c)continue;
-    els.p.setAttribute('d',c.d);
-    if(els.r){els.r.setAttribute('x',c.lmx-18);els.r.setAttribute('y',c.lmy-9);}
-    if(els.t){els.t.setAttribute('x',c.lmx);els.t.setAttribute('y',c.lmy+1);}
-  }
-}
-
-function visibleNotes(){
-  var q=mapFilter.q.toLowerCase();
-  var linkedIds={};
-  if(mapLinkedOnly){
-    for(var li2=0;li2<links.length;li2++){
-      linkedIds[links[li2].from]=true;
-      linkedIds[links[li2].to]=true;
-    }
-  }
-  return notes.filter(function(n){
-    if(mapFilter.sub!=='all'&&n.subject!==mapFilter.sub)return false;
-    if(mapFilter.type!=='all'&&n.type!==mapFilter.type)return false;
-    if(q&&(n.title+n.subject+n.tags.join('')).toLowerCase().indexOf(q)===-1)return false;
-    if(mapLinkedOnly&&!linkedIds[n.id])return false;
-    return true;
-  });
-}
-
-function drawMap(){
-  initNodePos();
-var svg=g('mapSvg');
-  var canvas=g('mapCanvas');
-  mapW=canvas.offsetWidth||800;mapH=canvas.offsetHeight||500;
-  svg.setAttribute('width',mapW);svg.setAttribute('height',mapH);
-  var ll=g('linksLayer'),nl=g('nodesLayer');
-  ll.innerHTML='';nl.innerHTML='';
-  // apply zoom/pan
-  var gw=svg.querySelector('#mapWrap');
-  if(!gw){
-    gw=document.createElementNS('http://www.w3.org/2000/svg','g');
-    gw.setAttribute('id','mapWrap');
-    svg.insertBefore(gw,svg.firstChild);
-    gw.appendChild(ll);gw.appendChild(nl);
-  }
-  gw.setAttribute('transform','translate('+mapOffX+','+mapOffY+') scale('+mapScale+')');
-
-  var vis=visibleNotes();
-  var visIds={};
-  for(var i=0;i<vis.length;i++)visIds[vis[i].id]=true;
-
-  for(var i=0;i<links.length;i++){
-    var lk=links[i];
-    if(!visIds[lk.from]||!visIds[lk.to])continue;
-    var fp2=nodePos[lk.from],tp2=nodePos[lk.to];
-    if(!fp2||!tp2)continue;
-    var dx=tp2.x-fp2.x,dy=tp2.y-fp2.y,dist=Math.sqrt(dx*dx+dy*dy)||1;
-    var nx=dx/dist,ny=dy/dist,nr=24;
-    var x1=fp2.x+nx*nr,y1=fp2.y+ny*nr,x2=tp2.x-nx*(nr+8),y2=tp2.y-ny*(nr+8);
-    var mx=(x1+x2)/2,my=(y1+y2)/2-16;
-    var line=document.createElementNS('http://www.w3.org/2000/svg','path');
-    line.setAttribute('d','M'+x1+','+y1+' Q'+mx+','+my+' '+x2+','+y2);
-    line.setAttribute('stroke',lk.color);line.setAttribute('stroke-width','2');
-    line.setAttribute('fill','none');line.setAttribute('marker-end',getArrowMarker(lk.color));
-    ll.appendChild(line);
-    var lmx=(x1+x2)/2,lmy=(y1+y2)/2-20;
-    var rct=document.createElementNS('http://www.w3.org/2000/svg','rect');
-    rct.setAttribute('x',lmx-18);rct.setAttribute('y',lmy-9);
-    rct.setAttribute('width','36');rct.setAttribute('height','16');rct.setAttribute('rx','8');
-    rct.setAttribute('fill',lk.color);ll.appendChild(rct);
-    var lt=document.createElementNS('http://www.w3.org/2000/svg','text');
-    lt.setAttribute('x',lmx);lt.setAttribute('y',lmy+1);
-    lt.setAttribute('text-anchor','middle');lt.setAttribute('dominant-baseline','middle');
-    lt.setAttribute('font-size','9');lt.setAttribute('fill','#fff');lt.setAttribute('font-weight','600');
-    lt.textContent=lk.rel;ll.appendChild(lt);
-  }
-
-  for(var j=0;j<notes.length;j++){
-    var n=notes[j];var pos=nodePos[n.id];if(!pos)continue;
-    var tp3=typeByKey(n.type);
-    var isVis=!!visIds[n.id];
-    var lc=links.filter(function(l){return l.from===n.id||l.to===n.id;}).length;
-    var radius=20+Math.min(lc*3,12);
-    var grp=document.createElementNS('http://www.w3.org/2000/svg','g');
-    grp.setAttribute('class','map-node'+(isVis?'':' map-node-dimmed'));
-    grp.setAttribute('data-id',n.id);
-    var circ=document.createElementNS('http://www.w3.org/2000/svg','circle');
-    circ.setAttribute('cx',pos.x);circ.setAttribute('cy',pos.y);circ.setAttribute('r',radius);
-    circ.setAttribute('fill',tp3.color);circ.setAttribute('stroke','#fff');circ.setAttribute('stroke-width','2');
-    grp.appendChild(circ);
-    if(lc>0){
-      var bdg=document.createElementNS('http://www.w3.org/2000/svg','circle');
-      bdg.setAttribute('cx',pos.x+radius-4);bdg.setAttribute('cy',pos.y-radius+4);
-      bdg.setAttribute('r','9');bdg.setAttribute('fill','#fff');grp.appendChild(bdg);
-      var bt=document.createElementNS('http://www.w3.org/2000/svg','text');
-      bt.setAttribute('x',pos.x+radius-4);bt.setAttribute('y',pos.y-radius+4);
-      bt.setAttribute('text-anchor','middle');bt.setAttribute('dominant-baseline','middle');
-      bt.setAttribute('font-size','8');bt.setAttribute('fill',tp3.color);bt.setAttribute('font-weight','700');
-      bt.textContent=lc;grp.appendChild(bt);
-    }
-    var short=n.title.length>9?n.title.slice(0,9)+'..':n.title;
-    var txt=document.createElementNS('http://www.w3.org/2000/svg','text');
-    txt.setAttribute('x',pos.x);txt.setAttribute('y',pos.y+radius+12);
-    txt.setAttribute('text-anchor','middle');txt.setAttribute('font-size','10');
-    txt.setAttribute('fill','#444');txt.setAttribute('font-weight','500');
-    txt.textContent=short;grp.appendChild(txt);
-    (function(node,nid2){
-      node.addEventListener('click',function(){showMapInfo(nid2);});
-      node.addEventListener('mousedown',function(e){startDrag(e,nid2);});
-      node.addEventListener('touchstart',function(e){startDragTouch(e,nid2);},{passive:true});
-    })(grp,n.id);
-    nl.appendChild(grp);
-  }
-  // Cache node elements
-  nodeEls={};
-  var _ng=nl.querySelectorAll('.map-node');
-  for(var _i=0;_i<_ng.length;_i++){nodeEls[parseInt(_ng[_i].getAttribute('data-id'))]=_ng[_i];}
-  // Cache link elements
-  linkElsMap={};
-  var _ap=ll.querySelectorAll('path'),_ar=ll.querySelectorAll('rect'),_at=ll.querySelectorAll('text');
-  for(var _j=0;_j<links.length;_j++){linkElsMap[links[_j].id]={p:_ap[_j],r:_ar[_j],t:_at[_j]};}
-  // Build per-node link index
-  nodeLinksIndex={};
-  for(var _k=0;_k<links.length;_k++){
-    var _lk=links[_k];
-    if(!nodeLinksIndex[_lk.from])nodeLinksIndex[_lk.from]=[];
-    if(!nodeLinksIndex[_lk.to])nodeLinksIndex[_lk.to]=[];
-    nodeLinksIndex[_lk.from].push(_k);
-    nodeLinksIndex[_lk.to].push(_k);
-  }
-}
-
-function showMapInfo(id){
-  var n=noteById(id); if(!n)return;
-  var tp3=typeByKey(n.type);
-  var sb=subByKey(n.subject);
-  var related=links.filter(function(l){return l.from===id||l.to===id;});
-
-  g('mpBadge').textContent=tp3.label;
-  g('mpBadge').style.background=tp3.color;
-  g('mpTitle').textContent=n.title;
-  g('mpSubject').textContent=sb.label;
-  g('mpSubject').style.background=sb.color+'22';
-  g('mpSubject').style.color=sb.color;
-
-  var linksEl=g('mpLinks');
-  if(!related.length){
-    linksEl.innerHTML='<span class="mp-no-links">'+'\u5c1a\u7121\u95dc\u806f'+'</span>';
-  } else {
-    linksEl.innerHTML=related.map(function(l){
-      var otherId=l.from===id?l.to:l.from;
-      var other=noteById(otherId);
-      var dir=l.from===id?'\u2192':'\u2190';
-      var name=other?other.title:'\uff08\u5df2\u522a\u9664\uff09';
-      return('<div class="mp-link-row">'+
-        '<span class="mp-link-badge" style="background:'+l.color+'">'+dir+' '+l.rel+'</span>'+
-        '<span class="mp-link-name" data-nid="'+otherId+'">'+name.slice(0,18)+(name.length>18?'..':'')+'</span>'+
-        '</div>');
-    }).join('');
-    var jumps=linksEl.querySelectorAll('.mp-link-name');
-    for(var i=0;i<jumps.length;i++){
-      (function(el){
-        el.addEventListener('click',function(){
-          closeMapPopup();
-          var tid=parseInt(el.getAttribute('data-nid'));
-          showMapInfo(tid);
-          highlightNode(tid);
-        });
-      })(jumps[i]);
-    }
-  }
-
-  // Position popup near the node, stay within canvas
-  var canvas=g('mapCanvas');
-  var cw=canvas.offsetWidth||800, ch=canvas.offsetHeight||500;
-  var pos=nodePos[id];
-  var sx=pos.x*mapScale+mapOffX;
-  var sy=pos.y*mapScale+mapOffY;
-  var popup=g('mapPopup');
-  popup.classList.add('open');
-  var pw=popup.offsetWidth||240, ph2=popup.offsetHeight||160;
-  var px=sx+30, py=sy-ph2/2;
-  if(px+pw>cw-10) px=sx-pw-30;
-  if(px<10) px=10;
-  if(py<10) py=10;
-  if(py+ph2>ch-10) py=ch-ph2-10;
-  popup.style.left=px+'px';
-  popup.style.top=py+'px';
-
-  // goto button
-  g('mpGoto').onclick=function(){
-    closeMapPopup();
-    isMapOpen=false;
-    g('notesView').style.display='block';
-    g('mapView').classList.remove('open');
-    g('subbar').style.display='flex';
-    setTimeout(function(){openNote(id);},80);
-  };
-}
-
-function closeMapPopup(){
-  g('mapPopup').classList.remove('open');
-}
-
-function highlightNode(id){
-  var grps=g('nodesLayer').querySelectorAll('.map-node');
-  for(var i=0;i<grps.length;i++){
-    grps[i].classList.remove('map-node-highlight');
-    if(parseInt(grps[i].getAttribute('data-id'))===id)
-      grps[i].classList.add('map-node-highlight');
-  }
-}
-
-function startDrag(e,id){
-  e.preventDefault();
-  e.stopPropagation();
-  closeMapPopup();
-  dragNode=id;
-  var pos=nodePos[id];
-  var rect=g('mapCanvas').getBoundingClientRect();
-  // dragOff = screen offset from node center (in screen pixels)
-  dragOffX=e.clientX-rect.left-(pos.x*mapScale+mapOffX);
-  dragOffY=e.clientY-rect.top-(pos.y*mapScale+mapOffY);
-}
-function startDragTouch(e,id){
-  e.stopPropagation();
-  dragNode=id;
-  var pos=nodePos[id];
-  var rect=g('mapCanvas').getBoundingClientRect();
-  var touch=e.touches[0];
-  dragOffX=touch.clientX-rect.left-(pos.x*mapScale+mapOffX);
-  dragOffY=touch.clientY-rect.top-(pos.y*mapScale+mapOffY);
-}
-
-function openTagMgr(){
-  g('tp').classList.add('open');
-  g('dp').classList.remove('open');g('fp').classList.remove('open');g('lp').classList.remove('open');
-  renderTagLists();
-  setTimeout(function(){g('tp').scrollIntoView({behavior:'smooth',block:'nearest'});},60);
-}
-
-function renderTagLists(){
-  renderTagList('typeTagList',types,'type');
-  renderTagList('subTagList',subjects,'sub');
-}
-
-function renderTagList(cid,arr,kind){
-  var el=g(cid);
-  if(!arr.length){el.innerHTML='<div style="color:#bbb;font-size:13px;padding:8px 0">\uff08\u5c1a\u7121\u6a19\u7c64\uff09</div>';return;}
-  el.innerHTML=arr.map(function(item,idx){
-    return'<div class="tag-item" data-idx="'+idx+'" data-kind="'+kind+'">'+
-      '<div class="tag-color-dot" style="background:'+item.color+'"></div>'+
-      '<span class="tag-item-label">'+item.label+'</span>'+
-      '<button class="tag-edit-btn" data-idx="'+idx+'" data-kind="'+kind+'">\u7de8\u8f2f</button>'+
-      '<button class="tag-del-btn" data-idx="'+idx+'" data-kind="'+kind+'">\u522a\u9664</button>'+
-      '</div>';
-  }).join('');
-  var ebs=el.querySelectorAll('.tag-edit-btn'),dbs=el.querySelectorAll('.tag-del-btn');
-  for(var i=0;i<ebs.length;i++){(function(b){b.addEventListener('click',function(){editTag(parseInt(b.getAttribute('data-idx')),b.getAttribute('data-kind'));});})(ebs[i]);}
-  for(var i=0;i<dbs.length;i++){(function(b){b.addEventListener('click',function(){deleteTag(parseInt(b.getAttribute('data-idx')),b.getAttribute('data-kind'));});})(dbs[i]);}
-}
-
-function editTag(idx,kind){
-  var arr=kind==='type'?types:subjects,item=arr[idx];
-  var nl2=prompt('\u4fee\u6539\u6a19\u7c64\u540d\u7a31\uff1a',item.label);if(nl2===null)return;
-  nl2=nl2.replace(/^ +| +$/g,'');if(!nl2){showToast('\u540d\u7a31\u4e0d\u80fd\u70ba\u7a7a');return;}
-  for(var i=0;i<arr.length;i++){if(i!==idx&&arr[i].label===nl2){showToast('\u6a19\u7c64\u540d\u7a31\u91cd\u8907');return;}}
-  var nc=prompt('\u4fee\u6539\u984f\u8272\uff08#RRGGBB\uff09\uff1a',item.color);if(nc===null)return;
-  nc=nc.replace(/^ +| +$/g,'');
-  if(!/^#[0-9A-Fa-f]{6}$/.test(nc)){showToast('\u984f\u8272\u683c\u5f0f\u4e0d\u6b63\u78ba');return;}
-  arr[idx].label=nl2;arr[idx].color=nc;
-  saveData();renderTagLists();buildTypeRow();buildSubRow();render();showToast('\u6a19\u7c64\u5df2\u66f4\u65b0');
-}
-
-function deleteTag(idx,kind){
-  var arr=kind==='type'?types:subjects,item=arr[idx];
-  if(!confirm('\u78ba\u5b9a\u522a\u9664\u6a19\u7c64\u300c'+item.label+'\u300d\uff1f'))return;
-  arr.splice(idx,1);saveData();renderTagLists();rebuildUI();render();showToast('\u6a19\u7c64\u5df2\u522a\u9664');
-}
-
-function addTag(kind){
-  var lid2=kind==='type'?'newTypeLabel':'newSubLabel',cid2=kind==='type'?'newTypeColor':'newSubColor';
-  var label=(g(lid2).value||'').replace(/^ +| +$/g,''),color=g(cid2).value||'#378ADD';
-  if(!label){showToast('\u8acb\u8f38\u5165\u6a19\u7c64\u540d\u7a31');return;}
-  var arr=kind==='type'?types:subjects;
-  for(var i=0;i<arr.length;i++){if(arr[i].label===label){showToast('\u6a19\u7c64\u5df2\u5b58\u5728');return;}}
-  var key='tag_'+Date.now();
-  arr.push({key:key,label:label,color:color});g(lid2).value='';
-  saveData();renderTagLists();rebuildUI();showToast('\u6a19\u7c64\u5df2\u65b0\u589e\uff01');
-}
-
-function exportData(){
-  var json=JSON.stringify({notes:notes,links:links,nid:nid,lid:lid,types:types,subjects:subjects,exported:new Date().toISOString()},null,2);
-  var blob=new Blob([json],{type:'application/json'});
-  var url=URL.createObjectURL(blob);var a=document.createElement('a');
-  var d=new Date();
-  a.download='\u6cd5\u5f8b\u7b46\u8a18\u5099\u4efd_'+d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate()+'.json';
-  a.href=url;a.click();URL.revokeObjectURL(url);showToast('\u5df2\u532f\u51fa\uff01');
-}
-
-function importData(file){
-  var reader=new FileReader();
-  reader.onload=function(e){
-    try{
-      var d=JSON.parse(e.target.result);if(!d.notes)throw new Error();
-      // \u78ba\u4fdd\u6bcf\u7b46\u7b46\u8a18\u6709\u5fc5\u8981\u6b04\u4f4d
-      for(var i=0;i<d.notes.length;i++){
-        var imp=d.notes[i];
-        if(!imp.dispute)imp.dispute='';
-        if(!imp.f_article)imp.f_article='';
-        if(!imp.f_elements)imp.f_elements='';
-        if(!imp.f_conclusion)imp.f_conclusion='';
-        if(!imp.tags)imp.tags=[];
-        if(!imp.detail)imp.detail='';
-      }
-      var mode=confirm('\u9078\u64c7\u532f\u5165\u65b9\u5f0f\uff1a\\n\\n\u78ba\u5b9a = \u5b8c\u6574\u8986\u84cb\uff08\u53d6\u4ee3\u6240\u6709\u73fe\u6709\u7b46\u8a18\uff09\\n\u53d6\u6d88 = \u5408\u4f75\uff08\u53ea\u52a0\u5165\u65b0\u7b46\u8a18\uff09');
-      if(mode){
-        // \u5b8c\u6574\u8986\u84cb
-        notes=d.notes;
-        links=d.links||[];
-        types=d.types||DEFAULT_TYPES.slice();
-        subjects=d.subjects||DEFAULT_SUBJECTS.slice();
-        nid=d.nid||notes.length+100;
-        lid=d.lid||10;
-        notes.sort(function(a,b){return b.id-a.id;});
-        saveData();rebuildUI();render();
-        showToast('\u5df2\u8986\u84cb\uff0c\u5171 '+notes.length+' \u7b46\u7b46\u8a18');
+function importData(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const d = JSON.parse(e.target.result); if(!d.notes) throw new Error();
+      d.notes.forEach(n=>{ if(!n.dispute) n.dispute=''; if(!n.f_article) n.f_article=''; if(!n.f_elements) n.f_elements=''; if(!n.f_conclusion) n.f_conclusion=''; if(!n.tags) n.tags=[]; if(!n.detail) n.detail=''; });
+      if(confirm('確定 = 完整覆蓋（取代所有現有筆記）\n取消 = 合併（只加入新筆記）')) {
+        notes = d.notes; links = d.links||[]; types = d.types||DEFAULTS.types.slice(); subjects = d.subjects||DEFAULTS.subjects.slice();
+        nid = d.nid||notes.length+100; lid = d.lid||10; notes.sort((a,b)=>b.id-a.id);
+        saveData(); rebuildUI(); render(); showToast(`已覆蓋，共 ${notes.length} 筆筆記`);
       } else {
-        // \u5408\u4f75\uff1a\u53ea\u52a0\u5165\u4e0d\u5b58\u5728\u7684 ID
-        var existing=notes.map(function(n){return n.id;});var added=0;
-        for(var i=0;i<d.notes.length;i++){
-          if(existing.indexOf(d.notes[i].id)===-1){
-            notes.push(d.notes[i]);added++;
-            if(d.notes[i].id>=nid)nid=d.notes[i].id+1;
-          }
-        }
-        if(d.links)links=d.links;
-        if(d.types)types=d.types;
-        if(d.subjects)subjects=d.subjects;
-        notes.sort(function(a,b){return b.id-a.id;});
-        saveData();rebuildUI();render();
-        showToast('\u5df2\u5408\u4f75\uff0c\u65b0\u589e '+added+' \u7b46');
+        const existing = notes.map(n=>n.id); let added=0;
+        d.notes.forEach(n=>{ if(!existing.includes(n.id)){ notes.push(n); added++; if(n.id>=nid)nid=n.id+1; } });
+        if(d.links) links = d.links;
+        if(d.types) types = d.types;
+        if(d.subjects) subjects = d.subjects;
+        notes.sort((a,b)=>b.id-a.id);
+        saveData(); rebuildUI(); render(); showToast(`已合併，新增 ${added} 筆`);
       }
-    }catch(ex){showToast('\u532f\u5165\u5931\u6557\uff0c\u8acb\u78ba\u8a8d\u6a94\u6848\u683c\u5f0f');}
-  };reader.readAsText(file);
+    } catch(ex) { showToast('匯入失敗，請確認檔案格式'); }
+  };
+  reader.readAsText(file);
 }
 
-
-// ===== SHORTCUTS =====
-// Use e.code (physical key position) so Alt/Ctrl modifiers don't change the key value
-// e.g. Alt+N: e.key='\u00f1' but e.code='KeyN' - we always use e.code
-var DEFAULT_SHORTCUTS = [
-  {id:'new',      label:'\u65b0\u589e\u7b46\u8a18',      code:'KeyN',    ctrl:false, shift:false, alt:true},
-  {id:'search',   label:'\u641c\u5c0b',          code:'KeyF',    ctrl:false, shift:false, alt:true},
-  {id:'map',      label:'\u958b\u555f\u9ad4\u7cfb\u5716',    code:'KeyM',    ctrl:false, shift:false, alt:true},
-  {id:'back',     label:'\u8fd4\u56de\u7b46\u8a18\u5217\u8868',  code:'Escape',  ctrl:false, shift:false, alt:false},
-  {id:'close',    label:'\u95dc\u9589\u9762\u677f',      code:'KeyW',    ctrl:false, shift:false, alt:true},
-  {id:'edit',     label:'\u7de8\u8f2f\u7576\u524d\u7b46\u8a18',  code:'KeyE',    ctrl:false, shift:false, alt:true},
-  {id:'link',     label:'\u65b0\u589e\u95dc\u806f',      code:'KeyL',    ctrl:false, shift:false, alt:true},
-  {id:'export',   label:'\u532f\u51fa\u5099\u4efd',      code:'KeyS',    ctrl:false, shift:false, alt:true},
-  {id:'shortcuts',label:'\u5feb\u6377\u9375\u8a2d\u5b9a',   code:'KeyK',    ctrl:false, shift:false, alt:true},
-  {id:'flash',    label:'\u8907\u7fd2\u6a21\u5f0f',      code:'KeyR',    ctrl:false, shift:false, alt:true},
-  {id:'stats',    label:'\u7d71\u8a08',          code:'KeyI',    ctrl:false, shift:false, alt:true},
-];
-var shortcuts = [];
-var recordingBtn = null;
-
-function cloneShortcuts(src){
-  var out=[];
-  for(var i=0;i<src.length;i++){
-    var s=src[i];
-    out.push({id:s.id,label:s.label,code:s.code,ctrl:!!s.ctrl,shift:!!s.shift,alt:!!s.alt});
+// ==================== 快捷鍵 ====================
+function loadShortcuts() { try { const raw=localStorage.getItem('legal_shortcuts_v2'); if(raw) { const p=JSON.parse(raw); shortcuts=DEFAULT_SHORTCUTS.map(s=>p.find(x=>x.id===s.id)?{...s,...p.find(x=>x.id===s.id)}:{...s}); } else shortcuts=DEFAULT_SHORTCUTS.map(s=>({...s})); } catch(e){ shortcuts=DEFAULT_SHORTCUTS.map(s=>({...s})); } }
+function saveShortcuts() { localStorage.setItem('legal_shortcuts_v2',JSON.stringify(shortcuts)); }
+const codeToDisplay = c => !c?'未設定':c==='Escape'?'Esc':c==='Space'?'Space':c==='Backspace'?'Backspace':c==='Enter'?'Enter':c==='Tab'?'Tab':c.startsWith('Key')?c.slice(3).toUpperCase():c.startsWith('Digit')?c.slice(5):c;
+const fmtKey = sc => !sc.code?'未設定':[sc.ctrl?'Ctrl':'',sc.alt?'Alt':'',sc.shift?'Shift':'',codeToDisplay(sc.code)].filter(Boolean).join(' + ');
+function renderShortcutList() { g('scpList').innerHTML=shortcuts.map((sc,i)=>`<div class="sc-item"><span class="sc-label">${sc.label}</span><button class="sc-key${sc.code?' has-key':''}" data-idx="${i}">${fmtKey(sc)}</button><button data-clear="${i}">✕</button></div>`).join(''); g('scpList').querySelectorAll('.sc-key').forEach(btn=>btn.addEventListener('click',()=>{ if(recordingBtn){ recordingBtn.classList.remove('recording'); recordingBtn.textContent=fmtKey(shortcuts[parseInt(recordingBtn.dataset.idx)]); } recordingBtn=btn; btn.classList.add('recording'); btn.textContent='請按下按鍵...'; btn.focus(); })); g('scpList').querySelectorAll('[data-clear]').forEach(btn=>btn.addEventListener('click',()=>{ const idx=parseInt(btn.dataset.clear); shortcuts[idx].code=''; shortcuts[idx].ctrl=shortcuts[idx].shift=shortcuts[idx].alt=false; saveShortcuts(); renderShortcutList(); })); }
+function openShortcutMgr() { recordingBtn=null; renderShortcutList(); g('scp').style.display='block'; ['dp','fp','lp','tp'].forEach(p=>g(p).classList.remove('open')); setTimeout(()=>g('scp').scrollIntoView({behavior:'smooth',block:'nearest'}),60); }
+function closeShortcutMgr() { if(recordingBtn){ recordingBtn.classList.remove('recording'); recordingBtn=null; } g('scp').style.display='none'; }
+function handleGlobalKey(e) {
+  if(recordingBtn) {
+    if(['Control','Shift','Alt','Meta','CapsLock','Tab'].includes(e.key)) return;
+    e.preventDefault(); e.stopPropagation();
+    if(e.code==='Escape') { recordingBtn.classList.remove('recording'); recordingBtn.textContent=fmtKey(shortcuts[parseInt(recordingBtn.dataset.idx)]); recordingBtn=null; return; }
+    const idx=parseInt(recordingBtn.dataset.idx); shortcuts[idx]={...shortcuts[idx], code:e.code, ctrl:e.ctrlKey||e.metaKey, shift:e.shiftKey, alt:e.altKey};
+    recordingBtn.classList.remove('recording'); recordingBtn.classList.add('has-key'); recordingBtn.textContent=fmtKey(shortcuts[idx]); recordingBtn=null; saveShortcuts(); return;
   }
-  return out;
+  if(['input','textarea','select'].includes(e.target.tagName.toLowerCase())) return;
+  const ctrl=e.ctrlKey||e.metaKey;
+  shortcuts.forEach(sc=>{ if(sc.code && sc.code===e.code && sc.ctrl===ctrl && sc.shift===e.shiftKey && sc.alt===e.altKey) { e.preventDefault(); execShortcut(sc.id); } });
+}
+function execShortcut(id) {
+  const map = {
+    new:()=>{if(!isMapOpen) openForm(false);}, search:()=>{if(!isMapOpen){g('searchInput').focus();g('searchInput').select();}},
+    map:()=>{if(!isMapOpen) toggleMapView(true);}, back:()=>{if(isMapOpen) toggleMapView(false);},
+    close:()=>{ if(g('scp').style.display==='block') closeShortcutMgr(); else if(g('tp').classList.contains('open')) g('tp').classList.remove('open'); else if(g('lp').classList.contains('open')){g('lp').classList.remove('open');g('dp').classList.add('open');} else if(g('fp').classList.contains('open')) closeForm(); else if(g('dp').classList.contains('open')) closeDetail(); },
+    edit:()=>{if(openId&&g('dp').classList.contains('open')) openForm(true);}, link:()=>{if(openId&&g('dp').classList.contains('open')) openLinkPanel();},
+    export:()=>exportData(), flash:()=>{if(!isMapOpen) openFlash();}, stats:()=>{if(!isMapOpen) openStats();}, shortcuts:()=>openShortcutMgr()
+  };
+  if(map[id]) map[id]();
+  showShortcutHint({new:'新增筆記',search:'搜尋',map:'開啟體系圖',back:'返回筆記列表',close:'關閉',edit:'編輯筆記',link:'新增關聯',export:'匯出備份',flash:'複習模式',stats:'統計',shortcuts:'快捷鍵設定'}[id]);
+}
+function showShortcutHint(t){ const h=g('scHint'); h.textContent=t; h.style.display='block'; clearTimeout(h._t); h._t=setTimeout(()=>h.style.display='none',1800); }
+function toggleMapView(open) { isMapOpen=open; g('notesView').style.display=open?'none':'block'; g('mapView').classList.toggle('open',open); g('subbar').style.display=open?'none':'flex'; g('search-results-bar').style.display=open?'none':''; if(open){ buildMapFilters(); mapScale=1; mapOffX=mapOffY=0; g('zoomLabel').textContent='100%'; mapLinkedOnly=true; const mlo=g('mapLinkedOnlyBtn'); if(mlo){ mlo.style.background='#3B6D11'; mlo.style.color='#fff'; } setTimeout(()=>{ nodePos={}; forceLayout(); drawMap(); },80); } }
+
+// ==================== 統計 ====================
+function openStats() { const sp=g('statsPanel'); if(sp.classList.contains('open')){ sp.classList.remove('open'); return; } const total=notes.length, byT={}, byS={}; notes.forEach(n=>{ byT[n.type]=(byT[n.type]||0)+1; byS[n.subject]=(byS[n.subject]||0)+1; }); const lnk={}; links.forEach(l=>{ lnk[l.from]=true; lnk[l.to]=true; }); const lc=Object.keys(lnk).length; let html=`<div class="stats-grid"><div class="stat-card"><div class="stat-num">${total}</div><div class="stat-lbl">筆記總數</div></div><div class="stat-card"><div class="stat-num">${links.length}</div><div class="stat-lbl">關聯數量</div></div><div class="stat-card"><div class="stat-num">${lc}</div><div class="stat-lbl">有關聯筆記</div></div><div class="stat-card"><div class="stat-num">${subjects.length}</div><div class="stat-lbl">科目數</div></div></div><div style="font-size:11px;font-weight:700;color:#888;margin-bottom:8px;">各科目筆記數</div>`;
+  Object.keys(byS).sort((a,b)=>byS[b]-byS[a]).forEach(sk=>{ const s=subByKey(sk), c=byS[sk], p=Math.round(c/total*100); html+=`<div class="stats-bar-row"><span class="stats-bar-label">${s.label}</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${p}%;background:${s.color}"></div></div><span class="stats-bar-count">${c}</span></div>`; });
+  html+=`<div style="font-size:11px;font-weight:700;color:#888;margin:12px 0 8px;">各類型筆記數</div>`;
+  Object.keys(byT).sort((a,b)=>byT[b]-byT[a]).forEach(tk=>{ const t=typeByKey(tk), c=byT[tk], p=Math.round(c/total*100); html+=`<div class="stats-bar-row"><span class="stats-bar-label">${t.label}</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${p}%;background:${t.color}"></div></div><span class="stats-bar-count">${c}</span></div>`; });
+  sp.innerHTML=html; sp.classList.add('open'); setTimeout(()=>sp.scrollIntoView({behavior:'smooth',block:'nearest'}),60);
 }
 
-function loadShortcuts(){
-  try{
-    var raw=localStorage.getItem('legal_shortcuts_v2');
-    if(raw){
-      var parsed=JSON.parse(raw);
-      shortcuts=cloneShortcuts(DEFAULT_SHORTCUTS);
-      for(var i=0;i<shortcuts.length;i++){
-        for(var j=0;j<parsed.length;j++){
-          if(parsed[j].id===shortcuts[i].id){
-            shortcuts[i].code=parsed[j].code||'';
-            shortcuts[i].ctrl=!!parsed[j].ctrl;
-            shortcuts[i].shift=!!parsed[j].shift;
-            shortcuts[i].alt=!!parsed[j].alt;
-            break;
-          }
-        }
-      }
-    } else {
-      shortcuts=cloneShortcuts(DEFAULT_SHORTCUTS);
-    }
-  }catch(e){
-    shortcuts=cloneShortcuts(DEFAULT_SHORTCUTS);
+// ==================== 複習模式 ====================
+function buildFlashDeck() { let pool=notes.filter(n=>(flashSubFilter==='all'||n.subject===flashSubFilter)&&(flashTypeFilter2==='all'||n.type===flashTypeFilter2)); for(let i=pool.length-1;i>0;i--){ let j=Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; } flashDeck=pool; flashIdx=0; flashShowing=false; flashHard=[]; }
+function openFlash() { const fs=g('flashFilter'); fs.innerHTML='<option value="all">全部科目</option>'+subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join(''); fs.value=flashSubFilter; const ftf=g('flashTypeFilter'); if(ftf){ ftf.innerHTML='<option value="all">全部類型</option>'+types.map(t=>`<option value="${t.key}">${t.label}</option>`).join(''); ftf.value=flashTypeFilter2; } buildFlashDeck(); if(flashDeck.length===0){ showToast('此科目沒有筆記'); return; } g('notesView').style.display='none'; g('flashView').classList.add('open'); renderFlashCard(); }
+function closeFlash() { g('flashView').classList.remove('open'); g('notesView').style.display='block'; }
+function updateFlashProgress() { const total=flashDeck.length, pct=total>0?Math.round(flashIdx/total*100):0; g('flashProgress').textContent=`第 ${flashIdx} / ${total} 張，${flashHard.length}張不熟`; g('flashProgressFill').style.width=`${pct}%`; }
+function renderFlashCard() {
+  const body = g('flashBody');
+  if(flashIdx>=flashDeck.length) {
+    const hc=flashHard.length;
+    body.innerHTML=`<div class="flash-done"><div class="flash-done-num">${Math.round((flashDeck.length-hc)/Math.max(flashDeck.length,1)*100)}%</div><div class="flash-done-label">熟練率</div><div class="flash-done-sub">${flashDeck.length}張中，${hc}張不熟</div><div style="display:flex;gap:10px;margin-top:24px;justify-content:center;">${hc>0?'<button class="flash-btn flash-btn-hard" style="flex:0;padding:12px 20px;" id="reviewHardBtn">🔂 再練不熟</button>':''}<button class="flash-btn flash-btn-ok" style="flex:0;padding:12px 20px;" id="restartAllBtn">↺ 重新開始</button></div></div>`;
+    g('reviewHardBtn')?.addEventListener('click',()=>{ flashDeck=flashHard.slice(); flashIdx=0; flashShowing=false; flashHard=[]; renderFlashCard(); });
+    g('restartAllBtn')?.addEventListener('click',()=>{ buildFlashDeck(); renderFlashCard(); });
+    updateFlashProgress(); return;
   }
-}
-
-function saveShortcuts(){
-  try{localStorage.setItem('legal_shortcuts_v2',JSON.stringify(shortcuts));}catch(e){}
-}
-
-function codeToDisplay(code){
-  if(!code)return '\u672a\u8a2d\u5b9a';
-  if(code==='Escape')return 'Esc';
-  if(code==='Space')return 'Space';
-  if(code==='Backspace')return 'Backspace';
-  if(code==='Enter')return 'Enter';
-  if(code==='Tab')return 'Tab';
-  if(code==='ArrowUp')return '\u2191';
-  if(code==='ArrowDown')return '\u2193';
-  if(code==='ArrowLeft')return '\u2190';
-  if(code==='ArrowRight')return '\u2192';
-  if(code.indexOf('Key')===0)return code.slice(3).toUpperCase();
-  if(code.indexOf('Digit')===0)return code.slice(5);
-  if(code.indexOf('F')===0&&code.length<=3)return code;
-  return code;
-}
-
-function fmtKey(sc){
-  if(!sc.code)return '\u672a\u8a2d\u5b9a';
-  var parts=[];
-  if(sc.ctrl)parts.push('Ctrl');
-  if(sc.alt)parts.push('Alt');
-  if(sc.shift)parts.push('Shift');
-  parts.push(codeToDisplay(sc.code));
-  return parts.join(' + ');
-}
-
-function renderShortcutList(){
-  var list=g('scpList');
-  list.innerHTML=shortcuts.map(function(sc,idx){
-    return'<div class="sc-item">'+
-      '<span class="sc-label">'+sc.label+'</span>'+
-      '<button class="sc-key'+(sc.code?' has-key':'')+'" data-idx="'+idx+'">'+fmtKey(sc)+'</button>'+
-      '<button style="padding:4px 8px;border-radius:6px;border:1px solid #FFCDD2;background:#FFF0F0;font-size:11px;color:#D92B2B;cursor:pointer;" data-clear="'+idx+'">&#215;</button>'+
-      '</div>';
-  }).join('');
-  var btns=list.querySelectorAll('.sc-key');
-  for(var i=0;i<btns.length;i++){
-    (function(btn){
-      btn.addEventListener('click',function(){
-        if(recordingBtn&&recordingBtn!==btn){
-          recordingBtn.classList.remove('recording');
-          var prev=parseInt(recordingBtn.getAttribute('data-idx'));
-          recordingBtn.textContent=fmtKey(shortcuts[prev]);
-        }
-        recordingBtn=btn;
-        btn.classList.add('recording');
-        btn.textContent='\u8acb\u6309\u4e0b\u6309\u9375...';
-        btn.focus();
-      });
-    })(btns[i]);
-  }
-  var clrs=list.querySelectorAll('[data-clear]');
-  for(var i=0;i<clrs.length;i++){
-    (function(btn){
-      btn.addEventListener('click',function(){
-        var idx2=parseInt(btn.getAttribute('data-clear'));
-        shortcuts[idx2].code='';
-        shortcuts[idx2].ctrl=false;shortcuts[idx2].shift=false;shortcuts[idx2].alt=false;
-        saveShortcuts();renderShortcutList();
-      });
-    })(clrs[i]);
-  }
-}
-
-function openShortcutMgr(){
-  recordingBtn=null;
-  renderShortcutList();
-  g('scp').style.display='block';
-  g('dp').classList.remove('open');g('fp').classList.remove('open');
-  g('lp').classList.remove('open');g('tp').classList.remove('open');
-  setTimeout(function(){g('scp').scrollIntoView({behavior:'smooth',block:'nearest'});},60);
-}
-
-function closeShortcutMgr(){
-  if(recordingBtn){recordingBtn.classList.remove('recording');recordingBtn=null;}
-  g('scp').style.display='none';
-}
-
-function showShortcutHint(text){
-  var h=g('scHint');
-  h.textContent=text;h.style.display='block';
-  clearTimeout(h._t);
-  h._t=setTimeout(function(){h.style.display='none';},1800);
-}
-
-function handleGlobalKey(e){
-  // Recording mode
-  if(recordingBtn){
-    var skip=['Control','Shift','Alt','Meta','CapsLock','Tab'];
-    for(var si=0;si<skip.length;si++){if(e.key===skip[si])return;}
-    e.preventDefault();e.stopPropagation();
-    if(e.code==='Escape'){
-      recordingBtn.classList.remove('recording');
-      var prev=parseInt(recordingBtn.getAttribute('data-idx'));
-      recordingBtn.textContent=fmtKey(shortcuts[prev]);
-      recordingBtn=null;
-      return;
-    }
-    var idx2=parseInt(recordingBtn.getAttribute('data-idx'));
-    shortcuts[idx2].code=e.code;
-    shortcuts[idx2].ctrl=e.ctrlKey||e.metaKey;
-    shortcuts[idx2].shift=e.shiftKey;
-    shortcuts[idx2].alt=e.altKey;
-    recordingBtn.classList.remove('recording');
-    recordingBtn.classList.add('has-key');
-    recordingBtn.textContent=fmtKey(shortcuts[idx2]);
-    recordingBtn=null;
-    saveShortcuts();
-    return;
-  }
-  // Skip input fields
-  var tag=(e.target.tagName||'').toLowerCase();
-  if(tag==='input'||tag==='textarea'||tag==='select')return;
-
-  var ctrl=e.ctrlKey||e.metaKey;
-  for(var i=0;i<shortcuts.length;i++){
-    var sc=shortcuts[i];
-    if(!sc.code)continue;
-    if(sc.code===e.code && sc.ctrl===ctrl && sc.shift===e.shiftKey && sc.alt===e.altKey){
-      e.preventDefault();
-      e.stopPropagation();
-      execShortcut(sc.id);
-      return;
-    }
-  }
-}
-
-function execShortcut(id){
-  switch(id){
-    case 'new':
-      if(!isMapOpen){openForm(false);showShortcutHint('\u65b0\u589e\u7b46\u8a18');}
-      break;
-    case 'search':
-      if(!isMapOpen){var si=g('searchInput');si.focus();si.select();showShortcutHint('\u641c\u5c0b');}
-      break;
-    case 'map':
-      if(!isMapOpen){
-        isMapOpen=true;
-        g('notesView').style.display='none';
-        g('mapView').classList.add('open');
-        g('subbar').style.display='none';
-        g('search-results-bar').style.display='none';
-        setTimeout(function(){drawMap();},80);
-        showShortcutHint('\u958b\u555f\u9ad4\u7cfb\u5716');
-      }
-      break;
-    case 'back':
-      if(isMapOpen){
-        isMapOpen=false;
-        g('notesView').style.display='block';
-        g('mapView').classList.remove('open');
-        g('subbar').style.display='flex';
-        showShortcutHint('\u8fd4\u56de\u7b46\u8a18\u5217\u8868');
-      }
-      break;
-    case 'close':
-      if(g('scp').style.display==='block'){closeShortcutMgr();}
-      else if(g('tp').classList.contains('open')){g('tp').classList.remove('open');}
-      else if(g('lp').classList.contains('open')){g('lp').classList.remove('open');g('dp').classList.add('open');}
-      else if(g('fp').classList.contains('open')){closeForm();}
-      else if(g('dp').classList.contains('open')){closeDetail();}
-      showShortcutHint('\u95dc\u9589');
-      break;
-    case 'edit':
-      if(openId&&g('dp').classList.contains('open')){openForm(true);showShortcutHint('\u7de8\u8f2f\u7b46\u8a18');}
-      break;
-    case 'link':
-      if(openId&&g('dp').classList.contains('open')){openLinkPanel();showShortcutHint('\u65b0\u589e\u95dc\u806f');}
-      break;
-    case 'export':
-      exportData();showShortcutHint('\u532f\u51fa\u5099\u4efd');
-      break;
-    case 'flash':
-      if(!isMapOpen){openFlash();showShortcutHint('\u8907\u7fd2\u6a21\u5f0f');}
-      break;
-    case 'stats':
-      if(!isMapOpen){openStats();showShortcutHint('\u7d71\u8a08');}
-      break;
-    case 'shortcuts':
-      openShortcutMgr();showShortcutHint('\u5feb\u6377\u9375\u8a2d\u5b9a');
-      break;
-  }
-}
-// ===== END SHORTCUTS =====
-
-
-
-
-var sortMode='date_desc';
-function sortedNotes(arr){var a=arr.slice();if(sortMode==='date_desc')a.sort(function(x,y){return y.date.localeCompare(x.date)||y.id-x.id;});else if(sortMode==='date_asc')a.sort(function(x,y){return x.date.localeCompare(y.date)||x.id-y.id;});else if(sortMode==='title_asc')a.sort(function(x,y){return x.title.localeCompare(y.title,'zh');});else if(sortMode==='title_desc')a.sort(function(x,y){return y.title.localeCompare(x.title,'zh');});else if(sortMode==='subject')a.sort(function(x,y){return x.subject.localeCompare(y.subject,'zh')||x.title.localeCompare(y.title,'zh');});else if(sortMode==='type')a.sort(function(x,y){return x.type.localeCompare(y.type)||x.title.localeCompare(y.title,'zh');});return a;}
-function openStats(){var sp=g('statsPanel');if(sp.classList.contains('open')){sp.classList.remove('open');return;}var total=notes.length,byT={},byS={};for(var i=0;i<notes.length;i++){var n_=notes[i];byT[n_.type]=(byT[n_.type]||0)+1;byS[n_.subject]=(byS[n_.subject]||0)+1;}var lnk={};for(var i=0;i<links.length;i++){lnk[links[i].from]=true;lnk[links[i].to]=true;}var lc_=Object.keys(lnk).length;var h_='<div class="stats-grid"><div class="stat-card"><div class="stat-num">'+total+'</div><div class="stat-lbl">'+'\u7b46\u8a18\u7e3d\u6578'+'</div></div><div class="stat-card"><div class="stat-num">'+links.length+'</div><div class="stat-lbl">'+'\u95dc\u806f\u6578\u91cf'+'</div></div><div class="stat-card"><div class="stat-num">'+lc_+'</div><div class="stat-lbl">'+'\u6709\u95dc\u806f\u7b46\u8a18'+'</div></div><div class="stat-card"><div class="stat-num">'+subjects.length+'</div><div class="stat-lbl">'+'\u79d1\u76ee\u6578'+'</div></div></div>';h_+='<div style="font-size:11px;font-weight:700;color:#888;margin-bottom:8px;text-transform:uppercase;">'+'\u5404\u79d1\u76ee\u7b46\u8a18\u6578'+'</div>';Object.keys(byS).sort(function(a_,b_){return byS[b_]-byS[a_];}).forEach(function(sk_){var s_=subByKey(sk_),c_=byS[sk_],p_=Math.round(c_/Math.max(total,1)*100);h_+='<div class="stats-bar-row"><span class="stats-bar-label">'+s_.label+'</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:'+p_+'%;background:'+s_.color+'"></div></div><span class="stats-bar-count">'+c_+'</span></div>';});h_+='<div style="font-size:11px;font-weight:700;color:#888;margin:12px 0 8px;text-transform:uppercase;">'+'\u5404\u985e\u578b\u7b46\u8a18\u6578'+'</div>';Object.keys(byT).sort(function(a_,b_){return byT[b_]-byT[a_];}).forEach(function(tk_){var t_=typeByKey(tk_),c_=byT[tk_],p_=Math.round(c_/Math.max(total,1)*100);h_+='<div class="stats-bar-row"><span class="stats-bar-label">'+t_.label+'</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:'+p_+'%;background:'+t_.color+'"></div></div><span class="stats-bar-count">'+c_+'</span></div>';});sp.innerHTML=h_;sp.classList.add('open');setTimeout(function(){sp.scrollIntoView({behavior:'smooth',block:'nearest'});},60);}
-// ===== SWIPE HELPER =====
-function addSwipe(el, onSwipe){
-  var tx=0,ty=0,startX=0,startY=0,tracking=false;
-  el.addEventListener('touchstart',function(e){
-    startX=e.touches[0].clientX;startY=e.touches[0].clientY;tracking=true;tx=0;ty=0;
-  },{passive:true});
-  el.addEventListener('touchmove',function(e){
-    if(!tracking)return;
-    tx=e.touches[0].clientX-startX;ty=e.touches[0].clientY-startY;
-    if(Math.abs(tx)>8&&Math.abs(tx)>Math.abs(ty)*1.2){
-      el.style.transform='translateX('+tx*0.4+'px) rotate('+(tx*0.03)+'deg)';
-      el.style.opacity=1-Math.abs(tx)/500;
-    }
-  },{passive:true});
-  el.addEventListener('touchend',function(){
-    el.style.transform='';el.style.opacity='';
-    if(Math.abs(tx)>60&&Math.abs(tx)>Math.abs(ty)*1.2){
-      onSwipe(tx>0?'right':'left');
-    }
-    tracking=false;tx=0;ty=0;
-  });
-}
-// ===== END SWIPE HELPER =====
-
-var flashDeck=[],flashIdx=0,flashShowing=false,flashSubFilter='all',flashTypeFilter2='all',flashHard=[];
-function buildFlashDeck(){var pool=notes.filter(function(n_){if(flashSubFilter!=='all'&&n_.subject!==flashSubFilter)return false;if(flashTypeFilter2!=='all'&&n_.type!==flashTypeFilter2)return false;return true;});for(var i=pool.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var tmp=pool[i];pool[i]=pool[j];pool[j]=tmp;}flashDeck=pool;flashIdx=0;flashShowing=false;flashHard=[];}
-function openFlash(){var fs_=g('flashFilter');fs_.innerHTML='<option value="all">'+'\u5168\u90e8\u79d1\u76ee'+'</option>'+subjects.map(function(s_){return'<option value="'+s_.key+'">'+s_.label+'</option>';}).join('');fs_.value=flashSubFilter;
-  var ftf2_=g('flashTypeFilter');
-  if(ftf2_){ftf2_.innerHTML='<option value="all">'+'\u5168\u90e8\u985e\u578b'+'</option>'+types.map(function(t_){return'<option value="'+t_.key+'">'+t_.label+'</option>';}).join('');ftf2_.value=flashTypeFilter2;}
-  buildFlashDeck();
-if(flashDeck.length===0){showToast('\u6b64\u79d1\u76ee\u6c92\u6709\u7b46\u8a18');return;}
-g('notesView').style.display='none';g('flashView').classList.add('open');renderFlashCard();}
-function closeFlash(){g('flashView').classList.remove('open');g('notesView').style.display='block';}
-function updateFlashProgress(){var total=flashDeck.length,pct=total>0?Math.round(flashIdx/total*100):0;var el=g('flashProgress');if(el)el.textContent='\u7b2c '+flashIdx+' / '+total+' \u5f35\uff0c'+flashHard.length+'\u5f35\u4e0d\u719f';var fp=g('flashProgressFill');if(fp)fp.style.width=pct+'%';}
-function renderFlashCard(){
-  var body=g('flashBody');
-  if(flashIdx>=flashDeck.length){
-    var hc=flashHard.length;
-    body.innerHTML='<div class="flash-done"><div class="flash-done-num">'+Math.round((flashDeck.length-hc)/Math.max(flashDeck.length,1)*100)+'%</div><div class="flash-done-label">'+'\u718a\u8005\u7387'+'</div><div class="flash-done-sub">'+flashDeck.length+'\u5f35\u4e2d\uff0c'+hc+'\u5f35\u4e0d\u719f'+'</div><div style="display:flex;gap:10px;margin-top:24px;justify-content:center;">'+(hc>0?'<button class="flash-btn flash-btn-hard" style="flex:0;padding:12px 20px;" id="reviewHardBtn">&#128260; '+'\u518d\u7df4\u4e0d\u719f'+'</button>':'')+'<button class="flash-btn flash-btn-ok" style="flex:0;padding:12px 20px;" id="restartAllBtn">&#8634; '+'\u91cd\u65b0\u958b\u59cb'+'</button></div></div>';
-    var rhb=g('reviewHardBtn');if(rhb)rhb.addEventListener('click',function(){flashDeck=flashHard.slice();flashIdx=0;flashShowing=false;flashHard=[];renderFlashCard();});
-    var rab=g('restartAllBtn');if(rab)rab.addEventListener('click',function(){buildFlashDeck();renderFlashCard();});
-    updateFlashProgress();return;
-  }
-  var n_=flashDeck[flashIdx],tp_=typeByKey(n_.type),sb_=subByKey(n_.subject);
-  if(!flashShowing){
-    body.innerHTML='<div class="flash-card" id="flashCard"><div><div class="flash-front-label">'+'\u8acb\u56de\u61f3\u6b64\u7b46\u8a18\u7684\u5167\u5bb9'+'</div><div class="flash-front-title">'+n_.title+'</div><div class="flash-front-sub"><span class="chip" style="background:'+tp_.color+'22;color:'+tp_.color+'">'+tp_.label+'</span><span class="chip" style="background:'+sb_.color+'22;color:'+sb_.color+'">'+sb_.label+'</span></div></div><div class="flash-hint">'+'\u9ede\u64ca\u6216\u5411\u53f3\u6ed1\u52d5\u7ffb\u9762'+'</div></div>';
-    var fc = g('flashCard');
-    fc.addEventListener('click',function(){flashShowing=true;fc.classList.add('flipping');setTimeout(function(){renderFlashCard();},180);});
-    addSwipe(fc, function(dir){
-      if(dir==='right'){flashShowing=true;fc.classList.add('flipping');setTimeout(function(){renderFlashCard();},180);}
-    });
+  const n=flashDeck[flashIdx], tp=typeByKey(n.type), sb=subByKey(n.subject);
+  if(!flashShowing) {
+    body.innerHTML=`<div class="flash-card" id="flashCard"><div><div class="flash-front-label">請回想此筆記的內容</div><div class="flash-front-title">${n.title}</div><div class="flash-front-sub"><span class="chip" style="background:${tp.color}22;color:${tp.color}">${tp.label}</span><span class="chip" style="background:${sb.color}22;color:${sb.color}">${sb.label}</span></div></div><div class="flash-hint">點擊或向右滑動翻面</div></div>`;
+    const fc = g('flashCard');
+    fc.addEventListener('click',()=>{ flashShowing=true; fc.classList.add('flipping'); setTimeout(()=>renderFlashCard(),180); });
+    const swipeFn = dir => { if(dir==='right'){ flashShowing=true; fc.classList.add('flipping'); setTimeout(()=>renderFlashCard(),180); } };
+    let tx=0,ty=0,startX=0,startY=0,tracking=false;
+    fc.addEventListener('touchstart',e=>{ startX=e.touches[0].clientX; startY=e.touches[0].clientY; tracking=true; tx=0; ty=0; },{passive:true});
+    fc.addEventListener('touchmove',e=>{ if(!tracking)return; tx=e.touches[0].clientX-startX; ty=e.touches[0].clientY-startY; if(Math.abs(tx)>8&&Math.abs(tx)>Math.abs(ty)*1.2){ fc.style.transform=`translateX(${tx*0.4}px) rotate(${tx*0.03}deg)`; fc.style.opacity=1-Math.abs(tx)/500; } },{passive:true});
+    fc.addEventListener('touchend',()=>{ fc.style.transform=''; fc.style.opacity=''; if(Math.abs(tx)>60&&Math.abs(tx)>Math.abs(ty)*1.2) swipeFn(tx>0?'right':'left'); tracking=false; tx=0; ty=0; });
   } else {
-    var hasT=(n_.dispute||n_.f_article||n_.f_elements||n_.f_conclusion),bc_='';
+    const hasT = n.dispute||n.f_article||n.f_elements||n.f_conclusion;
+    let bc = '';
     if(hasT){
-      if(n_.dispute)bc_+='<div class="dispute-section"><div class="dispute-section-title">'+'\u722d\u9ede'+'</div><div class="dispute-section-body">'+n_.dispute+'</div></div>';
-      if(n_.f_article)bc_+='<div class="dispute-section" style="border-color:#1D9E75"><div class="dispute-section-title" style="color:#1D9E75">'+'\u9069\u7528\u6cd5\u689d'+'</div><div class="dispute-section-body">'+n_.f_article+'</div></div>';
-      if(n_.f_elements)bc_+='<div class="dispute-section" style="border-color:#7F77DD"><div class="dispute-section-title" style="color:#7F77DD">'+'\u69cb\u6210\u8981\u4ef6'+'</div><div class="dispute-section-body">'+n_.f_elements+'</div></div>';
-      if(n_.f_conclusion)bc_+='<div class="dispute-section" style="border-color:#D85A30"><div class="dispute-section-title" style="color:#D85A30">'+'\u7d50\u8ad6'+'</div><div class="dispute-section-body">'+n_.f_conclusion+'</div></div>';
-    } else {
-      bc_='<div class="flash-back-body">'+n_.body+'</div>'+(n_.detail?'<div class="flash-back-detail">'+n_.detail+'</div>':'');
+      if(n.dispute) bc+=`<div class="dispute-section"><div class="dispute-section-title">爭點</div><div class="dispute-section-body">${n.dispute}</div></div>`;
+      if(n.f_article) bc+=`<div class="dispute-section" style="border-color:#1D9E75"><div class="dispute-section-title" style="color:#1D9E75">適用法條</div><div class="dispute-section-body">${n.f_article}</div></div>`;
+      if(n.f_elements) bc+=`<div class="dispute-section" style="border-color:#7F77DD"><div class="dispute-section-title" style="color:#7F77DD">構成要件</div><div class="dispute-section-body">${n.f_elements}</div></div>`;
+      if(n.f_conclusion) bc+=`<div class="dispute-section" style="border-color:#D85A30"><div class="dispute-section-title" style="color:#D85A30">結論</div><div class="dispute-section-body">${n.f_conclusion}</div></div>`;
+    } else { bc=`<div class="flash-back-body">${n.body}</div>`+(n.detail?`<div class="flash-back-detail">${n.detail}</div>`:''); }
+    body.innerHTML=`<div class="flash-card" id="flashCardBack"><div><div class="flash-back-label">答案</div>${bc}</div></div><div class="flash-btns"><button class="flash-btn flash-btn-hard" id="fbHard">😠 不熟</button><button class="flash-btn flash-btn-ok" id="fbOk">✅ 記住了</button></div>`;
+    const doHard = () => { const card=g('flashCardBack'); if(card){ card.classList.add('swipe-left'); setTimeout(()=>{ flashHard.push(flashDeck[flashIdx]); flashIdx++; flashShowing=false; renderFlashCard(); updateFlashProgress(); },300); } else{ flashHard.push(flashDeck[flashIdx]); flashIdx++; flashShowing=false; renderFlashCard(); updateFlashProgress(); } };
+    const doOk = () => { const card=g('flashCardBack'); if(card){ card.classList.add('swipe-right'); setTimeout(()=>{ flashIdx++; flashShowing=false; renderFlashCard(); updateFlashProgress(); },300); } else{ flashIdx++; flashShowing=false; renderFlashCard(); updateFlashProgress(); } };
+    g('fbHard').addEventListener('click',doHard); g('fbOk').addEventListener('click',doOk);
+    const fcb = g('flashCardBack');
+    if(fcb){
+      let tx=0,ty=0,startX=0,startY=0,tracking=false;
+      fcb.addEventListener('touchstart',e=>{ startX=e.touches[0].clientX; startY=e.touches[0].clientY; tracking=true; tx=0; ty=0; },{passive:true});
+      fcb.addEventListener('touchmove',e=>{ if(!tracking)return; tx=e.touches[0].clientX-startX; ty=e.touches[0].clientY-startY; if(Math.abs(tx)>8&&Math.abs(tx)>Math.abs(ty)*1.2){ fcb.style.transform=`translateX(${tx*0.4}px) rotate(${tx*0.03}deg)`; fcb.style.opacity=1-Math.abs(tx)/500; } },{passive:true});
+      fcb.addEventListener('touchend',()=>{ fcb.style.transform=''; fcb.style.opacity=''; if(Math.abs(tx)>60&&Math.abs(tx)>Math.abs(ty)*1.2) tx>0?doOk():doHard(); tracking=false; tx=0; ty=0; });
     }
-    body.innerHTML='<div class="flash-card" id="flashCardBack"><div><div class="flash-back-label">'+'\u7b54\u6848'+'</div>'+bc_+'</div></div><div class="flash-btns"><button class="flash-btn flash-btn-hard" id="fbHard">&#128560; '+'\u4e0d\u719f'+'</button><button class="flash-btn flash-btn-ok" id="fbOk">&#9989; '+'\u8a18\u4f4f\u4e86'+'</button></div>';
-    function doHard(){
-      var card=g('flashCardBack');
-      if(card){card.classList.add('swipe-left');setTimeout(function(){flashHard.push(flashDeck[flashIdx]);flashIdx++;flashShowing=false;renderFlashCard();updateFlashProgress();},300);}
-      else{flashHard.push(flashDeck[flashIdx]);flashIdx++;flashShowing=false;renderFlashCard();updateFlashProgress();}
-    }
-    function doOk(){
-      var card=g('flashCardBack');
-      if(card){card.classList.add('swipe-right');setTimeout(function(){flashIdx++;flashShowing=false;renderFlashCard();updateFlashProgress();},300);}
-      else{flashIdx++;flashShowing=false;renderFlashCard();updateFlashProgress();}
-    }
-    g('fbHard').addEventListener('click',doHard);
-    g('fbOk').addEventListener('click',doOk);
-    var fcb=g('flashCardBack');
-    if(fcb) addSwipe(fcb, function(dir){
-      if(dir==='left') doHard();
-      else if(dir==='right') doOk();
-    });
   }
   updateFlashProgress();
 }
-function toggleTemplate(show){var tt=g('templateToggle');if(tt)tt.style.display=show?'block':'none';}
 
-// \u2500\u2500 MULTI-SELECT \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-var multiSelMode = false;
-var selectedIds = {};
+// ==================== 多選功能 ====================
+function enterMultiSel() { multiSelMode=true; selectedIds={}; g('selectBar').classList.add('open'); g('multiSelBtn').style.background='#1a1a2e'; g('multiSelBtn').style.color='#fff'; ['dp','fp'].forEach(p=>g(p).classList.remove('open')); updateSelBar(); render(); }
+function exitMultiSel() { multiSelMode=false; selectedIds={}; g('selectBar').classList.remove('open'); g('multiSelBtn').style.background='#f0f0f0'; g('multiSelBtn').style.color=''; render(); }
+function updateSelBar() { const cnt=Object.keys(selectedIds).length; g('selectCount').textContent=`已選 ${cnt} 筆`; g('selDeleteBtn').disabled=cnt===0; g('selDeleteBtn').style.opacity=cnt===0?'0.4':'1'; }
+function toggleCardSelect(id) { selectedIds[id] ? delete selectedIds[id] : selectedIds[id]=true; updateSelBar(); const c=g('grid').querySelector(`.card[data-id="${id}"]`); if(c) { if(selectedIds[id]) { c.classList.add('selected'); c.querySelector('.sel-check').textContent='✓'; } else { c.classList.remove('selected'); c.querySelector('.sel-check').textContent=''; } } }
+function selectAll() { const cards=g('grid').querySelectorAll('.card'); const allSel=Object.keys(selectedIds).length===cards.length; if(allSel) selectedIds={}; else cards.forEach(c=>{ const cid=parseInt(c.dataset.id); selectedIds[cid]=true; c.classList.add('selected'); c.querySelector('.sel-check').textContent='✓'; }); updateSelBar(); }
+function deleteSelected() { const ids=Object.keys(selectedIds); if(!ids.length) return; if(!confirm(`確定刪除這 ${ids.length} 筆筆記？此操作無法復原。`)) return; const idNums=ids.map(Number); links=links.filter(l=>!idNums.includes(l.from)&&!idNums.includes(l.to)); notes=notes.filter(n=>!selectedIds[n.id]); saveData(); exitMultiSel(); showToast(`已刪除 ${ids.length} 筆筆記`); }
 
-function enterMultiSel() {
-  multiSelMode = true;
-  selectedIds = {};
-  g('selectBar').classList.add('open');
-  g('multiSelBtn').style.background = '#1a1a2e';
-  g('multiSelBtn').style.color = '#fff';
-  g('dp').classList.remove('open');
-  g('fp').classList.remove('open');
-  updateSelBar();
-  render();
+// ==================== 申論測驗 ====================
+function loadExams() { try { const r=localStorage.getItem('klaws_exams_v1'); if(r){ examList=JSON.parse(r); examList.forEach(e=>{ if(/^tag_s_|^tag_t_/.test(e.subject)) e.subject=subByKey(e.subject).label; }); saveExams(); } } catch(e){ examList=[]; } }
+function saveExams() { try { localStorage.setItem('klaws_exams_v1',JSON.stringify(examList)); } catch(e){} }
+function openExamPanel() { loadExams(); renderExamList(); const esel=g('examSubSel'); if(esel) esel.innerHTML=subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join(''); g('examListPanel').classList.add('open'); g('examAddForm').classList.remove('open'); g('dp').classList.remove('open'); setTimeout(()=>g('examListPanel').scrollIntoView({behavior:'smooth',block:'nearest'}),60); }
+function renderExamList() {
+  const el=g('examListItems');
+  if(!examList.length){ el.innerHTML='<div style="color:#bbb;font-size:13px;padding:12px 0;">尚無題目，請點新增題目</div>'; return; }
+  el.innerHTML=examList.map((ex,i)=>`<div class="exam-item" data-idx="${i}"><div><div class="exam-item-title">${subByKey(ex.subject).label} | ${ex.question.slice(0,35)}${ex.question.length>35?'...':''}</div><div class="exam-item-meta">${ex.timeLimit}分鐘</div></div><button class="exam-item-del" data-del="${i}">🗑️</button></div>`).join('');
+  el.querySelectorAll('.exam-item').forEach(el2=>{ el2.addEventListener('click',ev=>{ if(ev.target.getAttribute('data-del')!==null)return; startExam(examList[parseInt(el2.dataset.idx)]); }); });
+  el.querySelectorAll('[data-del]').forEach(btn=>btn.addEventListener('click',ev=>{ ev.stopPropagation(); examList.splice(parseInt(btn.dataset.del),1); saveExams(); renderExamList(); }));
 }
+function startExam(exam) { currentExam=exam; g('examListPanel').classList.remove('open'); g('notesView').style.display='none'; g('flashView').classList.remove('open'); g('examView').classList.add('open'); g('examBody').style.display='flex'; g('examResult').style.display='none'; g('examQuestionDisplay').textContent=exam.question; g('examIssueChips').innerHTML=(exam.issues||[]).map(iss=>`<span class="exam-issue-chip">${iss}</span>`).join(''); g('examAnswerBox').value=''; g('examWordCount').textContent='0 字'; g('examHeaderTitle').textContent=`✒️ ${subByKey(exam.subject).label}`; examTotal=exam.timeLimit*60; examSec=examTotal; const updateTimer=()=>{ const m=Math.floor(examSec/60),s=examSec%60; g('examTimer').textContent=`${m<10?'0':''}${m}:${s<10?'0':''}${s}`; if(examSec<=300)g('examTimer').classList.add('warning'); }; updateTimer(); clearInterval(examTimer); examTimer=setInterval(()=>{ examSec--; updateTimer(); if(examSec<=0)doSubmit(true); },1000); }
+function doSubmit(timeUp) { clearInterval(examTimer); const ans=g('examAnswerBox').value.trim(); const used=Math.round((examTotal-examSec)/60*10)/10; g('examBody').style.display='none'; g('examResult').style.display='flex'; g('examResult').classList.add('open'); g('resultScoreNum').textContent='--'; g('resultComment').textContent='評分中，請稍候…'; g('resultRef').textContent=''; g('resultTags').innerHTML=''; gradeEssay(currentExam,ans,used,timeUp); }
+function gradeEssay(exam,ans,used,timeUp) {
+  const issueList=(exam.issues||[]).join('、');
+  const prompt=`你是台灣大學法律系教授，正在批改學生的申論題作答。請給予詳細、具體、有教育價值的評語。
 
-function exitMultiSel() {
-  multiSelMode = false;
-  selectedIds = {};
-  g('selectBar').classList.remove('open');
-  g('multiSelBtn').style.background = '#f0f0f0';
-  g('multiSelBtn').style.color = '';
-  render();
-}
+【科目】${subByKey(exam.subject).label}
+【題目】
+${exam.question.slice(0,300)}
+【預設爭點】${issueList}
+【學生作答】
+${(ans||'(未作答)').slice(0,3000)}
+【作答時間】${used}分鐘${timeUp?' (時間到，作答可能不完整)':''}
 
-function updateSelBar() {
-  var count = Object.keys(selectedIds).length;
-  g('selectCount').textContent = '\u5df2\u9078 ' + count + ' \u7b46';
-  g('selDeleteBtn').disabled = count === 0;
-  g('selDeleteBtn').style.opacity = count === 0 ? '0.4' : '1';
-}
-
-function toggleCardSelect(id) {
-  if (selectedIds[id]) {
-    delete selectedIds[id];
-  } else {
-    selectedIds[id] = true;
-  }
-  updateSelBar();
-  // Update card appearance
-  var cards = g('grid').querySelectorAll('.card');
-  for (var i = 0; i < cards.length; i++) {
-    var cid = parseInt(cards[i].getAttribute('data-id'));
-    if (cid === id) {
-      if (selectedIds[id]) {
-        cards[i].classList.add('selected');
-        var chk = cards[i].querySelector('.sel-check');
-        if (chk) chk.textContent = '\u2713';
-      } else {
-        cards[i].classList.remove('selected');
-        var chk = cards[i].querySelector('.sel-check');
-        if (chk) chk.textContent = '';
-      }
-      break;
-    }
-  }
-}
-
-function selectAll() {
-  var cards = g('grid').querySelectorAll('.card');
-  var allSelected = Object.keys(selectedIds).length === cards.length;
-  if (allSelected) {
-    // Deselect all
-    selectedIds = {};
-    for (var i = 0; i < cards.length; i++) {
-      cards[i].classList.remove('selected');
-      var chk = cards[i].querySelector('.sel-check');
-      if (chk) chk.textContent = '';
-    }
-  } else {
-    // Select all visible
-    for (var i = 0; i < cards.length; i++) {
-      var cid = parseInt(cards[i].getAttribute('data-id'));
-      selectedIds[cid] = true;
-      cards[i].classList.add('selected');
-      var chk = cards[i].querySelector('.sel-check');
-      if (chk) chk.textContent = '\u2713';
-    }
-  }
-  updateSelBar();
-}
-
-function deleteSelected() {
-  var ids = Object.keys(selectedIds);
-  if (!ids.length) return;
-  var count = ids.length;
-  if (!confirm('\u78ba\u5b9a\u522a\u9664\u9019 ' + count + ' \u7b46\u7b46\u8a18\uff1f\u6b64\u64cd\u4f5c\u7121\u6cd5\u5fa9\u539f\u3002')) return;
-  // Delete links too
-  var idNums = ids.map(function(x){ return parseInt(x); });
-  links = links.filter(function(l){
-    return idNums.indexOf(l.from) === -1 && idNums.indexOf(l.to) === -1;
-  });
-  notes = notes.filter(function(n){
-    return !selectedIds[n.id];
-  });
-  saveData();
-  exitMultiSel();
-  showToast('\u5df2\u522a\u9664 ' + count + ' \u7b46\u7b46\u8a18');
-}
-// \u2500\u2500 END MULTI-SELECT \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-
-// \u2500\u2500 EXAM \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-var EXAM_SK='klaws_exams_v1';
-var examList=[];
-var examTimer_=null;
-var examSec=0,examTotal=0;
-var currentExam=null;
-
-function loadExams(){
-  try{
-    var r=localStorage.getItem(EXAM_SK);
-    if(r){
-      examList=JSON.parse(r);
-      // 修復：exam.subject 可能是壞掉的 tag_s_ key，轉換成正確 label
-      var examChanged=false;
-      for(var i=0;i<examList.length;i++){
-        if(/^tag_s_|^tag_t_/.test(examList[i].subject)){
-          examList[i].subject=subByKey(examList[i].subject).label;
-          examChanged=true;
-        }
-      }
-      if(examChanged)saveExams();
-    }
-  }catch(e){examList=[];}
-}
-function saveExams(){try{localStorage.setItem(EXAM_SK,JSON.stringify(examList));}catch(e){}}
-
-function openExamPanel(){
-  loadExams();
-  renderExamList();
-  var esel=g('examSubSel');
-  if(esel)esel.innerHTML=subjects.map(function(s){return'<option value="'+s.key+'">'+s.label+'</option>';}).join('');
-  g('examListPanel').classList.add('open');
-  g('examAddForm').classList.remove('open');
-  g('dp').classList.remove('open');
-  setTimeout(function(){g('examListPanel').scrollIntoView({behavior:'smooth',block:'nearest'});},60);
-}
-
-function renderExamList(){
-  var el=g('examListItems');
-  if(!examList.length){
-    el.innerHTML='<div style="color:#bbb;font-size:13px;padding:12px 0;">\u5c1a\u7121\u984c\u76ee\uff0c\u8acb\u9ede\u65b0\u589e\u984c\u76ee</div>';
-    return;
-  }
-  el.innerHTML=examList.map(function(ex,i){
-    return'<div class="exam-item" data-idx="'+i+'">'
-      +'<div><div class="exam-item-title">'+subByKey(ex.subject).label+' | '+ex.question.slice(0,35)+(ex.question.length>35?'...':'')+'</div>'
-      +'<div class="exam-item-meta">'+ex.timeLimit+'\u5206\u9418</div></div>'
-      +'<button class="exam-item-del" data-del="'+i+'">&#128465;</button>'
-      +'</div>';
-			}).join('');
-  var items=el.querySelectorAll('.exam-item');
-  for(var i=0;i<items.length;i++){
-    (function(el2){
-      el2.addEventListener('click',function(ev){
-        if(ev.target.getAttribute('data-del')!==null)return;
-        startExam(examList[parseInt(el2.getAttribute('data-idx'))]);
-      });
-    })(items[i]);
-  }
-  var dels=el.querySelectorAll('[data-del]');
-  for(var i=0;i<dels.length;i++){
-    (function(btn){
-      btn.addEventListener('click',function(ev){
-        ev.stopPropagation();
-        var idx=parseInt(btn.getAttribute('data-del'));
-        examList.splice(idx,1);saveExams();renderExamList();
-      });
-    })(dels[i]);
-  }
-}
-
-function startExam(exam){
-  currentExam=exam;
-  g('examListPanel').classList.remove('open');
-  g('notesView').style.display='none';
-  g('flashView').classList.remove('open');
-  g('examView').classList.add('open');
-  g('examBody').style.display='flex';
-  g('examResult').style.display='none';
-  g('examResult').classList.remove('open');
-  g('examQuestionDisplay').textContent=exam.question;
-  g('examIssueChips').innerHTML=(exam.issues||[]).map(function(iss){return'<span class="exam-issue-chip">'+iss+'</span>';}).join('');
-  g('examAnswerBox').value='';
-  g('examWordCount').textContent='0 \u5b57';
-  g('examHeaderTitle').textContent='\u2712 '+subByKey(exam.subject).label;
-  examTotal=exam.timeLimit*60;
-  examSec=examTotal;
-  clearInterval(examTimer_);
-  updateTimer();
-  examTimer_=setInterval(function(){
-    examSec--;
-    updateTimer();
-    if(examSec<=300)g('examTimer').classList.add('warning');
-    if(examSec<=0)doSubmit(true);
-  },1000);
-}
-
-function updateTimer(){
-  var m=Math.floor(examSec/60),s=examSec%60;
-  g('examTimer').textContent=(m<10?'0':'')+m+':'+(s<10?'0':'')+s;
-}
-
-function doSubmit(timeUp){
-  clearInterval(examTimer_);
-  var ans=g('examAnswerBox').value.trim();
-  var used=Math.round((examTotal-examSec)/60*10)/10;
-  g('examBody').style.display='none';
-  g('examResult').style.display='flex';
-  g('examResult').classList.add('open');
-  g('resultScoreNum').textContent='--';
-  g('resultComment').textContent='\u8a55\u5206\u4e2d\uff0c\u8acb\u7a0d\u5019\u2026';
-  g('resultRef').textContent='';
-  g('resultTags').innerHTML='';
-  gradeEssay(currentExam,ans,used,timeUp);
-}
-
-function gradeEssay(exam,ans,used,timeUp){
-  var issueList=(exam.issues||[]).join('、');
-  var prompt='你是台灣大學法律系教授，正在批改學生的申論題作答。請給予詳細、具體、有教育價值的評語。\n\n'
-    +'【科目】'+subByKey(exam.subject).label+'\n'
-    +'【題目】\n'+exam.question.slice(0,300)+'\n'
-    +'【預設爭點】'+issueList+'\n'
-    +'【學生作答】\n'+(ans||'(未作答)').slice(0,3000)+'\n'
-    +'【作答時間】'+used+'分鐘'+(timeUp?' (時間到，作答可能不完整)':'')+'\n\n'
-    +'請依下列 JSON 格式輸出評分（只輸出 JSON，不加任何其他文字或 markdown）：\n'
-    +'{\n'
-    +'  "score": <0-100整數>,\n'
-    +'  "comment": "<100-150字整體總評，包含作答整體印象與主要問題>",\n'
-    +'  "issue_analysis": [\n'
-    +'    {"issue":"<爭點名稱>","hit":<true/false>,"analysis":"<針對此爭點的詳細評析，80-120字，說明學生寫得好或不足的地方、應補充的法律概念>"}\n'
-    +'  ],\n'
-    +'  "strengths": ["<具體優點1，30-50字>","<具體優點2，30-50字>"],\n'
-    +'  "weaknesses": ["<具體缺點1，30-50字>","<具體缺點2，30-50字>","<具體缺點3，30-50字>"],\n'
-    +'  "suggestions": ["<具體改進建議1，30-50字>","<具體改進建議2，30-50字>"],\n'
-    +'  "reference": "<參考答題要點，120-150字，列出本題應涵蓋的核心法律概念、法條、判例>"\n'
-    +'}';
+請依下列 JSON 格式輸出評分（只輸出 JSON，不加任何其他文字或 markdown）：
+{
+  "score": <0-100整數>,
+  "comment": "<100-150字整體總評>",
+  "issue_analysis": [{"issue":"<爭點名稱>","hit":<true/false>,"analysis":"<針對此爭點的詳細評析>"}],
+  "strengths": ["<具體優點1>","<具體優點2>"],
+  "weaknesses": ["<具體缺點1>","<具體缺點2>","<具體缺點3>"],
+  "suggestions": ["<具體改進建議1>","<具體改進建議2>"],
+  "reference": "<參考答題要點>"
+}`;
   fetch('https://openrouter.ai/api/v1/chat/completions',{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'Authorization':'Bearer '+(function(){try{return localStorage.getItem('klaws_ai_key')||'';}catch(e){return '';}}()),
-      'HTTP-Referer':'https://kinayaya.github.io/LawsNote',
-      'X-Title':'KLaws'
-    },
-    body:JSON.stringify({model:(function(){try{return localStorage.getItem('klaws_ai_model')||'openrouter/free';}catch(e){return 'openrouter/free';}}()),max_tokens:5000,messages:[{role:'user',content:prompt}]})
-  })
-  .then(function(r){return r.json();})
-  .then(function(d){
-    if(d.error){
-      g('resultScoreNum').textContent='?';
-      g('resultComment').textContent='AI 錯誤：'+(d.error.message||JSON.stringify(d.error));
-      return;
-    }
-    var raw=(((d.choices||[{}])[0].message||{}).content||'');
-    // 從回傳內容中擷取第一個完整 JSON 物件，避免截斷或多餘文字造成 parse 失敗
-    var txt=raw.replace(/```json|```/g,'').trim();
-    var start=txt.indexOf('{'), end=txt.lastIndexOf('}');
-    if(start!==-1&&end!==-1) txt=txt.slice(start,end+1);
-    try{
-      showResult(JSON.parse(txt));
-    }catch(e){
-      // JSON 仍然壞掉時，顯示原始文字給使用者參考
-      g('resultScoreNum').textContent='?';
-      g('resultComment').textContent='AI 回應無法解析，原始內容：\n'+raw.slice(0,300);
-    }
-  })
-  .catch(function(e){
-    g('resultScoreNum').textContent='?';
-    g('resultComment').textContent='\u8a55\u5206\u670d\u52d9\u66ab\u6642\u7121\u6cd5\u9023\u7dda\u3002\u932f\u8aa4\uff1a'+e.message;
-  });
+    method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+getAiKey(),'HTTP-Referer':'https://kinayaya.github.io/LawsNote','X-Title':'KLaws'},
+    body:JSON.stringify({model:getAiModel(), max_tokens:5000, messages:[{role:'user',content:prompt}]})
+  }).then(r=>r.json()).then(d=>{
+    if(d.error){ g('resultScoreNum').textContent='?'; g('resultComment').textContent='AI 錯誤：'+(d.error.message||JSON.stringify(d.error)); return; }
+    let raw=(((d.choices||[{}])[0].message||{}).content||'').replace(/```json|```/g,'').trim();
+    const start=raw.indexOf('{'), end=raw.lastIndexOf('}'); if(start!==-1&&end!==-1) raw=raw.slice(start,end+1);
+    try{ showResult(JSON.parse(raw)); }catch(e){ g('resultScoreNum').textContent='?'; g('resultComment').textContent='AI 回應無法解析，原始內容：\n'+raw.slice(0,300); }
+  }).catch(e=>{ g('resultScoreNum').textContent='?'; g('resultComment').textContent='評分服務暫時無法連線。錯誤：'+e.message; });
 }
-
-function showResult(r){
+function showResult(r) {
   g('resultScoreNum').textContent=r.score||'--';
-  var sc=g('resultScoreNum').parentElement;
-  sc.style.background=r.score>=80?'#1D9E75':r.score>=60?'#378ADD':r.score>=40?'#D85A30':'#8B1A1A';
+  const sc=g('resultScoreNum').parentElement; sc.style.background=r.score>=80?'#1D9E75':r.score>=60?'#378ADD':r.score>=40?'#D85A30':'#8B1A1A';
   g('resultComment').textContent=r.comment||'';
+  const iaEl=g('resultIssueAnalysis');
+  if(iaEl) iaEl.innerHTML=(r.issue_analysis||[]).map(item=>`<div class="issue-analysis-item"><div class="issue-analysis-head"><span class="issue-analysis-name">${item.issue}</span><span class="issue-hit-badge" style="background:${item.hit?'#1D9E75':'#D85A30'}">${item.hit?'✔ 有涵蓋':'✘ 未涵蓋'}</span></div><div class="issue-analysis-body">${item.analysis}</div></div>`).join('');
+  let tags='';
+  (r.strengths||[]).forEach(s=>tags+=`<span class="result-tag good">✓ ${s}</span>`);
+  (r.weaknesses||[]).forEach(s=>tags+=`<span class="result-tag bad">✗ ${s}</span>`);
+  (r.suggestions||[]).forEach(s=>tags+=`<span class="result-tag ok">→ ${s}</span>`);
+  g('resultTags').innerHTML=tags; g('resultRef').textContent=r.reference||'';
+}
+function closeExamView() { clearInterval(examTimer); g('examView').classList.remove('open'); g('notesView').style.display='block'; g('subbar').style.display='flex'; }
 
-  // 逐爭點分析
-  var ia=r.issue_analysis||[];
-  var iaEl=g('resultIssueAnalysis');
-  if(iaEl){
-    if(ia.length){
-      iaEl.innerHTML=ia.map(function(item){
-        var hitColor=item.hit?'#1D9E75':'#D85A30';
-        var hitLabel=item.hit?'✔ 有涵蓋':'✘ 未涵蓋';
-        return '<div class="issue-analysis-item">'
-          +'<div class="issue-analysis-head">'
-          +'<span class="issue-analysis-name">'+item.issue+'</span>'
-          +'<span class="issue-hit-badge" style="background:'+hitColor+'">'+hitLabel+'</span>'
-          +'</div>'
-          +'<div class="issue-analysis-body">'+item.analysis+'</div>'
-          +'</div>';
-      }).join('');
-    } else {
-      iaEl.innerHTML='';
-    }
+// ==================== 體系圖 ====================
+function initNodePos() { const canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||500; const cx=mapW/2,cy=mapH/2,r=Math.min(mapW,mapH)*0.38; notes.forEach((n,i)=>{ if(!nodePos[n.id]){ const angle=(i/notes.length)*2*Math.PI; nodePos[n.id]={x:cx+r*Math.cos(angle),y:cy+r*Math.sin(angle)}; } }); }
+function forceLayout() {
+  const canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||500;
+  let layoutNotes=visibleNotes(); const n2=layoutNotes.length;
+  if(!n2) return;
+  const NODE_R=38, LINK_IDEAL=NODE_R*5, LINK_MIN=NODE_R*2.2, linkedPairs={};
+  links.forEach(lk=>{ linkedPairs[lk.from+'_'+lk.to]=true; linkedPairs[lk.to+'_'+lk.from]=true; });
+  const isLinked=(a,b)=>!!linkedPairs[a+'_'+b];
+  const cols=Math.ceil(Math.sqrt(n2*1.4)), cellW=Math.max(mapW/(cols+1),NODE_R*3), cellH=Math.max(mapH/(Math.ceil(n2/cols)+1),NODE_R*3);
+  layoutNotes.forEach((n,i)=>{ const col=i%cols,row=Math.floor(i/cols); nodePos[n.id]={x:cellW*(col+1)+(Math.random()-0.5)*cellW*0.25,y:cellH*(row+1)+(Math.random()-0.5)*cellH*0.25}; });
+  for(let t=0;t<300;t++){ const cool=Math.pow(1-t/300,1.5), disp={}; layoutNotes.forEach(n=>disp[n.id]={x:0,y:0});
+    for(let i=0;i<n2;i++) for(let j=i+1;j<n2;j++){ const ai=layoutNotes[i].id,aj=layoutNotes[j].id, px=nodePos[ai],py=nodePos[aj], dx=px.x-py.x, dy=px.y-py.y, dist=Math.sqrt(dx*dx+dy*dy)||0.01, linked=isLinked(ai,aj);
+      let rep; if(linked) rep=(dist<LINK_MIN*1.5)?(LINK_MIN*LINK_MIN*6)/dist:0; else rep=(dist<NODE_R*1.2)?(NODE_R*NODE_R*0.8)/dist:0;
+      if(rep>0){ disp[ai].x+=dx/dist*rep; disp[ai].y+=dy/dist*rep; disp[aj].x-=dx/dist*rep; disp[aj].y-=dy/dist*rep; } }
+    links.forEach(lk=>{ const fp=nodePos[lk.from],tp=nodePos[lk.to]; if(!fp||!tp)return; const dx=tp.x-fp.x, dy=tp.y-fp.y, dist=Math.sqrt(dx*dx+dy*dy)||0.01; if(dist>LINK_IDEAL){ const att=(dist-LINK_IDEAL)*0.08; disp[lk.from].x+=dx/dist*att; disp[lk.from].y+=dy/dist*att; disp[lk.to].x-=dx/dist*att; disp[lk.to].y-=dy/dist*att; } });
+    const maxD=Math.max(mapW,mapH)*0.05*cool+2, pad=NODE_R+4;
+    layoutNotes.forEach(n=>{ const id=n.id,d=disp[id], len=Math.sqrt(d.x*d.x+d.y*d.y)||0.01, move=Math.min(len,maxD); nodePos[id].x=Math.max(pad,Math.min(mapW-pad,nodePos[id].x+d.x/len*move)); nodePos[id].y=Math.max(pad,Math.min(mapH-pad,nodePos[id].y+d.y/len*move)); });
   }
+  for(let pass=0;pass<30;pass++){ let moved=false; links.forEach(lk=>{ const fp=nodePos[lk.from],tp=nodePos[lk.to]; if(!fp||!tp)return; const dx=tp.x-fp.x, dy=tp.y-fp.y, dist=Math.sqrt(dx*dx+dy*dy)||0.01; if(dist<LINK_MIN){ const push=(LINK_MIN-dist)/2+1, nx=dx/dist, ny=dy/dist, pad=NODE_R+4; nodePos[lk.from].x=Math.max(pad,Math.min(mapW-pad,nodePos[lk.from].x-nx*push)); nodePos[lk.from].y=Math.max(pad,Math.min(mapH-pad,nodePos[lk.from].y-ny*push)); nodePos[lk.to].x=Math.max(pad,Math.min(mapW-pad,nodePos[lk.to].x+nx*push)); nodePos[lk.to].y=Math.max(pad,Math.min(mapH-pad,nodePos[lk.to].y+ny*push)); moved=true; } }); if(!moved)break; }
+  saveData();
+}
+function getArrowMarker(color){ const map={'#378ADD':'arrowBlue','#1D9E75':'arrowGreen','#7F77DD':'arrowPurple','#D85A30':'arrowOrange'}; return `url(#${map[color]||'arrowGray'})`; }
+function moveNodeEl(id,x,y){ const grp=nodeEls[id]; if(!grp)return; const circles=grp.querySelectorAll('circle'), texts=grp.querySelectorAll('text'); if(circles[0]){circles[0].setAttribute('cx',x);circles[0].setAttribute('cy',y);} const r=parseFloat(circles[0]?circles[0].getAttribute('r'):24)||24; if(circles[1]){circles[1].setAttribute('cx',x+r-4);circles[1].setAttribute('cy',y-r+4);} if(texts[1]){texts[0].setAttribute('x',x+r-4);texts[0].setAttribute('y',y-r+4);texts[1].setAttribute('x',x);texts[1].setAttribute('y',y+r+12);} else if(texts[0]){texts[0].setAttribute('x',x);texts[0].setAttribute('y',y+r+12);} }
+function calcLinkPath(lk){ const fp=nodePos[lk.from],tp=nodePos[lk.to]; if(!fp||!tp)return null; const dx=tp.x-fp.x,dy=tp.y-fp.y,dist=Math.sqrt(dx*dx+dy*dy)||1, nx=dx/dist,ny=dy/dist,nr=22, x1=fp.x+nx*nr,y1=fp.y+ny*nr,x2=tp.x-nx*(nr+8),y2=tp.y-ny*(nr+8), mx=(x1+x2)/2,my=(y1+y2)/2-14; return{d:`M${x1},${y1} Q${mx},${my} ${x2},${y2}`,lmx:(x1+x2)/2,lmy:(y1+y2)/2-18}; }
+function redrawLines(affectedId){ const toUpdate=affectedId!==undefined?(nodeLinksIndex[affectedId]||[]).map(i=>links[i]):links; toUpdate.forEach(lk=>{ const els=linkElsMap[lk.id]; if(!els||!els.p)return; const c=calcLinkPath(lk); if(!c)return; els.p.setAttribute('d',c.d); if(els.r){els.r.setAttribute('x',c.lmx-18);els.r.setAttribute('y',c.lmy-9);} if(els.t){els.t.setAttribute('x',c.lmx);els.t.setAttribute('y',c.lmy+1);} }); }
+function visibleNotes(){ const q=mapFilter.q.toLowerCase(), linkedIds={}; if(mapLinkedOnly) links.forEach(l=>{ linkedIds[l.from]=true; linkedIds[l.to]=true; }); return notes.filter(n=>(mapFilter.sub==='all'||n.subject===mapFilter.sub)&&(mapFilter.type==='all'||n.type===mapFilter.type)&&(!q||`${n.title}${n.subject}${n.tags.join('')}`.toLowerCase().includes(q))&&(!mapLinkedOnly||linkedIds[n.id])); }
+function drawMap() {
+  initNodePos(); const svg=g('mapSvg'), canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||500;
+  svg.setAttribute('width',mapW); svg.setAttribute('height',mapH); const ll=g('linksLayer'), nl=g('nodesLayer'); ll.innerHTML=''; nl.innerHTML='';
+  let gw=svg.querySelector('#mapWrap'); if(!gw){ gw=document.createElementNS('http://www.w3.org/2000/svg','g'); gw.setAttribute('id','mapWrap'); svg.insertBefore(gw,svg.firstChild); gw.appendChild(ll); gw.appendChild(nl); }
+  gw.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`);
+  const vis=visibleNotes(), visIds={}; vis.forEach(v=>visIds[v.id]=true);
+  links.forEach(lk=>{ if(!visIds[lk.from]||!visIds[lk.to])return; const fp=nodePos[lk.from],tp=nodePos[lk.to]; if(!fp||!tp)return; const dx=tp.x-fp.x,dy=tp.y-fp.y,dist=Math.sqrt(dx*dx+dy*dy)||1, nx=dx/dist,ny=dy/dist,nr=24, x1=fp.x+nx*nr,y1=fp.y+ny*nr,x2=tp.x-nx*(nr+8),y2=tp.y-ny*(nr+8), mx=(x1+x2)/2,my=(y1+y2)/2-16;
+    const line=document.createElementNS('http://www.w3.org/2000/svg','path'); line.setAttribute('d',`M${x1},${y1} Q${mx},${my} ${x2},${y2}`); line.setAttribute('stroke',lk.color); line.setAttribute('stroke-width','2'); line.setAttribute('fill','none'); line.setAttribute('marker-end',getArrowMarker(lk.color)); ll.appendChild(line);
+    const rct=document.createElementNS('http://www.w3.org/2000/svg','rect'); rct.setAttribute('x',(x1+x2)/2-18); rct.setAttribute('y',(y1+y2)/2-20-9); rct.setAttribute('width','36'); rct.setAttribute('height','16'); rct.setAttribute('rx','8'); rct.setAttribute('fill',lk.color); ll.appendChild(rct);
+    const lt=document.createElementNS('http://www.w3.org/2000/svg','text'); lt.setAttribute('x',(x1+x2)/2); lt.setAttribute('y',(y1+y2)/2-20); lt.setAttribute('text-anchor','middle'); lt.setAttribute('dominant-baseline','middle'); lt.setAttribute('font-size','9'); lt.setAttribute('fill','#fff'); lt.setAttribute('font-weight','600'); lt.textContent=lk.rel; ll.appendChild(lt);
+  });
+  notes.forEach(n=>{ const pos=nodePos[n.id]; if(!pos)return; const tp=typeByKey(n.type), isVis=!!visIds[n.id], lc=links.filter(l=>l.from===n.id||l.to===n.id).length, radius=20+Math.min(lc*3,12);
+    const grp=document.createElementNS('http://www.w3.org/2000/svg','g'); grp.setAttribute('class','map-node'+(isVis?'':' map-node-dimmed')); grp.setAttribute('data-id',n.id);
+    const circ=document.createElementNS('http://www.w3.org/2000/svg','circle'); circ.setAttribute('cx',pos.x); circ.setAttribute('cy',pos.y); circ.setAttribute('r',radius); circ.setAttribute('fill',tp.color); circ.setAttribute('stroke','#fff'); circ.setAttribute('stroke-width','2'); grp.appendChild(circ);
+    if(lc>0){ const bdg=document.createElementNS('http://www.w3.org/2000/svg','circle'); bdg.setAttribute('cx',pos.x+radius-4); bdg.setAttribute('cy',pos.y-radius+4); bdg.setAttribute('r','9'); bdg.setAttribute('fill','#fff'); grp.appendChild(bdg); const bt=document.createElementNS('http://www.w3.org/2000/svg','text'); bt.setAttribute('x',pos.x+radius-4); bt.setAttribute('y',pos.y-radius+4); bt.setAttribute('text-anchor','middle'); bt.setAttribute('dominant-baseline','middle'); bt.setAttribute('font-size','8'); bt.setAttribute('fill',tp.color); bt.setAttribute('font-weight','700'); bt.textContent=lc; grp.appendChild(bt); }
+    const short=n.title.length>9?n.title.slice(0,9)+'..':n.title, txt=document.createElementNS('http://www.w3.org/2000/svg','text'); txt.setAttribute('x',pos.x); txt.setAttribute('y',pos.y+radius+12); txt.setAttribute('text-anchor','middle'); txt.setAttribute('font-size','10'); txt.setAttribute('fill','#444'); txt.textContent=short; grp.appendChild(txt);
+    grp.addEventListener('click',()=>showMapInfo(n.id)); grp.addEventListener('mousedown',e=>startDrag(e,n.id)); grp.addEventListener('touchstart',e=>startDragTouch(e,n.id),{passive:true}); nl.appendChild(grp);
+  });
+  nodeEls={}; nl.querySelectorAll('.map-node').forEach(ng=>{ nodeEls[parseInt(ng.dataset.id)]=ng; });
+  linkElsMap={}; const ap=ll.querySelectorAll('path'), ar=ll.querySelectorAll('rect'), at=ll.querySelectorAll('text'); links.forEach((lk,i)=>{ linkElsMap[lk.id]={p:ap[i],r:ar[i],t:at[i]}; });
+  nodeLinksIndex={}; links.forEach((lk,i)=>{ if(!nodeLinksIndex[lk.from])nodeLinksIndex[lk.from]=[]; if(!nodeLinksIndex[lk.to])nodeLinksIndex[lk.to]=[]; nodeLinksIndex[lk.from].push(i); nodeLinksIndex[lk.to].push(i); });
+}
+function showMapInfo(id){ const n=noteById(id); if(!n)return; const tp=typeByKey(n.type), sb=subByKey(n.subject), related=links.filter(l=>l.from===id||l.to===id);
+  g('mpBadge').textContent=tp.label; g('mpBadge').style.background=tp.color; g('mpTitle').textContent=n.title; g('mpSubject').textContent=sb.label; g('mpSubject').style.background=sb.color+'22'; g('mpSubject').style.color=sb.color;
+  const linksEl=g('mpLinks'); if(!related.length){ linksEl.innerHTML='<span class="mp-no-links">尚無關聯</span>'; } else { linksEl.innerHTML=related.map(l=>{ const otherId=l.from===id?l.to:l.from, other=noteById(otherId), dir=l.from===id?'→':'←', name=other?other.title:'（已刪除）'; return `<div class="mp-link-row"><span class="mp-link-badge" style="background:${l.color}">${dir} ${l.rel}</span><span class="mp-link-name" data-nid="${otherId}">${name.slice(0,18)}${name.length>18?'..':''}</span></div>`; }).join(''); linksEl.querySelectorAll('.mp-link-name').forEach(el=>{ el.addEventListener('click',()=>{ closeMapPopup(); const tid=parseInt(el.dataset.nid); showMapInfo(tid); highlightNode(tid); }); }); }
+  const canvas=g('mapCanvas'), cw=canvas.offsetWidth||800, ch=canvas.offsetHeight||500, pos=nodePos[id], sx=pos.x*mapScale+mapOffX, sy=pos.y*mapScale+mapOffY, popup=g('mapPopup'); popup.classList.add('open'); const pw=popup.offsetWidth||240, ph=popup.offsetHeight||160; let px=sx+30, py=sy-ph/2; if(px+pw>cw-10) px=sx-pw-30; if(px<10) px=10; if(py<10) py=10; if(py+ph>ch-10) py=ch-ph-10; popup.style.left=px+'px'; popup.style.top=py+'px'; g('mpGoto').onclick=()=>{ closeMapPopup(); isMapOpen=false; g('notesView').style.display='block'; g('mapView').classList.remove('open'); g('subbar').style.display='flex'; setTimeout(()=>openNote(id),80); }; }
+function closeMapPopup(){ g('mapPopup').classList.remove('open'); }
+function highlightNode(id){ g('nodesLayer').querySelectorAll('.map-node').forEach(grp=>{ grp.classList.remove('map-node-highlight'); if(parseInt(grp.dataset.id)===id) grp.classList.add('map-node-highlight'); }); }
+function startDrag(e,id){ e.preventDefault(); e.stopPropagation(); closeMapPopup(); dragNode=id; const pos=nodePos[id], rect=g('mapCanvas').getBoundingClientRect(); dragOffX=e.clientX-rect.left-(pos.x*mapScale+mapOffX); dragOffY=e.clientY-rect.top-(pos.y*mapScale+mapOffY); }
+function startDragTouch(e,id){ e.stopPropagation(); dragNode=id; const pos=nodePos[id], rect=g('mapCanvas').getBoundingClientRect(), touch=e.touches[0]; dragOffX=touch.clientX-rect.left-(pos.x*mapScale+mapOffX); dragOffY=touch.clientY-rect.top-(pos.y*mapScale+mapOffY); }
+function buildMapFilters(){ const ss=g('mapFilterSub'), st=g('mapFilterType'); if(!ss)return; ss.innerHTML='<option value="all">全部科目</option>'+subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join(''); st.innerHTML='<option value="all">全部類型</option>'+types.map(t=>`<option value="${t.key}">${t.label}</option>`).join(''); }
 
-  var tags='';
-  (r.strengths||[]).forEach(function(s){tags+='<span class="result-tag good">\u2714 '+s+'</span>';});
-  (r.weaknesses||[]).forEach(function(s){tags+='<span class="result-tag bad">\u2716 '+s+'</span>';});
-  (r.suggestions||[]).forEach(function(s){tags+='<span class="result-tag ok">\u2192 '+s+'</span>';});
-  g('resultTags').innerHTML=tags;
-  g('resultRef').textContent=r.reference||'';
+// ==================== AI 功能 ====================
+function requireAiKey(action){ const k=getAiKey(); if(k){ action(k); return; } _aiPendingAction=action; g('aiKeyInput').value=''; const sel=g('aiModelSel'); if(sel) sel.innerHTML=AI_MODELS.map(m=>`<option value="${m.id}"${m.id===getAiModel()?' selected':''}>${m.label}</option>`).join(''); g('aiKeyModal').classList.add('open'); }
+function openAiSettings(){ g('aiKeyInput').value=getAiKey(); const sel=g('aiModelSel'); if(sel) sel.innerHTML=AI_MODELS.map(m=>`<option value="${m.id}"${m.id===getAiModel()?' selected':''}>${m.label}</option>`).join(''); _aiPendingAction=null; g('aiKeyModal').classList.add('open'); }
+function callAI(key, prompt, onSuccess, onError){ const model=getAiModel(); const doFetch=(m,isRetry)=>{ fetch('https://openrouter.ai/api/v1/chat/completions',{ method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+key,'HTTP-Referer':'https://kinayaya.github.io/LawsNote','X-Title':'KLaws'}, body:JSON.stringify({model:m, max_tokens:2000, messages:[{role:'user',content:prompt}]}) }).then(r=>r.json()).then(d=>{ if(d.error){ if(!isRetry && m!=='openrouter/free'){ showToast('模型暫時不可用，自動切換重試...'); doFetch('openrouter/free',true); return; } onError(d.error.message||'API 錯誤'); return; } let raw=(((d.choices||[{}])[0].message||{}).content||'').replace(/```json|```/g,'').trim(); const start=raw.indexOf('{'), end=raw.lastIndexOf('}'); if(start!==-1&&end!==-1) raw=raw.slice(start,end+1); try{ onSuccess(JSON.parse(raw)); }catch(e){ onError('AI 回應格式錯誤，請重試（'+raw.slice(0,80)+'）'); } }).catch(e=>{ onError('連線失敗：'+e.message); }); }; doFetch(model,false); }
+
+// ==================== 音樂播放器 ====================
+function initMusicPlayer() {
+  const musicPanel = g('music-panel'), musicToggle = g('music-toggle'), musicClose = g('music-close'), musicUrlInput = g('music-url-input'), musicLoadBtn = g('music-load-btn'), musicIframe = g('music-iframe'), musicFab = g('music-fab');
+  const extractVideoId = str => { str=(str||'').trim(); if(/^[a-zA-Z0-9_-]{11}$/.test(str)) return {type:'video',id:str}; let m=str.match(/[?&]v=([a-zA-Z0-9_-]{11})/); if(m) return {type:'video',id:m[1]}; m=str.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/); if(m) return {type:'video',id:m[1]}; m=str.match(/[?&]list=([a-zA-Z0-9_-]+)/); if(m) return {type:'playlist',id:m[1]}; return null; };
+  const loadMusic = str => { const res=extractVideoId(str); if(!res){ showToast('請輸入有效的 YouTube 網址'); return; } musicIframe.src=res.type==='playlist'?`https://www.youtube.com/embed/videoseries?list=${res.id}&autoplay=1`:`https://www.youtube.com/embed/${res.id}?autoplay=1&loop=1&playlist=${res.id}`; musicToggle.classList.add('playing'); try{ localStorage.setItem('klaws_music_last',str); }catch(e){} };
+  if(musicToggle){ let fabDragging=false,fabMoved=false,fabSX=0,fabSY=0,fabLX=0,fabLY=0; const fabSetPos=(x,y)=>{ const fw=musicFab.offsetWidth||56,fh=musicFab.offsetHeight||56,ww=window.innerWidth,wh=window.innerHeight; x=Math.max(8,Math.min(ww-fw-8,x)); y=Math.max(8,Math.min(wh-fh-8,y)); musicFab.style.left=x+'px'; musicFab.style.top=y+'px'; musicFab.style.right='auto'; musicFab.style.bottom='auto'; musicPanel.style.left=(x+fw/2>ww/2)?'auto':'0'; musicPanel.style.right=(x+fw/2>ww/2)?'0':'auto'; }; const fabDown=(cx,cy)=>{ fabDragging=true; fabMoved=false; const r=musicFab.getBoundingClientRect(); fabLX=r.left; fabLY=r.top; fabSX=cx; fabSY=cy; musicFab.classList.add('dragging'); }; const fabMove=(cx,cy)=>{ if(!fabDragging)return; const dx=cx-fabSX,dy=cy-fabSY; if(Math.abs(dx)>5||Math.abs(dy)>5)fabMoved=true; if(fabMoved)fabSetPos(fabLX+dx,fabLY+dy); }; const fabUp=()=>{ if(!fabDragging)return; fabDragging=false; musicFab.classList.remove('dragging'); if(!fabMoved){ if(musicPanel.classList.contains('open'))musicPanel.classList.remove('open'); else musicPanel.classList.add('open'); } else { setTimeout(()=>{ try{ localStorage.setItem('klaws_fab',JSON.stringify({l:musicFab.style.left,t:musicFab.style.top})); }catch(z){} },300); } }; musicFab.addEventListener('mousedown',e=>{ if(!e.target.closest('#music-panel')){ fabDown(e.clientX,e.clientY); e.preventDefault(); } }); document.addEventListener('mousemove',e=>fabMove(e.clientX,e.clientY)); document.addEventListener('mouseup',fabUp); musicFab.addEventListener('touchstart',e=>{ if(!e.target.closest('#music-panel')&&e.touches.length===1){ fabDown(e.touches[0].clientX,e.touches[0].clientY); e.preventDefault(); } },{passive:false}); document.addEventListener('touchmove',e=>{ if(fabDragging&&e.touches.length===1){ if(e.cancelable)e.preventDefault(); fabMove(e.touches[0].clientX,e.touches[0].clientY); } },{passive:false}); document.addEventListener('touchend',fabUp); try{ const sp=JSON.parse(localStorage.getItem('klaws_fab')||'null'); if(sp&&sp.l&&sp.t){ musicFab.style.left=sp.l; musicFab.style.top=sp.t; musicFab.style.right='auto'; musicFab.style.bottom='auto'; } }catch(z){} }
+  if(musicClose) musicClose.addEventListener('click',()=>musicPanel.classList.remove('open'));
+  if(musicLoadBtn) musicLoadBtn.addEventListener('click',()=>{ loadMusic(musicUrlInput.value); musicPanel.classList.remove('open'); });
+  if(musicUrlInput) musicUrlInput.addEventListener('keydown',e=>{ if(e.key==='Enter'){ loadMusic(musicUrlInput.value); musicPanel.classList.remove('open'); } });
+  document.querySelectorAll('.music-preset').forEach(btn=>btn.addEventListener('click',()=>{ musicUrlInput.value=btn.dataset.vid; loadMusic(btn.dataset.vid); musicPanel.classList.remove('open'); }));
+  try{ const lastMusic=localStorage.getItem('klaws_music_last'); if(lastMusic&&musicUrlInput) musicUrlInput.value=lastMusic; }catch(e){}
 }
 
-function closeExamView(){
-  clearInterval(examTimer_);
-  g('examView').classList.remove('open');
-  g('notesView').style.display='block';
-  g('subbar').style.display='flex';
-}
-// \u2500\u2500 END EXAM \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-window.addEventListener('load',function(){
-  loadData();rebuildUI();
-  var ss0_=g('sortSelect');if(ss0_)ss0_.value=sortMode;
+// ==================== 初始化 ====================
+window.addEventListener('load',()=>{
+  loadData(); rebuildUI();
+  g('sortSelect').value=sortMode; g('sortSelect').addEventListener('change',()=>{ sortMode=g('sortSelect').value; gridPage=1; render(); });
+  g('multiSelBtn').addEventListener('click',()=>multiSelMode?exitMultiSel():enterMultiSel());
+  g('selAllBtn').addEventListener('click',selectAll); g('selDeleteBtn').addEventListener('click',deleteSelected); g('selCancelBtn').addEventListener('click',exitMultiSel);
+  g('statsBtn')?.addEventListener('click',openStats); g('flashBtn')?.addEventListener('click',openFlash); g('flashBackBtn')?.addEventListener('click',closeFlash);
+  g('flashShuffleBtn')?.addEventListener('click',()=>{ buildFlashDeck(); renderFlashCard(); }); g('flashRestartBtn')?.addEventListener('click',()=>{ buildFlashDeck(); renderFlashCard(); });
+  g('flashFilter')?.addEventListener('change',()=>{ flashSubFilter=g('flashFilter').value; buildFlashDeck(); renderFlashCard(); });
+  g('flashTypeFilter')?.addEventListener('change',()=>{ flashTypeFilter2=g('flashTypeFilter').value; buildFlashDeck(); renderFlashCard(); });
+  g('ft')?.addEventListener('change',()=>toggleTemplate(g('ft').value==='case'));
+  const si=g('searchInput'), sc=g('searchClear'); si.addEventListener('input',debounce(()=>{ searchQ=si.value; gridPage=1; sc.style.display=searchQ?'block':'none'; render(); },250)); sc.addEventListener('click',()=>{ si.value=''; searchQ=''; gridPage=1; sc.style.display='none'; render(); si.focus(); });
+  g('addBtn').addEventListener('click',()=>openForm(false)); g('editBtn').addEventListener('click',()=>openForm(true)); g('linkBtn').addEventListener('click',openLinkPanel);
+  g('lpSave').addEventListener('click',saveLinkPanel); g('lpClose').addEventListener('click',()=>{ g('lp').classList.remove('open'); g('dp').classList.add('open'); }); g('lpCancel').addEventListener('click',()=>{ g('lp').classList.remove('open'); g('dp').classList.add('open'); });
+  g('lp-search')?.addEventListener('input',buildLpTarget); g('lp-filter-sub')?.addEventListener('change',buildLpTarget);
+  g('dpClose').addEventListener('click',closeDetail); g('fpClose').addEventListener('click',closeForm); g('fpCancel').addEventListener('click',closeForm);
+  g('fpSave').addEventListener('click',saveNote); g('delBtn').addEventListener('click',deleteNote); g('exportBtn').addEventListener('click',exportData);
+  g('tpClose').addEventListener('click',()=>g('tp').classList.remove('open')); g('addTypeBtn').addEventListener('click',()=>addTag('type')); g('addSubBtn').addEventListener('click',()=>addTag('sub'));
+  loadExams(); g('examBtn')?.addEventListener('click',openExamPanel); g('examListClose')?.addEventListener('click',()=>g('examListPanel').classList.remove('open'));
+  g('examAddBtn')?.addEventListener('click',()=>{ const esel=g('examSubSel'); if(esel) esel.innerHTML=subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join(''); g('examListPanel').classList.remove('open'); g('examAddForm').classList.add('open'); setTimeout(()=>g('examAddForm').scrollIntoView({behavior:'smooth',block:'nearest'}),60); });
+  g('examFormClose')?.addEventListener('click',()=>{ g('examAddForm').classList.remove('open'); openExamPanel(); }); g('examFCancel')?.addEventListener('click',()=>{ g('examAddForm').classList.remove('open'); openExamPanel(); });
+  g('examFSave')?.addEventListener('click',()=>{ const q=(g('examQInput').value||'').trim(); if(!q){ showToast('請輸入題目'); return; } const iss=(g('examIssInput').value||'').split(',').map(x=>x.trim()).filter(Boolean); const tl=parseInt(g('examTimeInput').value)||30; const sub=g('examSubSel').value||subjects[0]?.key; examList.push({id:Date.now(),subject:sub,question:q,issues:iss,timeLimit:tl}); saveExams(); g('examQInput').value=''; g('examIssInput').value=''; g('examTimeInput').value='30'; g('examAddForm').classList.remove('open'); openExamPanel(); showToast('題目已儲存！'); });
+  g('examSubmitBtn')?.addEventListener('click',()=>doSubmit(false)); g('examCancelBtn')?.addEventListener('click',()=>{ clearInterval(examTimer); closeExamView(); });
+  g('examRetryBtn')?.addEventListener('click',()=>{ closeExamView(); setTimeout(openExamPanel,100); }); g('examBackBtn2')?.addEventListener('click',closeExamView);
+  g('examAnswerBox')?.addEventListener('input',()=>{ g('examWordCount').textContent=g('examAnswerBox').value.replace(/\s/g,'').length+' 字'; });
+  g('aiSettingsBtn')?.addEventListener('click',openAiSettings); g('aiKeySave').addEventListener('click',()=>{ const k=(g('aiKeyInput').value||'').trim(); if(!k){ showToast('請輸入 OpenRouter API Key'); return; } saveAiKey(k); const sel=g('aiModelSel'); if(sel&&sel.value) saveAiModel(sel.value); g('aiKeyModal').classList.remove('open'); if(_aiPendingAction){ _aiPendingAction(k); _aiPendingAction=null; } else showToast('AI 設定已儲存！'); }); g('aiKeyCancel').addEventListener('click',()=>{ g('aiKeyModal').classList.remove('open'); _aiPendingAction=null; });
+  g('aiFillBtn').addEventListener('click',()=>{ if(!openId)return; const n=noteById(openId); if(!n){ showToast('找不到筆記'); return; } const btn=g('aiFillBtn'); requireAiKey(key=>{ btn.disabled=true; btn.innerHTML='<span class="ai-loading"></span> AI 分析中...'; callAI(key, `你是台灣法律考試專家。以下是一則法律筆記，請幫忙補充「爭點」「適用法條」「構成要件」「結論」四個欄位。\n\n標題：${n.title}\n摘要：${n.body}\n科目：${n.subject}\n類型：${typeByKey(n.type).label}\n\n請以 JSON 格式回覆（只輸出 JSON）：\n{"dispute":"<爭點>","f_article":"<適用法條>","f_elements":"<構成要件>","f_conclusion":"<結論>"}`, r=>{ const idx=notes.findIndex(nn=>nn.id===openId); if(idx!==-1){ if(r.dispute&&!notes[idx].dispute) notes[idx].dispute=r.dispute; if(r.f_article&&!notes[idx].f_article) notes[idx].f_article=r.f_article; if(r.f_elements&&!notes[idx].f_elements) notes[idx].f_elements=r.f_elements; if(r.f_conclusion&&!notes[idx].f_conclusion) notes[idx].f_conclusion=r.f_conclusion; } saveData(); render(); openNote(openId); btn.disabled=false; btn.innerHTML='🤖 AI 補充爭點、要件、結論'; showToast('AI 補充完成！'); }, err=>{ btn.disabled=false; btn.innerHTML='🤖 AI 補充爭點、要件、結論'; showToast('AI 錯誤：'+err); }); }); });
+  g('aiGenBtn').addEventListener('click',()=>{ const keyword=(g('fti').value||'').trim(); if(!keyword){ showToast('請先在標題欄輸入法條或關鍵字'); g('fti').focus(); return; } const btn=g('aiGenBtn'), sub=g('fs2').value||(subjects[0]&&subjects[0].key)||'', tp=g('ft').value||(types[0]&&types[0].key)||''; requireAiKey(key=>{ btn.disabled=true; btn.innerHTML='<span class="ai-loading"></span> AI 生成中...'; callAI(key, `你是台灣法律考試專家。請根據以下關鍵字，生成一則完整的法律筆記。\n\n關鍵字：${keyword}\n科目：${sub}\n類型：${tp}\n\n請以 JSON 格式回覆（只輸出 JSON）：\n{"title":"<完整標題>","body":"<條文摘要或重點，100字內>","detail":"<詳細說明>","dispute":"<主要爭點>","f_article":"<適用法條>","f_elements":"<構成要件分析>","f_conclusion":"<結論>","tags":["<標籤1>","<標籤2>"]}`, r=>{ if(r.title) g('fti').value=r.title; if(r.body) g('fbo').value=r.body; if(r.detail) g('fde').value=r.detail; if(r.tags&&r.tags.length) g('fta').value=r.tags.join(', '); if(g('f-dispute')&&r.dispute) g('f-dispute').value=r.dispute; if(g('f-article')&&r.f_article) g('f-article').value=r.f_article; if(g('f-elements')&&r.f_elements) g('f-elements').value=r.f_elements; if(g('f-conclusion')&&r.f_conclusion) g('f-conclusion').value=r.f_conclusion; toggleTemplate(true); btn.disabled=false; btn.innerHTML='🤖 AI 產生筆記（輸入法條或關鍵字）'; showToast('AI 已填入內容，請確認後儲存！'); }, err=>{ btn.disabled=false; btn.innerHTML='🤖 AI 產生筆記（輸入法條或關鍵字）'; showToast('AI 錯誤：'+err); }); }); });
+  g('importFile').addEventListener('change',e=>{ if(e.target.files&&e.target.files[0]) importData(e.target.files[0]); e.target.value=''; });
+  g('shortcutMgrBtn').addEventListener('click',openShortcutMgr); g('scpClose').addEventListener('click',closeShortcutMgr); g('scpDone').addEventListener('click',closeShortcutMgr);
+  g('scpReset').addEventListener('click',()=>{ shortcuts=DEFAULT_SHORTCUTS.map(s=>({...s})); saveShortcuts(); renderShortcutList(); showToast('已恢復預設快捷鍵'); });
+  loadShortcuts(); document.addEventListener('keydown',handleGlobalKey);
+  g('mapToggleBtn').addEventListener('click',()=>toggleMapView(true));
+  g('mapBackBtn').addEventListener('click',()=>toggleMapView(false));
+  g('mapSearchInput')?.addEventListener('input',debounce(()=>{ mapFilter.q=g('mapSearchInput').value; if(isMapOpen) drawMap(); },250));
+  g('mapFilterSub')?.addEventListener('change',()=>{ mapFilter.sub=g('mapFilterSub').value; if(isMapOpen) drawMap(); });
+  g('mapFilterType')?.addEventListener('change',()=>{ mapFilter.type=g('mapFilterType').value; if(isMapOpen) drawMap(); });
+  const setZoom=z=>{ mapScale=Math.max(0.15,Math.min(3.5,z)); g('zoomLabel').textContent=Math.round(mapScale*100)+'%'; drawMap(); };
+  g('zoomIn')?.addEventListener('click',()=>setZoom(mapScale+0.15)); g('zoomOut')?.addEventListener('click',()=>setZoom(mapScale-0.15));
+  g('zoomFit')?.addEventListener('click',()=>{ if(!notes.length)return; const xs=notes.map(n=>nodePos[n.id]?nodePos[n.id].x:mapW/2), ys=notes.map(n=>nodePos[n.id]?nodePos[n.id].y:mapH/2); const minX=Math.min(...xs)-40, maxX=Math.max(...xs)+40, minY=Math.min(...ys)-40, maxY=Math.max(...ys)+40; const sc=Math.min(mapW/(maxX-minX||1),mapH/(maxY-minY||1),2.5); mapScale=sc; mapOffX=-minX*sc+(mapW-(maxX-minX)*sc)/2; mapOffY=-minY*sc+(mapH-(maxY-minY)*sc)/2; g('zoomLabel').textContent=Math.round(sc*100)+'%'; drawMap(); });
+  g('mpClose')?.addEventListener('click',closeMapPopup);
+  g('mapLinkedOnlyBtn')?.addEventListener('click',()=>{ mapLinkedOnly=!mapLinkedOnly; const btn=g('mapLinkedOnlyBtn'); if(btn){ btn.style.background=mapLinkedOnly?'#3B6D11':'#EAF3DE'; btn.style.color=mapLinkedOnly?'#fff':'#3B6D11'; btn.textContent=mapLinkedOnly?'✓ 只顯示關聯':'🔗 只顯示關聯'; } nodePos={}; forceLayout(); drawMap(); showToast(mapLinkedOnly?`顯示 ${visibleNotes().length} 個有關聯的節點`:'顯示全部節點'); });
+  g('mapAutoBtn')?.addEventListener('click',()=>{ const btn=g('mapAutoBtn'), orig=btn.textContent; btn.textContent='排列中...'; btn.disabled=true; setTimeout(()=>{ nodePos={}; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); g('zoomLabel').textContent='100%'; btn.textContent=orig; btn.disabled=false; showToast('已自動排列'); },30); });
+  g('mapResetBtn')?.addEventListener('click',()=>{ nodePos={}; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); g('zoomLabel').textContent='100%'; showToast('已重置'); });
+  const canvas=g('mapCanvas'); let panStart=null, panOffXStart=0, panOffYStart=0;
+  const onDragMove=(x,y)=>{ const rect=canvas.getBoundingClientRect(); let cx=(x-rect.left-dragOffX-mapOffX)/mapScale, cy=(y-rect.top-dragOffY-mapOffY)/mapScale; cx=Math.max(22,Math.min(mapW-22,cx)); cy=Math.max(22,Math.min(mapH-22,cy)); nodePos[dragNode]={x:cx,y:cy}; if(rafId)cancelAnimationFrame(rafId); rafId=requestAnimationFrame(()=>{ moveNodeEl(dragNode,cx,cy); redrawLines(dragNode); rafId=null; }); };
+  const onPanMove=(x,y)=>{ if(!panStart)return; mapOffX=panOffXStart+(x-panStart.x); mapOffY=panOffYStart+(y-panStart.y); if(rafId)cancelAnimationFrame(rafId); rafId=requestAnimationFrame(()=>{ const gw=g('mapSvg').querySelector('#mapWrap'); if(gw)gw.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`); redrawLines(); rafId=null; }); };
+  canvas.addEventListener('mousedown',e=>{ if(!dragNode){ panStart={x:e.clientX,y:e.clientY}; panOffXStart=mapOffX; panOffYStart=mapOffY; canvas.style.cursor='grabbing'; } });
+  canvas.addEventListener('mousemove',e=>{ if(dragNode) onDragMove(e.clientX,e.clientY); else if(panStart) onPanMove(e.clientX,e.clientY); });
+  canvas.addEventListener('mouseup',()=>{ if(dragNode){ if(rafId)cancelAnimationFrame(rafId); saveDataDeferred(); dragNode=null; } panStart=null; canvas.style.cursor=''; });
+  canvas.addEventListener('mouseleave',()=>{ panStart=null; canvas.style.cursor=''; });
+  canvas.addEventListener('touchmove',e=>{ if(e.touches.length===1){ if(dragNode){ e.preventDefault(); onDragMove(e.touches[0].clientX,e.touches[0].clientY); } else if(panStart){ e.preventDefault(); onPanMove(e.touches[0].clientX,e.touches[0].clientY); } } },{passive:false});
+  canvas.addEventListener('touchend',()=>{ if(dragNode){ if(rafId)cancelAnimationFrame(rafId); saveDataDeferred(); dragNode=null; } panStart=null; });
+  canvas.addEventListener('touchstart',e=>{ if(e.touches.length===1&&!dragNode){ panStart={x:e.touches[0].clientX,y:e.touches[0].clientY}; panOffXStart=mapOffX; panOffYStart=mapOffY; } },{passive:true});
+  canvas.addEventListener('wheel',e=>{ e.preventDefault(); setZoom(mapScale+(e.deltaY>0?-0.1:0.1)); },{passive:false});
+  let pinchDist=0; canvas.addEventListener('touchstart',e=>{ if(e.touches.length===2){ const d=e.touches[0].clientX-e.touches[1].clientX, dd=e.touches[0].clientY-e.touches[1].clientY; pinchDist=Math.sqrt(d*d+dd*dd); } },{passive:true});
+  canvas.addEventListener('touchmove',e=>{ if(e.touches.length===2&&pinchDist){ e.preventDefault(); const d=e.touches[0].clientX-e.touches[1].clientX, dd=e.touches[0].clientY-e.touches[1].clientY, nd=Math.sqrt(d*d+dd*dd); setZoom(mapScale*nd/pinchDist); pinchDist=nd; } },{passive:false});
+  g('syncBtn').addEventListener('click',()=>{ g('syncModal').classList.add('open'); });
+  g('syncCancelBtn').addEventListener('click',()=>g('syncModal').classList.remove('open'));
+  g('syncUploadBtn').addEventListener('click',async()=>{ const token=g('syncTokenInput').value.trim(), gistId=g('syncGistInput').value.trim(); if(!token||!gistId){ showToast('請填寫 Token 和 Gist ID'); return; } try{ const data=localStorage.getItem(SKEY); await fetch(`https://api.github.com/gists/${gistId}`,{ method:"PATCH", headers:{"Authorization":`token ${token}`,"Content-Type":"application/json"}, body:JSON.stringify({files:{"klaws_data.json":{content:data}}}) }); showToast("已同步到 GitHub"); g('syncModal').classList.remove('open'); }catch(e){ showToast("同步失敗："+e.message); } });
+  g('syncDownloadBtn').addEventListener('click',async()=>{ const token=g('syncTokenInput').value.trim(), gistId=g('syncGistInput').value.trim(); if(!token||!gistId){ showToast('請填寫 Token 和 Gist ID'); return; } try{ const res=await fetch(`https://api.github.com/gists/${gistId}`,{ headers:{"Authorization":`token ${token}`} }); const j=await res.json(); const content=j.files["klaws_data.json"].content; localStorage.setItem(SKEY,content); location.reload(); }catch(e){ showToast("載入失敗："+e.message); } });
+  initMusicPlayer();
   render();
-
-  var ss_=g('sortSelect');if(ss_)ss_.addEventListener('change',function(){sortMode=ss_.value;gridPage=1;render();});
-  g('multiSelBtn').addEventListener('click',function(){if(multiSelMode)exitMultiSel();else enterMultiSel();});
-  g('selAllBtn').addEventListener('click',selectAll);
-  g('selDeleteBtn').addEventListener('click',deleteSelected);
-  g('selCancelBtn').addEventListener('click',exitMultiSel);
-
-  var stB_=g('statsBtn');if(stB_)stB_.addEventListener('click',openStats);
-  var flB_=g('flashBtn');if(flB_)flB_.addEventListener('click',openFlash);
-  var fbk_=g('flashBackBtn');if(fbk_)fbk_.addEventListener('click',closeFlash);
-  var fsh_=g('flashShuffleBtn');if(fsh_)fsh_.addEventListener('click',function(){buildFlashDeck();renderFlashCard();});
-  var frs_=g('flashRestartBtn');if(frs_)frs_.addEventListener('click',function(){buildFlashDeck();renderFlashCard();});
-  var ffil_=g('flashFilter');if(ffil_)ffil_.addEventListener('change',function(){flashSubFilter=ffil_.value;buildFlashDeck();renderFlashCard();});
-  var fftf2_=g('flashTypeFilter');if(fftf2_)fftf2_.addEventListener('change',function(){flashTypeFilter2=fftf2_.value;buildFlashDeck();renderFlashCard();});
-
-  var ftv_=g('ft');if(ftv_)ftv_.addEventListener('change',function(){toggleTemplate(ftv_.value==='case');});
-  var si=g('searchInput'),sc=g('searchClear');
-  si.addEventListener('input',debounce(function(){searchQ=si.value;gridPage=1;sc.style.display=searchQ?'block':'none';render();},250));
-  sc.addEventListener('click',function(){si.value='';searchQ='';gridPage=1;sc.style.display='none';render();si.focus();});
-
-  g('addBtn').addEventListener('click',function(){openForm(false);});
-  g('editBtn').addEventListener('click',function(){openForm(true);});
-  g('linkBtn').addEventListener('click',openLinkPanel);
-  g('lpSave').addEventListener('click',saveLinkPanel);
-  g('lpClose').addEventListener('click',function(){g('lp').classList.remove('open');g('dp').classList.add('open');});
-  g('lpCancel').addEventListener('click',function(){g('lp').classList.remove('open');g('dp').classList.add('open');});
-  var lpSr=g('lp-search');if(lpSr)lpSr.addEventListener('input',buildLpTarget);
-  var lpFb=g('lp-filter-sub');if(lpFb)lpFb.addEventListener('change',buildLpTarget);
-
-  g('dpClose').addEventListener('click',closeDetail);
-  g('fpClose').addEventListener('click',closeForm);g('fpCancel').addEventListener('click',closeForm);
-  g('fpSave').addEventListener('click',saveNote);
-  g('delBtn').addEventListener('click',deleteNote);
-  g('exportBtn').addEventListener('click',exportData);
-  g('tpClose').addEventListener('click',function(){g('tp').classList.remove('open');});
-  g('addTypeBtn').addEventListener('click',function(){addTag('type');});
-  g('addSubBtn').addEventListener('click',function(){addTag('sub');});
-
-  // \u2500\u2500 Exam wiring \u2500\u2500
-  loadExams();
-  var eb_=g('examBtn');if(eb_)eb_.addEventListener('click',openExamPanel);
-  var elc_=g('examListClose');if(elc_)elc_.addEventListener('click',function(){g('examListPanel').classList.remove('open');});
-  var eab_=g('examAddBtn');if(eab_)eab_.addEventListener('click',function(){
-    var esel=g('examSubSel');
-    if(esel)esel.innerHTML=subjects.map(function(s){return'<option value="'+s.key+'">'+s.label+'</option>';}).join('');
-    g('examListPanel').classList.remove('open');
-    g('examAddForm').classList.add('open');
-    setTimeout(function(){g('examAddForm').scrollIntoView({behavior:'smooth',block:'nearest'});},60);
-  });
-  var efc_=g('examFormClose');if(efc_)efc_.addEventListener('click',function(){g('examAddForm').classList.remove('open');openExamPanel();});
-  var efcan_=g('examFCancel');if(efcan_)efcan_.addEventListener('click',function(){g('examAddForm').classList.remove('open');openExamPanel();});
-  var efsave_=g('examFSave');if(efsave_)efsave_.addEventListener('click',function(){
-    var q_=(g('examQInput').value||'').trim();
-    if(!q_){showToast('\u8acb\u8f38\u5165\u984c\u76ee');return;}
-    var iss_=(g('examIssInput').value||'').split(',').map(function(x){return x.trim();}).filter(Boolean);
-    var tl_=parseInt(g('examTimeInput').value)||30;
-    var sub_=(g('examSubSel').value||subjects[0].key);
-    examList.push({id:Date.now(),subject:sub_,question:q_,issues:iss_,timeLimit:tl_});
-    saveExams();
-    g('examQInput').value='';g('examIssInput').value='';g('examTimeInput').value='30';
-    g('examAddForm').classList.remove('open');
-    openExamPanel();
-    showToast('\u984c\u76ee\u5df2\u5132\u5b58\uff01');
-  });
-  var esub_=g('examSubmitBtn');if(esub_)esub_.addEventListener('click',function(){doSubmit(false);});
-  var ecan_=g('examCancelBtn');if(ecan_)ecan_.addEventListener('click',function(){
-    clearInterval(examTimer_);
-    closeExamView();
-  });
-  var eret_=g('examRetryBtn');if(eret_)eret_.addEventListener('click',function(){closeExamView();setTimeout(openExamPanel,100);});
-  var ebk2_=g('examBackBtn2');if(ebk2_)ebk2_.addEventListener('click',closeExamView);
-  var eans_=g('examAnswerBox');if(eans_)eans_.addEventListener('input',function(){
-    g('examWordCount').textContent=eans_.value.replace(/\s/g,'').length+' \u5b57';
-  });
-  // \u2500\u2500 End exam wiring \u2500\u2500
-    var aiSetBtn = g('aiSettingsBtn');
-  if(aiSetBtn) aiSetBtn.addEventListener('click', openAiSettings);
-
-  g('importFile').addEventListener('change',function(e){if(e.target.files&&e.target.files[0])importData(e.target.files[0]);e.target.value='';});
-  g('shortcutMgrBtn').addEventListener('click',openShortcutMgr);
-  g('scpClose').addEventListener('click',closeShortcutMgr);
-  g('scpDone').addEventListener('click',closeShortcutMgr);
-  g('scpReset').addEventListener('click',function(){
-    shortcuts=DEFAULT_SHORTCUTS.map(function(s){return Object.assign({},s);});
-    saveShortcuts();renderShortcutList();showToast('\u5df2\u6062\u5fa9\u9810\u8a2d\u5feb\u6377\u9375');
-  });
-  loadShortcuts();
-  document.addEventListener('keydown',handleGlobalKey);
-
-  g('mapToggleBtn').addEventListener('click',function(){
-    isMapOpen=true;
-    g('notesView').style.display='none';
-    g('mapView').classList.add('open');
-    g('subbar').style.display='none';
-    g('search-results-bar').style.display='none';
-    buildMapFilters();
-    mapScale=1;mapOffX=0;mapOffY=0;
-    var zl=g('zoomLabel');if(zl)zl.textContent='100%';
-    mapLinkedOnly=true;
-    var mloBtn3=g('mapLinkedOnlyBtn');
-    if(mloBtn3){
-      mloBtn3.style.background='#3B6D11';
-      mloBtn3.style.color='#fff';
-    }
-    setTimeout(function(){nodePos={};forceLayout();drawMap();},80);
-  });
-  g('mapBackBtn').addEventListener('click',function(){
-    isMapOpen=false;
-    g('notesView').style.display='block';
-    g('mapView').classList.remove('open');
-    g('subbar').style.display='flex';
-  });
-  // Map filter/zoom/search/auto
-  function buildMapFilters(){
-    var ss=g('mapFilterSub'),st=g('mapFilterType');
-    if(!ss)return;
-    ss.innerHTML='<option value="all">\u5168\u90e8\u79d1\u76ee</option>'+subjects.map(function(s){return'<option value="'+s.key+'">'+s.label+'</option>';}).join('');
-    st.innerHTML='<option value="all">\u5168\u90e8\u985e\u578b</option>'+types.map(function(t){return'<option value="'+t.key+'">'+t.label+'</option>';}).join('');
-  }
-  var msi=g('mapSearchInput');
-  if(msi){msi.addEventListener('input',debounce(function(){mapFilter.q=msi.value;if(isMapOpen)drawMap();},250));}
-  var mfs=g('mapFilterSub');
-  if(mfs){mfs.addEventListener('change',function(){mapFilter.sub=mfs.value;if(isMapOpen)drawMap();});}
-  var mft=g('mapFilterType');
-  if(mft){mft.addEventListener('change',function(){mapFilter.type=mft.value;if(isMapOpen)drawMap();});}
-  var ziB=g('zoomIn'),zoB=g('zoomOut'),zfB=g('zoomFit'),zlB=g('zoomLabel');
-  function setZoom(z){mapScale=Math.max(0.15,Math.min(3.5,z));if(zlB)zlB.textContent=Math.round(mapScale*100)+'%';drawMap();}
-  if(ziB){ziB.addEventListener('click',function(){setZoom(mapScale+0.15);});}
-  if(zoB){zoB.addEventListener('click',function(){setZoom(mapScale-0.15);});}
-  if(zfB){zfB.addEventListener('click',function(){
-    if(!notes.length)return;
-    var xs=notes.map(function(n){return nodePos[n.id]?nodePos[n.id].x:mapW/2;});
-    var ys=notes.map(function(n){return nodePos[n.id]?nodePos[n.id].y:mapH/2;});
-    var minX=Math.min.apply(null,xs)-40,maxX=Math.max.apply(null,xs)+40;
-    var minY=Math.min.apply(null,ys)-40,maxY=Math.max.apply(null,ys)+40;
-    var sc=Math.min(mapW/(maxX-minX||1),mapH/(maxY-minY||1),2.5);
-    mapScale=sc;
-    mapOffX=-minX*sc+(mapW-(maxX-minX)*sc)/2;
-    mapOffY=-minY*sc+(mapH-(maxY-minY)*sc)/2;
-    if(zlB)zlB.textContent=Math.round(sc*100)+'%';
-    drawMap();
-  });}
-  var mpCloseBtn=g('mpClose');
-  if(mpCloseBtn)mpCloseBtn.addEventListener('click',closeMapPopup);
-  var mloBtn=g('mapLinkedOnlyBtn');
-  if(mloBtn){
-    mloBtn.addEventListener('click',function(){
-      mapLinkedOnly=!mapLinkedOnly;
-      mloBtn.style.background=mapLinkedOnly?'#3B6D11':'#EAF3DE';
-      mloBtn.style.color=mapLinkedOnly?'#fff':'#3B6D11';
-      mloBtn.textContent=mapLinkedOnly?'\u2714 \u53ea\u986f\u793a\u95dc\u806f':'\u128279 \u53ea\u986f\u793a\u95dc\u806f';
-      nodePos={};
-      forceLayout();drawMap();
-      var vc_=visibleNotes().length;
-      showToast(mapLinkedOnly?'\u986f\u793a '+vc_+' \u500b\u6709\u95dc\u806f\u7684\u7bc0\u9ede':'\u986f\u793a\u5168\u90e8\u7bc0\u9ede');
-    });
-  }
-
-  var auB=g('mapAutoBtn');
-
-  if(auB){auB.addEventListener('click',function(){
-    var origTxt=auB.textContent;
-    auB.textContent='\u6392\u5217\u4e2d...';
-    auB.disabled=true;
-    setTimeout(function(){
-      nodePos={};mapScale=1;mapOffX=0;mapOffY=0;
-      forceLayout();drawMap();
-      if(zlB)zlB.textContent='100%';
-      auB.textContent=origTxt;
-      auB.disabled=false;
-      showToast('\u5df2\u81ea\u52d5\u6392\u5217');
-    },30);
-  });}
-  // Pinch zoom
-  var pinchDist=0,mc=g('mapCanvas');
-  if(mc){
-    mc.addEventListener('wheel',function(e){e.preventDefault();setZoom(mapScale+(e.deltaY>0?-0.1:0.1));},{passive:false});
-    mc.addEventListener('touchstart',function(e){if(e.touches.length===2){var d=e.touches[0].clientX-e.touches[1].clientX,dd=e.touches[0].clientY-e.touches[1].clientY;pinchDist=Math.sqrt(d*d+dd*dd);}},{passive:true});
-    mc.addEventListener('touchmove',function(e){if(e.touches.length===2&&pinchDist){e.preventDefault();var d=e.touches[0].clientX-e.touches[1].clientX,dd=e.touches[0].clientY-e.touches[1].clientY;var nd=Math.sqrt(d*d+dd*dd);setZoom(mapScale*nd/pinchDist);pinchDist=nd;}},{passive:false});
-  }
-  g('mapResetBtn').addEventListener('click',function(){
-    nodePos={};mapScale=1;mapOffX=0;mapOffY=0;
-    forceLayout();drawMap();
-    var zl=g('zoomLabel');if(zl)zl.textContent='100%';
-    showToast('\u5df2\u91cd\u7f6e');
-  });
-
-  var canvas=g('mapCanvas');
-  var rafId=null;
-  var panStart=null;
-  var panOffXStart=0,panOffYStart=0;
-
-  function onDragMove(x,y){
-    var rect=canvas.getBoundingClientRect();
-    var nx=(x-rect.left-dragOffX);
-    var ny=(y-rect.top-dragOffY);
-    // Convert screen coords to canvas coords accounting for zoom/pan
-    var cx=(nx-mapOffX)/mapScale;
-    var cy=(ny-mapOffY)/mapScale;
-    cx=Math.max(22,Math.min(mapW-22,cx));
-    cy=Math.max(22,Math.min(mapH-22,cy));
-    nodePos[dragNode]={x:cx,y:cy};
-    if(rafId)cancelAnimationFrame(rafId);
-    rafId=requestAnimationFrame(function(){
-      moveNodeEl(dragNode,cx,cy);
-      redrawLines(dragNode);
-      rafId=null;
-    });
-  }
-
-  function onPanMove(x,y){
-    if(!panStart)return;
-    mapOffX=panOffXStart+(x-panStart.x);
-    mapOffY=panOffYStart+(y-panStart.y);
-    if(rafId)cancelAnimationFrame(rafId);
-    rafId=requestAnimationFrame(function(){
-      var gw=g('mapSvg').querySelector('#mapWrap');
-      if(gw)gw.setAttribute('transform','translate('+mapOffX+','+mapOffY+') scale('+mapScale+')');
-      redrawLines();
-      rafId=null;
-    });
-  }
-
-  canvas.addEventListener('mousedown',function(e){
-    if(!dragNode){
-      panStart={x:e.clientX,y:e.clientY};
-      panOffXStart=mapOffX;panOffYStart=mapOffY;
-      canvas.style.cursor='grabbing';
-    }
-  });
-  canvas.addEventListener('mousemove',function(e){
-    if(dragNode){onDragMove(e.clientX,e.clientY);}
-    else if(panStart){onPanMove(e.clientX,e.clientY);}
-  });
-  canvas.addEventListener('mouseup',function(){
-    if(dragNode){if(rafId)cancelAnimationFrame(rafId);saveDataDeferred();dragNode=null;}
-    panStart=null;canvas.style.cursor='';
-  });
-  canvas.addEventListener('mouseleave',function(){
-    panStart=null;canvas.style.cursor='';
-  });
-  canvas.addEventListener('touchmove',function(e){
-    if(e.touches.length===1){
-      if(dragNode){e.preventDefault();onDragMove(e.touches[0].clientX,e.touches[0].clientY);}
-      else if(panStart){e.preventDefault();onPanMove(e.touches[0].clientX,e.touches[0].clientY);}
-    }
-  },{passive:false});
-  canvas.addEventListener('touchend',function(){
-    if(dragNode){if(rafId)cancelAnimationFrame(rafId);saveDataDeferred();dragNode=null;}
-    panStart=null;
-  });
-  canvas.addEventListener('touchstart',function(e){
-    if(e.touches.length===1&&!dragNode){
-      panStart={x:e.touches[0].clientX,y:e.touches[0].clientY};
-      panOffXStart=mapOffX;panOffYStart=mapOffY;
-    }
-  },{passive:true});
-
-  // ===== AI FEATURES =====
-  var _aiPendingAction = null;
-
-  function getAiKey(){ try{return localStorage.getItem('klaws_ai_key')||'';}catch(e){return '';} }
-  function saveAiKey(k){ try{localStorage.setItem('klaws_ai_key',k);}catch(e){} }
-
-  function requireAiKey(action){
-    var k = getAiKey();
-    if(k){ action(k); return; }
-    _aiPendingAction = action;
-    var inp = g('aiKeyInput');
-    if(inp) inp.value='';
-    // 填充模型選單
-    var sel = g('aiModelSel');
-    if(sel){
-      sel.innerHTML = AI_MODELS.map(function(m){
-        return '<option value="'+m.id+'"'+(m.id===getAiModel()?' selected':'')+'>'+m.label+'</option>';
-      }).join('');
-    }
-    g('aiKeyModal').classList.add('open');
-  }
-
-  // 也讓已設定 key 的使用者可以從設定按鈕重新開啟 modal
-  function openAiSettings(){
-    var inp = g('aiKeyInput');
-    if(inp) inp.value = getAiKey();
-    var sel = g('aiModelSel');
-    if(sel){
-      sel.innerHTML = AI_MODELS.map(function(m){
-        return '<option value="'+m.id+'"'+(m.id===getAiModel()?' selected':'')+'>'+m.label+'</option>';
-      }).join('');
-    }
-    _aiPendingAction = null;
-    g('aiKeyModal').classList.add('open');
-  }
-
-  g('aiKeySave').addEventListener('click', function(){
-    var k = (g('aiKeyInput').value||'').trim();
-    if(!k){ showToast('請輸入 OpenRouter API Key'); return; }
-    saveAiKey(k);
-    var sel = g('aiModelSel');
-    if(sel && sel.value) saveAiModel(sel.value);
-    g('aiKeyModal').classList.remove('open');
-    if(_aiPendingAction){ _aiPendingAction(k); _aiPendingAction=null; }
-    else showToast('AI 設定已儲存！');
-  });
-  g('aiKeyCancel').addEventListener('click', function(){
-    g('aiKeyModal').classList.remove('open');
-    _aiPendingAction=null;
-  });
-
-  var AI_MODELS = [
-    {id:'openrouter/free',                                  label:'🔀 自動選最佳免費模型（推薦）'},
-    {id:'meta-llama/llama-3.3-70b-instruct:free',          label:'Llama 3.3 70B（Meta）'},
-    {id:'google/gemini-2.0-flash-exp:free',                 label:'Gemini 2.0 Flash（Google）'},
-    {id:'deepseek/deepseek-r1:free',                        label:'DeepSeek R1（推理強）'},
-    {id:'mistralai/mistral-small-3.1-24b-instruct:free',    label:'Mistral Small 3.1'}
-  ];
-
-  function getAiModel(){ try{return localStorage.getItem('klaws_ai_model')||AI_MODELS[0].id;}catch(e){return 'openrouter/free';} }
-  function saveAiModel(m){ try{localStorage.setItem('klaws_ai_model',m);}catch(e){} }
-
-  function callAI(key, prompt, onSuccess, onError){
-    var model = getAiModel();
-    function doFetch(m, isRetry){
-      fetch('https://openrouter.ai/api/v1/chat/completions',{
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json',
-          'Authorization':'Bearer '+key,
-          'HTTP-Referer':'https://kinayaya.github.io/LawsNote',
-          'X-Title':'KLaws'
-        },
-        body:JSON.stringify({
-          model: m,
-          max_tokens: 2000,
-          messages:[{role:'user',content:prompt}]
-        })
-      })
-      .then(function(r){return r.json();})
-      .then(function(d){
-        if(d.error){
-          // 若是 provider 錯誤且還沒重試過，自動換 openrouter/free 重試
-          if(!isRetry && m !== 'openrouter/free'){
-            showToast('模型暫時不可用，自動切換重試...');
-            doFetch('openrouter/free', true);
-            return;
-          }
-          onError(d.error.message||'API 錯誤');
-          return;
-        }
-        var raw = ((d.choices||[{}])[0].message||{}).content||'';
-        var txt = raw.replace(/```json|```/g,'').trim();
-        var start=txt.indexOf('{'), end=txt.lastIndexOf('}');
-        if(start!==-1&&end!==-1) txt=txt.slice(start,end+1);
-        try{ onSuccess(JSON.parse(txt)); }
-        catch(e){ onError('AI 回應格式錯誤，請重試（'+raw.slice(0,80)+'）'); }
-      })
-      .catch(function(e){ onError('連線失敗：'+e.message); });
-    }
-    doFetch(model, false);
-  }
-
-  // ── AI 補充爭點/要件/結論 ──
-  g('aiFillBtn').addEventListener('click', function(){
-    if(!openId) return;
-    var n = noteById(openId);
-    if(!n){ showToast('找不到筆記'); return; }
-    var btn = g('aiFillBtn');
-    requireAiKey(function(key){
-      btn.disabled = true;
-      btn.innerHTML = '<span class="ai-loading"></span> AI 分析中...';
-      var prompt = '你是台灣法律考試專家。以下是一則法律筆記，請幫忙補充「爭點」「適用法條」「構成要件」「結論」四個欄位。\n\n'
-        +'標題：'+n.title+'\n'
-        +'摘要：'+n.body+'\n'
-        +'科目：'+n.subject+'\n'
-        +'類型：'+typeByKey(n.type).label+'\n\n'
-        +'請以 JSON 格式回覆（只輸出 JSON，不要加其他文字或 markdown）：\n'
-        +'{"dispute":"<爭點，1-2句>","f_article":"<適用法條，例如民法第184條第1項>","f_elements":"<構成要件，逐條列點>","f_conclusion":"<結論，1-2句>"}';
-      callAI(key, prompt, function(r){
-        for(var i=0;i<notes.length;i++){
-          if(notes[i].id===openId){
-            if(r.dispute&&!notes[i].dispute) notes[i].dispute=r.dispute;
-            if(r.f_article&&!notes[i].f_article) notes[i].f_article=r.f_article;
-            if(r.f_elements&&!notes[i].f_elements) notes[i].f_elements=r.f_elements;
-            if(r.f_conclusion&&!notes[i].f_conclusion) notes[i].f_conclusion=r.f_conclusion;
-            break;
-          }
-        }
-        saveData(); render();
-        openNote(openId);
-        btn.disabled=false; btn.innerHTML='&#129302; AI 補充爭點、要件、結論';
-        showToast('AI 補充完成！');
-      }, function(err){
-        btn.disabled=false; btn.innerHTML='&#129302; AI 補充爭點、要件、結論';
-        showToast('AI 錯誤：'+err);
-      });
-    });
-  });
-
-  // ── AI 生成新筆記 ──
-  g('aiGenBtn').addEventListener('click', function(){
-    var keyword = (g('fti').value||'').trim();
-    if(!keyword){ showToast('請先在標題欄輸入法條或關鍵字'); g('fti').focus(); return; }
-    var btn = g('aiGenBtn');
-    var sub = g('fs2').value || (subjects[0]&&subjects[0].key) || '';
-    var tp  = g('ft').value  || (types[0]&&types[0].key)    || '';
-    requireAiKey(function(key){
-      btn.disabled=true;
-      btn.innerHTML='<span class="ai-loading"></span> AI 生成中...';
-      var prompt = '你是台灣法律考試專家。請根據以下關鍵字，生成一則完整的法律筆記。\n\n'
-        +'關鍵字：'+keyword+'\n'
-        +'科目：'+sub+'\n'
-        +'類型：'+tp+'\n\n'
-        +'請以 JSON 格式回覆（只輸出 JSON，不要加其他文字）：\n'
-        +'{"title":"<完整標題>","body":"<條文摘要或重點，100字內>","detail":"<詳細說明，含學說見解>","dispute":"<主要爭點>","f_article":"<適用法條>","f_elements":"<構成要件分析>","f_conclusion":"<結論>","tags":["<標籤1>","<標籤2>"]}';
-      callAI(key, prompt, function(r){
-        if(r.title) g('fti').value=r.title;
-        if(r.body)  g('fbo').value=r.body;
-        if(r.detail)g('fde').value=r.detail;
-        if(r.tags&&r.tags.length) g('fta').value=r.tags.join(', ');
-        var fde_=g('f-dispute'),fae_=g('f-article'),fee_=g('f-elements'),fce_=g('f-conclusion');
-        if(fde_&&r.dispute) fde_.value=r.dispute;
-        if(fae_&&r.f_article) fae_.value=r.f_article;
-        if(fee_&&r.f_elements) fee_.value=r.f_elements;
-        if(fce_&&r.f_conclusion) fce_.value=r.f_conclusion;
-        toggleTemplate(true);
-        btn.disabled=false; btn.innerHTML='&#129302; AI 產生筆記（輸入法條或關鍵字）';
-        showToast('AI 已填入內容，請確認後儲存！');
-      }, function(err){
-        btn.disabled=false; btn.innerHTML='&#129302; AI 產生筆記（輸入法條或關鍵字）';
-        showToast('AI 錯誤：'+err);
-      });
-    });
-  });
-  // ===== END AI FEATURES =====
-
-  // ===== MUSIC PLAYER INIT =====
-  var musicPanel = document.getElementById('music-panel');
-  var musicToggle = document.getElementById('music-toggle');
-  var musicClose = document.getElementById('music-close');
-  var musicUrlInput = document.getElementById('music-url-input');
-  var musicLoadBtn = document.getElementById('music-load-btn');
-  var musicIframe = document.getElementById('music-iframe');
-  var musicFab = document.getElementById('music-fab');
-
-  function extractVideoId(str) {
-    str = (str || '').trim();
-    if (/^[a-zA-Z0-9_-]{11}$/.test(str)) return {type:'video', id:str};
-    var m = str.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
-    if (m) return {type:'video', id:m[1]};
-    m = str.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
-    if (m) return {type:'video', id:m[1]};
-    m = str.match(/[?&]list=([a-zA-Z0-9_-]+)/);
-    if (m) return {type:'playlist', id:m[1]};
-    m = str.match(/embed\/([a-zA-Z0-9_-]{11})/);
-    if (m) return {type:'video', id:m[1]};
-    return null;
-  }
-
-  function loadMusic(str) {
-    var result = extractVideoId(str);
-    if (!result) { showToast('\u8acb\u8f38\u5165\u6709\u6548\u7684 YouTube \u7db2\u5740'); return; }
-    var src;
-    if (result.type === 'playlist') {
-      src = 'https://www.youtube.com/embed/videoseries?list=' + result.id + '&autoplay=1';
-    } else {
-      src = 'https://www.youtube.com/embed/' + result.id + '?autoplay=1&loop=1&playlist=' + result.id;
-    }
-    musicIframe.src = src;
-    musicToggle.classList.add('playing');
-    try { localStorage.setItem('klaws_music_last', str); } catch(e) {}
-  }
-
-  if (musicToggle) {
-    // Drag support for music FAB
-  var fabDragging=false,fabMoved=false,fabSX=0,fabSY=0,fabLX=0,fabLY=0;
-
-  function fabSetPos(x,y){
-    var fw=musicFab.offsetWidth||56,fh=musicFab.offsetHeight||56;
-    var ww=window.innerWidth,wh=window.innerHeight;
-    x=Math.max(8,Math.min(ww-fw-8,x));
-    y=Math.max(8,Math.min(wh-fh-8,y));
-    musicFab.style.left=x+'px';
-    musicFab.style.top=y+'px';
-    musicFab.style.right='auto';
-    musicFab.style.bottom='auto';
-    musicPanel.style.left=(x+fw/2>ww/2)?'auto':'0';
-    musicPanel.style.right=(x+fw/2>ww/2)?'0':'auto';
-  }
-
-  function fabDown(cx,cy){
-    fabDragging=true;fabMoved=false;
-    var r=musicFab.getBoundingClientRect();
-    fabLX=r.left;fabLY=r.top;
-    fabSX=cx;fabSY=cy;
-    musicFab.classList.add('dragging');
-  }
-  function fabMove(cx,cy){
-    if(!fabDragging)return;
-    var dx=cx-fabSX,dy=cy-fabSY;
-    if(Math.abs(dx)>5||Math.abs(dy)>5)fabMoved=true;
-    if(fabMoved)fabSetPos(fabLX+dx,fabLY+dy);
-  }
-  function fabUp(){
-    if(!fabDragging)return;
-    fabDragging=false;
-    musicFab.classList.remove('dragging');
-    if(!fabMoved){
-      if(musicPanel.classList.contains('open'))musicPanel.classList.remove('open');
-      else musicPanel.classList.add('open');
-    } else {
-      setTimeout(function(){try{localStorage.setItem('klaws_fab',JSON.stringify({l:musicFab.style.left,t:musicFab.style.top}));}catch(z){}},300);
-    }
-  }
-
-  musicFab.addEventListener('mousedown',function(e){if(!e.target.closest('#music-panel')){fabDown(e.clientX,e.clientY);e.preventDefault();}});
-  document.addEventListener('mousemove',function(e){fabMove(e.clientX,e.clientY);});
-  document.addEventListener('mouseup',fabUp);
-  musicFab.addEventListener('touchstart',function(e){if(!e.target.closest('#music-panel')&&e.touches.length===1){fabDown(e.touches[0].clientX,e.touches[0].clientY);e.preventDefault();}},{passive:false});
-  document.addEventListener('touchmove',function(e){if(fabDragging&&e.touches.length===1){if(e.cancelable)e.preventDefault();fabMove(e.touches[0].clientX,e.touches[0].clientY);}},{passive:false});
-  document.addEventListener('touchend',function(){fabUp();});
-
-  // Restore saved FAB position
-  try{
-    var sp=JSON.parse(localStorage.getItem('klaws_fab')||'null');
-    if(sp&&sp.l&&sp.t){musicFab.style.left=sp.l;musicFab.style.top=sp.t;musicFab.style.right='auto';musicFab.style.bottom='auto';}
-  }catch(z){}
-
-  musicToggle.addEventListener('click', function() {
-    // handled in fabUp
-  });
-  }
-
-  if (musicClose) {
-    musicClose.addEventListener('click', function() {
-      musicPanel.classList.remove('open');
-    });
-  }
-
-  if (musicLoadBtn) {
-    musicLoadBtn.addEventListener('click', function() {
-      loadMusic(musicUrlInput.value);
-      musicPanel.classList.remove('open');
-    });
-  }
-
-  if (musicUrlInput) {
-    musicUrlInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') { loadMusic(musicUrlInput.value); musicPanel.classList.remove('open'); }
-    });
-  }
-
-  var musicPresets = document.querySelectorAll('.music-preset');
-  for (var mp = 0; mp < musicPresets.length; mp++) {
-    (function(btn) {
-      btn.addEventListener('click', function() {
-        var vid = btn.getAttribute('data-vid');
-        musicUrlInput.value = vid;
-        loadMusic(vid);
-        musicPanel.classList.remove('open');
-      });
-    })(musicPresets[mp]);
-  }
-
-  try {
-    var lastMusic = localStorage.getItem('klaws_music_last');
-    if (lastMusic && musicUrlInput) musicUrlInput.value = lastMusic;
-  } catch(e) {}
-  // ===== END MUSIC PLAYER INIT =====
 });
-
 </script>

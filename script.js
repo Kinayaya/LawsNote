@@ -1,5 +1,4 @@
 // JavaScript file - 完整優化版
-<script>
 // ==================== 資料定義 ====================
 const DEFAULTS = {
   notes: [
@@ -632,4 +631,3 @@ window.addEventListener('load',()=>{
   initMusicPlayer();
   render();
 });
-</script>

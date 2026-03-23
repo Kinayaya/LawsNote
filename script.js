@@ -119,6 +119,7 @@ function render() {
   const sb = g('search-results-bar');
   if(q) { sb.style.display='block'; sb.textContent=`搜尋「${searchQ}」：找到 ${filtered.length} 筆筆記`; } else sb.style.display='none';
   const grid = g('grid');
+  g('gridPager')?.remove();
   if(!filtered.length) { grid.innerHTML='<div class="empty">沒有符合的筆記</div>'; return; }
   const maxPg = Math.ceil(filtered.length/PAGE_SIZE);
   if(gridPage>maxPg) gridPage=maxPg;

@@ -14,7 +14,12 @@ const DEFAULTS = {
     {id:2,from:3,to:2,rel:'相關',color:'#1D9E75'},
     {id:3,from:1,to:5,rel:'補充',color:'#7F77DD'}
   ],
-  types: [{key:'article',label:'條文',color:'#007AFF'},{key:'case',label:'案例',color:'#1D9E75'},{key:'concept',label:'概念',color:'#7F77DD'}],
+types: [
+    {key:'article',label:'條文',color:'#007AFF'},
+    {key:'case',label:'案例',color:'#1D9E75'},
+    {key:'concept',label:'概念',color:'#7F77DD'},
+    {key:'diary',label:'日記',color:'#D85A30'}
+  ],
   subjects: [{key:'民法',label:'民法',color:'#D85A30'},{key:'刑法',label:'刑法',color:'#1D9E75'},{key:'憲法',label:'憲法',color:'#7F77DD'},{key:'行政法',label:'行政法',color:'#378ADD'}]
 };
 const REL_TYPES = ['引用','相關','補充','對比','包含','延伸'];
@@ -60,6 +65,13 @@ const lightC = hex => `rgba(${hexRgb(hex).join(',')},0.12)`;
 const darkC = hex => { let r=hexRgb(hex); return `rgb(${Math.round(r[0]*0.55)},${Math.round(r[1]*0.55)},${Math.round(r[2]*0.55)})`; };
 const hl = (text, q) => !q ? text : text.replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<span class="hl">$1</span>');
 const sortedNotes = arr => arr.slice().sort((a,b)=> sortMode==='date_desc'?b.date.localeCompare(a.date):sortMode==='date_asc'?a.date.localeCompare(b.date):sortMode==='title_asc'?a.title.localeCompare(b.title,'zh'):sortMode==='title_desc'?b.title.localeCompare(a.title,'zh'):sortMode==='subject'?a.subject.localeCompare(b.subject)||a.title.localeCompare(b.title):a.type.localeCompare(b.type)||a.title.localeCompare(b.title));
+const parseTodos = raw => (raw||'').split('\n').map(x=>x.trim()).filter(Boolean).map(line=>{ const done=/^\[(x|X)\]/.test(line); return {text:line.replace(/^\[(x|X| )\]\s*/,''), done}; }).filter(x=>x.text);
+const formatTodosForEdit = todos => (Array.isArray(todos)?todos:[]).map(t=>`${t.done?'[x]':'[ ]'} ${t.text||''}`.trim()).join('\n');
+const renderTodoHtml = todos => {
+  const list = (Array.isArray(todos)?todos:[]).filter(t=>t&&t.text);
+  if(!list.length) return '<span style="font-size:12px;color:#bbb">尚無待辦項目</span>';
+  return `<div class="todo-list">${list.map(t=>`<div class="todo-item ${t.done?'done':''}"><span class="todo-item-check">${t.done?'✅':'⬜'}</span><span class="todo-item-text">${t.text}</span></div>`).join('')}</div>`;
+};
 const getAiKey = () => localStorage.getItem('klaws_ai_key') || '';
 const saveAiKey = k => localStorage.setItem('klaws_ai_key', k);
 const getAiModel = () => localStorage.getItem('klaws_ai_model') || 'openrouter/free';
@@ -72,9 +84,11 @@ function loadData() {
     if(raw) {
       const d = JSON.parse(raw);
       notes = d.notes || DEFAULTS.notes.slice();
+      notes.forEach(n=>{ if(!Array.isArray(n.todos)) n.todos=[]; });
       links = d.links || DEFAULTS.links.slice();
       nid = d.nid || 10; lid = d.lid || 10;
       types = d.types || DEFAULTS.types.slice();
+      if(!types.some(t=>t.key==='diary')) types.push({key:'diary',label:'日記',color:'#D85A30'});
       subjects = d.subjects || DEFAULTS.subjects.slice();
       nodePos = d.nodePos || {};
       if(d.sortMode) sortMode = d.sortMode;
@@ -158,6 +172,16 @@ function openNote(id) {
   if(n.f_elements) dh.push(`<div class="dispute-section" style="border-color:#7F77DD"><div class="dispute-section-title" style="color:#7F77DD">構成要件</div><div class="dispute-section-body">${n.f_elements}</div></div>`);
   if(n.f_conclusion) dh.push(`<div class="dispute-section" style="border-color:#D85A30"><div class="dispute-section-title" style="color:#D85A30">結論</div><div class="dispute-section-body">${n.f_conclusion}</div></div>`);
   g('dp-detail').innerHTML = dh.length ? dh.join('') + (n.detail?`<div class="dp-lbl" style="margin-top:14px;">補充筆記</div><div class="dp-txt">${n.detail}</div>`:'') : (n.detail||'（尚無詳細筆記）');
+  const todoWrap = g('dp-todo'), todoLabel = g('dp-todo-label');
+  if(n.type==='diary') {
+    todoLabel.style.display='block';
+    todoWrap.style.display='block';
+    todoWrap.innerHTML = renderTodoHtml(n.todos);
+  } else {
+    todoLabel.style.display='none';
+    todoWrap.style.display='none';
+    todoWrap.innerHTML = '';
+  }
   g('dp-chips').innerHTML = `<span class="chip" style="background:${lightC(sb.color)};color:${darkC(sb.color)}">${sb.label}</span>` + n.tags.map(t=>`<span class="chip">${t}</span>`).join('');
   renderLinksForNote(id);
   g('dp').classList.add('open'); ['fp','lp','tp'].forEach(p=>g(p).classList.remove('open'));
@@ -188,12 +212,15 @@ function openForm(isEdit) {
     g('form-title').textContent='編輯筆記';
     g('ft').value=n.type; g('fs2').value=n.subject; g('fti').value=n.title; g('fbo').value=n.body;
     g('fde').value=n.detail||''; g('fta').value=n.tags.join(', ');
+    if(g('f-todos')) g('f-todos').value = formatTodosForEdit(n.todos);
     ['f-dispute','f-article','f-elements','f-conclusion'].forEach((id,i)=>{ const el=g(id); if(el) el.value=[n.dispute,n.f_article,n.f_elements,n.f_conclusion][i]||''; });
     toggleTemplate(n.type==='case'||(n.dispute||n.f_article));
+    toggleDiaryTodo(n.type==='diary');
   } else {
     g('form-title').textContent='新增筆記';
-    ['fti','fbo','fde','fta','f-dispute','f-article','f-elements','f-conclusion'].forEach(id=>{ const el=g(id); if(el) el.value=''; });
+    ['fti','fbo','fde','fta','f-dispute','f-article','f-elements','f-conclusion','f-todos'].forEach(id=>{ const el=g(id); if(el) el.value=''; });
     toggleTemplate(g('ft').value==='case');
+    toggleDiaryTodo(g('ft').value==='diary');
   }
   g('fp').classList.add('open'); ['dp','lp','tp'].forEach(p=>g(p).classList.remove('open'));
   setTimeout(()=>g('fp').scrollIntoView({behavior:'smooth',block:'nearest'}),60);
@@ -205,13 +232,14 @@ function saveNote() {
   if(!title) { g('fti').style.borderColor='#FF3B30'; showToast('請輸入標題'); return; }
   g('fti').style.borderColor='';
   const tags = (g('fta').value||'').split(',').map(t=>t.trim()).filter(Boolean);
+  const todos = parseTodos(g('f-todos')?.value||'');
   const getField = id => (g(id)?.value||'').trim();
   if(editMode && openId) {
     const idx = notes.findIndex(n=>n.id===openId);
     if(idx!==-1) Object.assign(notes[idx], {
       type:g('ft').value, subject:g('fs2').value, title, body:(g('fbo').value||'').trim(),
       detail:(g('fde').value||'').trim(), tags, dispute:getField('f-dispute'), f_article:getField('f-article'),
-      f_elements:getField('f-elements'), f_conclusion:getField('f-conclusion')
+      f_elements:getField('f-elements'), f_conclusion:getField('f-conclusion'), todos
     });
     saveData(); closeForm(); render(); showToast('筆記已更新！'); setTimeout(()=>openNote(openId),150);
   } else {
@@ -219,13 +247,14 @@ function saveNote() {
     const dt = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     notes.unshift({id:nid++, type:g('ft').value, subject:g('fs2').value, title, body:(g('fbo').value||'').trim(),
       detail:(g('fde').value||'').trim(), tags, date:dt, dispute:getField('f-dispute'), f_article:getField('f-article'),
-      f_elements:getField('f-elements'), f_conclusion:getField('f-conclusion')});
+      f_elements:getField('f-elements'), f_conclusion:getField('f-conclusion'), todos});
     saveData(); closeForm(); render(); showToast('筆記已儲存！');
     setTimeout(()=>{ window.scrollTo(0,0); setTimeout(()=>openNote(notes[0].id),300); },100);
   }
 }
 function deleteNote() { if(!openId||!confirm('確定刪除這筆筆記？相關關聯也會一起刪除。')) return; links=links.filter(l=>l.from!==openId&&l.to!==openId); notes=notes.filter(n=>n.id!==openId); saveData(); closeDetail(); render(); showToast('已刪除'); }
 function toggleTemplate(show) { const tt=g('templateToggle'); if(tt) tt.style.display=show?'block':'none'; }
+function toggleDiaryTodo(show) { const box=g('diaryTodoWrap'); if(box) box.style.display=show?'block':'none'; }
 
 // ==================== 關聯面板 ====================
 function buildLpTarget() {
@@ -315,7 +344,7 @@ function importData(file) {
   reader.onload = e => {
     try {
       const d = JSON.parse(e.target.result); if(!d.notes) throw new Error();
-      d.notes.forEach(n=>{ if(!n.dispute) n.dispute=''; if(!n.f_article) n.f_article=''; if(!n.f_elements) n.f_elements=''; if(!n.f_conclusion) n.f_conclusion=''; if(!n.tags) n.tags=[]; if(!n.detail) n.detail=''; });
+      d.notes.forEach(n=>{ if(!n.dispute) n.dispute=''; if(!n.f_article) n.f_article=''; if(!n.f_elements) n.f_elements=''; if(!n.f_conclusion) n.f_conclusion=''; if(!n.tags) n.tags=[]; if(!n.detail) n.detail=''; if(!Array.isArray(n.todos)) n.todos=[]; });
       if(confirm('確定 = 完整覆蓋（取代所有現有筆記）\n取消 = 合併（只加入新筆記）')) {
         notes = d.notes; links = d.links||[]; types = d.types||DEFAULTS.types.slice(); subjects = d.subjects||DEFAULTS.subjects.slice();
         nid = d.nid||notes.length+100; lid = d.lid||10; notes.sort((a,b)=>b.id-a.id);
@@ -566,7 +595,7 @@ window.addEventListener('load',()=>{
   g('flashShuffleBtn')?.addEventListener('click',()=>{ buildFlashDeck(); renderFlashCard(); }); g('flashRestartBtn')?.addEventListener('click',()=>{ buildFlashDeck(); renderFlashCard(); });
   g('flashFilter')?.addEventListener('change',()=>{ flashSubFilter=g('flashFilter').value; buildFlashDeck(); renderFlashCard(); });
   g('flashTypeFilter')?.addEventListener('change',()=>{ flashTypeFilter2=g('flashTypeFilter').value; buildFlashDeck(); renderFlashCard(); });
-  g('ft')?.addEventListener('change',()=>toggleTemplate(g('ft').value==='case'));
+  g('ft')?.addEventListener('change',()=>{ toggleTemplate(g('ft').value==='case'); toggleDiaryTodo(g('ft').value==='diary'); });
   const si=g('searchInput'), sc=g('searchClear'); si.addEventListener('input',debounce(()=>{ searchQ=si.value; gridPage=1; sc.style.display=searchQ?'block':'none'; render(); },250)); sc.addEventListener('click',()=>{ si.value=''; searchQ=''; gridPage=1; sc.style.display='none'; render(); si.focus(); });
   g('addBtn').addEventListener('click',()=>openForm(false)); g('editBtn').addEventListener('click',()=>openForm(true)); g('linkBtn').addEventListener('click',openLinkPanel);
   g('lpSave').addEventListener('click',saveLinkPanel); g('lpClose').addEventListener('click',()=>{ g('lp').classList.remove('open'); g('dp').classList.add('open'); }); g('lpCancel').addEventListener('click',()=>{ g('lp').classList.remove('open'); g('dp').classList.add('open'); });
@@ -582,7 +611,6 @@ window.addEventListener('load',()=>{
   g('examRetryBtn')?.addEventListener('click',()=>{ closeExamView(); setTimeout(openExamPanel,100); }); g('examBackBtn2')?.addEventListener('click',closeExamView);
   g('examAnswerBox')?.addEventListener('input',()=>{ g('examWordCount').textContent=g('examAnswerBox').value.replace(/\s/g,'').length+' 字'; });
   g('aiSettingsBtn')?.addEventListener('click',openAiSettings); g('aiKeySave').addEventListener('click',()=>{ const k=(g('aiKeyInput').value||'').trim(); if(!k){ showToast('請輸入 OpenRouter API Key'); return; } saveAiKey(k); const sel=g('aiModelSel'); if(sel&&sel.value) saveAiModel(sel.value); g('aiKeyModal').classList.remove('open'); if(_aiPendingAction){ _aiPendingAction(k); _aiPendingAction=null; } else showToast('AI 設定已儲存！'); }); g('aiKeyCancel').addEventListener('click',()=>{ g('aiKeyModal').classList.remove('open'); _aiPendingAction=null; });
-  g('aiGenBtn').addEventListener('click',()=>{ const keyword=(g('fti').value||'').trim(); if(!keyword){ showToast('請先在標題欄輸入法條或關鍵字'); g('fti').focus(); return; } const btn=g('aiGenBtn'), sub=g('fs2').value||(subjects[0]&&subjects[0].key)||'', tp=g('ft').value||(types[0]&&types[0].key)||''; requireAiKey(key=>{ btn.disabled=true; btn.innerHTML='<span class="ai-loading"></span> AI 生成中...'; callAI(key, `你是台灣法律考試專家。請根據以下關鍵字，生成一則完整的法律筆記。\n\n關鍵字：${keyword}\n科目：${sub}\n類型：${tp}\n\n請以 JSON 格式回覆（只輸出 JSON）：\n{"title":"<完整標題>","body":"<條文摘要或重點，100字內>","detail":"<詳細說明>","dispute":"<主要爭點>","f_article":"<適用法條>","f_elements":"<構成要件分析>","f_conclusion":"<結論>","tags":["<標籤1>","<標籤2>"]}`, r=>{ if(r.title) g('fti').value=r.title; if(r.body) g('fbo').value=r.body; if(r.detail) g('fde').value=r.detail; if(r.tags&&r.tags.length) g('fta').value=r.tags.join(', '); if(g('f-dispute')&&r.dispute) g('f-dispute').value=r.dispute; if(g('f-article')&&r.f_article) g('f-article').value=r.f_article; if(g('f-elements')&&r.f_elements) g('f-elements').value=r.f_elements; if(g('f-conclusion')&&r.f_conclusion) g('f-conclusion').value=r.f_conclusion; toggleTemplate(true); btn.disabled=false; btn.innerHTML='🤖 AI 產生筆記（輸入法條或關鍵字）'; showToast('AI 已填入內容，請確認後儲存！'); }, err=>{ btn.disabled=false; btn.innerHTML='🤖 AI 產生筆記（輸入法條或關鍵字）'; showToast('AI 錯誤：'+err); }); }); });
   g('importFile').addEventListener('change',e=>{ if(e.target.files&&e.target.files[0]) importData(e.target.files[0]); e.target.value=''; });
   g('shortcutMgrBtn').addEventListener('click',openShortcutMgr); g('scpClose').addEventListener('click',closeShortcutMgr); g('scpDone').addEventListener('click',closeShortcutMgr);
   g('scpReset').addEventListener('click',()=>{ shortcuts=DEFAULT_SHORTCUTS.map(s=>({...s})); saveShortcuts(); renderShortcutList(); showToast('已恢復預設快捷鍵'); });

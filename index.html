@@ -64,6 +64,7 @@
     <div id="dp-title" class="dp-ttl"></div>
     <div class="dp-lbl">&#25688;&#35201;</div><div id="dp-body" class="dp-txt"></div>
     <div class="dp-lbl">&#35443;&#32048;&#31558;&#35352;</div><div id="dp-detail" class="dp-txt"></div>
+    <div class="dp-lbl" id="dp-todo-label" style="display:none;">&#128221; &#24453;&#36774;&#28165;&#21934;</div><div id="dp-todo" class="dp-txt" style="display:none;"></div>
     <div class="dp-lbl">&#27161;&#31844;</div><div id="dp-chips" class="dp-chips"></div>
     <div class="dp-lbl">&#38364;&#32879;&#31558;&#35352;</div><div id="dp-links"></div>
     <div class="action-row">
@@ -82,13 +83,16 @@
       <div><label class="flbl" style="margin-top:0">&#31185;&#30446;</label><select class="fs" id="fs2"></select></div>
     </div>
     <label class="flbl">&#27161;&#38988;</label>
-    <button class="ai-gen-btn" id="aiGenBtn">&#129302; AI &#29087;&#25104;&#31558;&#35352;&#65288;&#36664;&#20837;&#27861;&#26781;&#25110;&#38364;&#37749;&#23383;&#65289;</button>
     <div id="templateToggle" style="display:none;background:#E6F1FB;border-radius:10px;padding:10px 12px;margin-bottom:10px;"><div style="font-size:11px;font-weight:600;color:#0C447C;margin-bottom:8px;">&#128196; &#29229;&#40670;&#31572;&#38988;&#27169;&#26495;</div><label class="flbl" style="margin-top:0">&#29229;&#40670;</label><input class="fi" id="f-dispute" placeholder="&#20363;&#65306;&#30002;&#26159;&#21542;&#27083;&#25104;&#20405;&#27402;&#34892;&#28858;&#65311;"><label class="flbl">&#36969;&#29992;&#27861;&#26781;</label><input class="fi" id="f-article" placeholder="&#20363;&#65306;&#27665;&#27861;&#31532; 184 &#26781;&#31532; 1 &#38917;"><label class="flbl">&#27083;&#25104;&#35201;&#20214;&#20998;&#26512;</label><textarea class="ft" id="f-elements" placeholder="&#36880;&#19968;&#20998;&#26512;&#21508;&#27083;&#25104;&#35201;&#20214;..." style="min-height:72px;"></textarea><label class="flbl">&#32080;&#35542;</label><input class="fi" id="f-conclusion" placeholder="&#20363;&#65306;&#30002;&#25033;&#36000;&#25613;&#23475;&#36064;&#20767;&#36012;&#20219;&#12290;"></div>
     <input class="fi" id="fti" placeholder="&#20363;&#65306;&#27665;&#27861;&#31532; 184 &#26781;">
     <label class="flbl">&#25688;&#35201;</label>
     <textarea class="ft" id="fbo" placeholder="&#26781;&#25991;&#25110;&#37325;&#40670;&#25688;&#35201;..."></textarea>
     <label class="flbl">&#35443;&#32048;&#31558;&#35352;</label>
     <textarea class="ft" id="fde" placeholder="&#27083;&#25104;&#35201;&#20214;&#12289;&#23416;&#35498;&#12289;&#23526;&#21209;&#35211;&#35299;..."></textarea>
+    <div id="diaryTodoWrap" style="display:none;">
+      <label class="flbl">&#128221; &#24453;&#36774;&#28165;&#21934;&#65288;&#27599;&#34892;&#19968;&#38917;&#65292;&#38283;&#38957; [x] &#20195;&#34920;&#24050;&#23436;&#25104;&#65289;</label>
+      <textarea class="ft" id="f-todos" placeholder="[ ] &#23436;&#25104;&#31558;&#35352;&#25972;&#29702;&#10;[x] &#34253;&#32722;&#20363;&#38988;&#31532; 3 &#38988;" style="min-height:96px;"></textarea>
+    </div>
     <label class="flbl">&#27161;&#31844;&#65288;&#36887;&#34399;&#20998;&#38548;&#65289;</label>
     <input class="fi" id="fta" placeholder="&#20363;&#65306;&#20405;&#27402;&#34892;&#28858;, &#25613;&#23475;&#36064;&#20767;">
     <div class="frow">

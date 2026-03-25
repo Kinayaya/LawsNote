@@ -534,30 +534,30 @@ function forceLayout() {
   const layoutNotes=visibleNotes(), visIds={}; layoutNotes.forEach(n=>visIds[n.id]=true);
   const visLinks=visibleLinks(visIds), n2=layoutNotes.length;
   if(!n2) return;
-  const NODE_R=38, LINK_IDEAL=NODE_R*4.4, linkedPairs={};
+  const NODE_R=40, LINK_IDEAL=NODE_R*4.9, linkedPairs={};
   visLinks.forEach(lk=>{ linkedPairs[lk.from+'_'+lk.to]=true; linkedPairs[lk.to+'_'+lk.from]=true; });
   const isLinked=(a,b)=>!!linkedPairs[a+'_'+b];
-  const cols=Math.ceil(Math.sqrt(n2*1.4)), cellW=Math.max(mapW/(cols+1),NODE_R*3), cellH=Math.max(mapH/(Math.ceil(n2/cols)+1),NODE_R*3);
+  const cols=Math.ceil(Math.sqrt(n2*1.2)), cellW=Math.max(mapW/(cols+1),NODE_R*3.6), cellH=Math.max(mapH/(Math.ceil(n2/cols)+1),NODE_R*3.6);
   layoutNotes.forEach((n,i)=>{ const col=i%cols,row=Math.floor(i/cols); nodePos[n.id]={x:cellW*(col+1)+(Math.random()-0.5)*cellW*0.25,y:cellH*(row+1)+(Math.random()-0.5)*cellH*0.25}; });
-  for(let t=0;t<340;t++){ const cool=Math.pow(1-t/340,1.35), disp={}; layoutNotes.forEach(n=>disp[n.id]={x:0,y:0});
+  for(let t=0;t<420;t++){ const cool=Math.pow(1-t/420,1.35), disp={}; layoutNotes.forEach(n=>disp[n.id]={x:0,y:0});
     for(let i=0;i<n2;i++) for(let j=i+1;j<n2;j++){ const ai=layoutNotes[i].id,aj=layoutNotes[j].id, px=nodePos[ai],py=nodePos[aj], dx=px.x-py.x, dy=px.y-py.y, dist=Math.sqrt(dx*dx+dy*dy)||0.01, linked=isLinked(ai,aj);
-  const minDist=getNodeRadius(ai)+getNodeRadius(aj)+20;
-  let rep = ((NODE_R*NODE_R*1.2)/(dist*dist))*34;
+  const minDist=getNodeRadius(ai)+getNodeRadius(aj)+34;
+  let rep = ((NODE_R*NODE_R*1.26)/(dist*dist))*40;
   if(linked) rep*=0.45;
-  if(dist<minDist) rep += ((minDist-dist)/Math.max(minDist,1))*52;
+  if(dist<minDist) rep += ((minDist-dist)/Math.max(minDist,1))*70;
   if(rep>0){ disp[ai].x+=dx/dist*rep; disp[ai].y+=dy/dist*rep; disp[aj].x-=dx/dist*rep; disp[aj].y-=dy/dist*rep; } }
   visLinks.forEach(lk=>{ const fp=nodePos[lk.from],tp=nodePos[lk.to]; if(!fp||!tp)return; const dx=tp.x-fp.x, dy=tp.y-fp.y, dist=Math.sqrt(dx*dx+dy*dy)||0.01; const att=(dist-LINK_IDEAL)*0.06; disp[lk.from].x+=dx/dist*att; disp[lk.from].y+=dy/dist*att; disp[lk.to].x-=dx/dist*att; disp[lk.to].y-=dy/dist*att; });
-    const maxD=Math.max(mapW,mapH)*0.04*cool+1.8;
+    const maxD=Math.max(mapW,mapH)*0.035*cool+1.4;
     layoutNotes.forEach(n=>{ const id=n.id,d=disp[id], len=Math.sqrt(d.x*d.x+d.y*d.y)||0.01, move=Math.min(len,maxD); nodePos[id].x+=d.x/len*move; nodePos[id].y+=d.y/len*move; clampNodeToCanvas(id); });
   }
-  for(let pass=0;pass<50;pass++){
+  for(let pass=0;pass<80;pass++){
     let moved=false;
     for(let i=0;i<n2;i++) for(let j=i+1;j<n2;j++){
       const ai=layoutNotes[i].id, aj=layoutNotes[j].id, fp=nodePos[ai], tp=nodePos[aj];
       const dx=tp.x-fp.x, dy=tp.y-fp.y, dist=Math.sqrt(dx*dx+dy*dy)||0.01;
-      const need=getNodeRadius(ai)+getNodeRadius(aj)+16;
+      const need=getNodeRadius(ai)+getNodeRadius(aj)+26;
       if(dist<need){
-        const push=(need-dist)/2+0.6, nx=dx/dist, ny=dy/dist;
+        const push=(need-dist)/2+0.8, nx=dx/dist, ny=dy/dist;
         nodePos[ai].x-=nx*push; nodePos[ai].y-=ny*push;
         nodePos[aj].x+=nx*push; nodePos[aj].y+=ny*push;
         clampNodeToCanvas(ai); clampNodeToCanvas(aj); moved=true;
@@ -565,7 +565,7 @@ function forceLayout() {
     }
     if(!moved) break;
   }
-  for(let pass=0;pass<28;pass++){
+  for(let pass=0;pass<36;pass++){
     let changed=false;
     for(let i=0;i<visLinks.length;i++) for(let j=i+1;j<visLinks.length;j++){
       const a=visLinks[i], b=visLinks[j];
@@ -625,8 +625,6 @@ function redrawLines(affectedId){
     if(!els||!els.p||!lk)return;
     const c=calcLinkPath(lk); if(!c)return;
     els.p.setAttribute('d',c.d);
-    if(els.r){els.r.setAttribute('x',c.lmx-18);els.r.setAttribute('y',c.lmy-9);}
-    if(els.t){els.t.setAttribute('x',c.lmx);els.t.setAttribute('y',c.lmy+1);}
   });
 }
 function visibleNotes(){ const q=mapFilter.q.toLowerCase(), linkedIds={}; if(mapLinkedOnly) links.forEach(l=>{ linkedIds[l.from]=true; linkedIds[l.to]=true; }); return notes.filter(n=>(mapFilter.sub==='all'||n.subject===mapFilter.sub)&&(mapFilter.type==='all'||n.type===mapFilter.type)&&(!q||`${n.title}${n.subject}${n.tags.join('')}`.toLowerCase().includes(q))&&(!mapLinkedOnly||linkedIds[n.id])); }
@@ -641,9 +639,7 @@ function drawMap() {
   visLinks.forEach(lk=>{
     const c=calcLinkPath(lk); if(!c)return;
     const line=document.createElementNS('http://www.w3.org/2000/svg','path'); line.setAttribute('d',c.d); line.setAttribute('stroke',lk.color); line.setAttribute('stroke-width','2'); line.setAttribute('fill','none'); line.setAttribute('marker-end',getArrowMarker(lk.color)); ll.appendChild(line);
-    const rct=document.createElementNS('http://www.w3.org/2000/svg','rect'); rct.setAttribute('x',c.lmx-18); rct.setAttribute('y',c.lmy-9); rct.setAttribute('width','36'); rct.setAttribute('height','16'); rct.setAttribute('rx','8'); rct.setAttribute('fill',lk.color); ll.appendChild(rct);
-    const lt=document.createElementNS('http://www.w3.org/2000/svg','text'); lt.setAttribute('x',c.lmx); lt.setAttribute('y',c.lmy+1); lt.setAttribute('text-anchor','middle'); lt.setAttribute('dominant-baseline','middle'); lt.setAttribute('font-size','9'); lt.setAttribute('fill','#fff'); lt.setAttribute('font-weight','600'); lt.textContent=lk.rel; ll.appendChild(lt);
-    linkElsMap[lk.id]={p:line,r:rct,t:lt};
+    linkElsMap[lk.id]={p:line};
     if(!nodeLinksIndex[lk.from]) nodeLinksIndex[lk.from]=[];
     if(!nodeLinksIndex[lk.to]) nodeLinksIndex[lk.to]=[];
     nodeLinksIndex[lk.from].push(lk.id);

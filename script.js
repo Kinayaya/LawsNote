@@ -261,7 +261,8 @@ function buildLpTarget() {
   const sel = g('lp-target');
   const sq = (g('lp-search').value||'').toLowerCase();
   const sf = g('lp-filter-sub').value||'all';
-  const filtered = notes.filter(x=> x.id!==openId && (sf==='all'||x.subject===sf) && (!sq||`${x.title} ${x.subject}`.toLowerCase().includes(sq)));
+  const tf = g('lp-filter-type')?.value||'all';
+  const filtered = notes.filter(x=> x.id!==openId && (sf==='all'||x.subject===sf) && (tf==='all'||x.type===tf) && (!sq||`${x.title} ${x.subject} ${typeByKey(x.type).label}`.toLowerCase().includes(sq)));
   sel.innerHTML = filtered.map(x=>`<option value="${x.id}">[${typeByKey(x.type).label}] ${x.subject} - ${x.title}</option>`).join('');
   g('lp-count').textContent=`共 ${filtered.length} 筆`;
 }
@@ -269,8 +270,11 @@ function openLinkPanel() {
   if(!openId) return;
   g('lp-from-title').textContent=`從：${noteById(openId).title}`;
   const sfSel = g('lp-filter-sub');
+  const tfSel = g('lp-filter-type');
   sfSel.innerHTML = '<option value="all">全部科目</option>' + subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join('');
+  tfSel.innerHTML = '<option value="all">全部類別</option>' + types.map(t=>`<option value="${t.key}">${t.label}</option>`).join('');
   sfSel.value = 'all';
+  tfSel.value = 'all';
   g('lp-search').value = '';
   buildLpTarget();
   selectedRel = REL_TYPES[0];
@@ -571,6 +575,13 @@ function forceLayout() {
     if(!moved) break;
   }
   for(let pass=0;pass<36;pass++){
+    let moved=false;
+    layoutNotes.forEach(n=>{
+      if(pushNodeOffLinks(n.id, visLinks, 6)) moved=true;
+    });
+    if(!moved) break;
+  }
+  for(let pass=0;pass<36;pass++){
     let changed=false;
     for(let i=0;i<visLinks.length;i++) for(let j=i+1;j<visLinks.length;j++){
       const a=visLinks[i], b=visLinks[j];
@@ -589,8 +600,44 @@ function forceLayout() {
   }
   saveData();
 }
+function pointToSegmentDistance(px,py,x1,y1,x2,y2){
+  const dx=x2-x1, dy=y2-y1, len2=dx*dx+dy*dy;
+  if(!len2) return {dist:Math.hypot(px-x1,py-y1), nx:0, ny:0};
+  let t=((px-x1)*dx+(py-y1)*dy)/len2; t=Math.max(0,Math.min(1,t));
+  const cx=x1+t*dx, cy=y1+t*dy;
+  let vx=px-cx, vy=py-cy, d=Math.hypot(vx,vy);
+  if(d<0.001){ const nx=-dy/Math.sqrt(len2), ny=dx/Math.sqrt(len2); return {dist:0, nx, ny}; }
+  return {dist:d, nx:vx/d, ny:vy/d};
+}
+function pushNodeOffLinks(nodeId, visLinks, pad=0){
+  const pos=nodePos[nodeId]; if(!pos) return false;
+  const need=getNodeRadius(nodeId)+12+pad;
+  let moved=false;
+  visLinks.forEach(lk=>{
+    if(lk.from===nodeId||lk.to===nodeId) return;
+    const a=nodePos[lk.from], b=nodePos[lk.to];
+    if(!a||!b) return;
+    const hit=pointToSegmentDistance(pos.x,pos.y,a.x,a.y,b.x,b.y);
+    if(hit.dist<need){
+      const push=need-hit.dist+0.8;
+      pos.x+=hit.nx*push; pos.y+=hit.ny*push;
+      clampNodeToCanvas(nodeId);
+      moved=true;
+    }
+  });
+  return moved;
+}
 function getArrowMarker(color){ const map={'#378ADD':'arrowBlue','#1D9E75':'arrowGreen','#7F77DD':'arrowPurple','#D85A30':'arrowOrange'}; return `url(#${map[color]||'arrowGray'})`; }
-function moveNodeEl(id,x,y){ const grp=nodeEls[id]; if(!grp)return; const circles=grp.querySelectorAll('circle'), texts=grp.querySelectorAll('text'); if(circles[0]){circles[0].setAttribute('cx',x);circles[0].setAttribute('cy',y);} const r=parseFloat(circles[0]?circles[0].getAttribute('r'):24)||24; if(circles[1]){circles[1].setAttribute('cx',x+r-4);circles[1].setAttribute('cy',y-r+4);} if(texts[1]){texts[0].setAttribute('x',x+r-4);texts[0].setAttribute('y',y-r+4);texts[1].setAttribute('x',x);texts[1].setAttribute('y',y+r+12);} else if(texts[0]){texts[0].setAttribute('x',x);texts[0].setAttribute('y',y+r+12);} }
+function moveNodeEl(id,x,y){
+  const grp=nodeEls[id]; if(!grp)return;
+  const mainCircle=grp.querySelector('circle.node-main');
+  const countText=grp.querySelector('text.node-count');
+  const titleText=grp.querySelector('text.node-title');
+  if(mainCircle){ mainCircle.setAttribute('cx',x); mainCircle.setAttribute('cy',y); }
+  const r=parseFloat(mainCircle?mainCircle.getAttribute('r'):24)||24;
+  if(countText){ countText.setAttribute('x',x); countText.setAttribute('y',y); }
+  if(titleText){ titleText.setAttribute('x',x); titleText.setAttribute('y',y+r+12); }
+}
 function visibleLinks(visIds){ return links.filter(lk=>visIds[lk.from]&&visIds[lk.to]); }
 function buildLinkCurveOffsets(visLinks){
   const groups={}, spacing=12;
@@ -651,9 +698,9 @@ function drawMap() {
   });
   notes.forEach(n=>{ if(!visIds[n.id])return; const pos=nodePos[n.id]; if(!pos)return; const tp=typeByKey(n.type), lc=links.filter(l=>l.from===n.id||l.to===n.id).length, radius=20+Math.min(lc*3,12);
     const grp=document.createElementNS('http://www.w3.org/2000/svg','g'); grp.setAttribute('class','map-node'); grp.setAttribute('data-id',n.id);
-    const circ=document.createElementNS('http://www.w3.org/2000/svg','circle'); circ.setAttribute('cx',pos.x); circ.setAttribute('cy',pos.y); circ.setAttribute('r',radius); circ.setAttribute('fill',tp.color); circ.setAttribute('stroke','#fff'); circ.setAttribute('stroke-width','2'); grp.appendChild(circ);
-    if(lc>0){ const bdg=document.createElementNS('http://www.w3.org/2000/svg','circle'); bdg.setAttribute('cx',pos.x+radius-4); bdg.setAttribute('cy',pos.y-radius+4); bdg.setAttribute('r','9'); bdg.setAttribute('fill','#fff'); grp.appendChild(bdg); const bt=document.createElementNS('http://www.w3.org/2000/svg','text'); bt.setAttribute('x',pos.x+radius-4); bt.setAttribute('y',pos.y-radius+4); bt.setAttribute('text-anchor','middle'); bt.setAttribute('dominant-baseline','middle'); bt.setAttribute('font-size','8'); bt.setAttribute('fill',tp.color); bt.setAttribute('font-weight','700'); bt.textContent=lc; grp.appendChild(bt); }
-    const short=n.title.length>9?n.title.slice(0,9)+'..':n.title, txt=document.createElementNS('http://www.w3.org/2000/svg','text'); txt.setAttribute('x',pos.x); txt.setAttribute('y',pos.y+radius+12); txt.setAttribute('text-anchor','middle'); txt.setAttribute('font-size','10'); txt.setAttribute('fill','#444'); txt.textContent=short; grp.appendChild(txt);
+    const circ=document.createElementNS('http://www.w3.org/2000/svg','circle'); circ.setAttribute('class','node-main'); circ.setAttribute('cx',pos.x); circ.setAttribute('cy',pos.y); circ.setAttribute('r',radius); circ.setAttribute('fill',tp.color); circ.setAttribute('stroke','#fff'); circ.setAttribute('stroke-width','2'); grp.appendChild(circ);
+    if(lc>0){ const bt=document.createElementNS('http://www.w3.org/2000/svg','text'); bt.setAttribute('class','node-count'); bt.setAttribute('x',pos.x); bt.setAttribute('y',pos.y); bt.setAttribute('text-anchor','middle'); bt.setAttribute('dominant-baseline','middle'); bt.setAttribute('font-size',String(Math.max(9,Math.min(12,radius*0.45)))); bt.setAttribute('fill','#fff'); bt.setAttribute('font-weight','800'); bt.textContent=lc; grp.appendChild(bt); }
+    const short=n.title.length>9?n.title.slice(0,9)+'..':n.title, txt=document.createElementNS('http://www.w3.org/2000/svg','text'); txt.setAttribute('class','node-title'); txt.setAttribute('x',pos.x); txt.setAttribute('y',pos.y+radius+12); txt.setAttribute('text-anchor','middle'); txt.setAttribute('font-size','10'); txt.setAttribute('fill','#444'); txt.textContent=short; grp.appendChild(txt);
     grp.addEventListener('click',()=>showMapInfo(n.id)); grp.addEventListener('mousedown',e=>startDrag(e,n.id)); grp.addEventListener('touchstart',e=>startDragTouch(e,n.id),{passive:true}); nl.appendChild(grp);
   });
   nodeEls={}; nl.querySelectorAll('.map-node').forEach(ng=>{ nodeEls[parseInt(ng.dataset.id)]=ng; });
@@ -688,7 +735,7 @@ window.addEventListener('load',()=>{
   const si=g('searchInput'), sc=g('searchClear'); si.addEventListener('input',debounce(()=>{ searchQ=si.value; gridPage=1; sc.style.display=searchQ?'block':'none'; render(); },250)); sc.addEventListener('click',()=>{ si.value=''; searchQ=''; gridPage=1; sc.style.display='none'; render(); si.focus(); });
   g('addBtn').addEventListener('click',()=>openForm(false)); g('editBtn').addEventListener('click',()=>openForm(true)); g('linkBtn').addEventListener('click',openLinkPanel);
   g('lpSave').addEventListener('click',saveLinkPanel); g('lpClose').addEventListener('click',()=>{ g('lp').classList.remove('open'); g('dp').classList.add('open'); }); g('lpCancel').addEventListener('click',()=>{ g('lp').classList.remove('open'); g('dp').classList.add('open'); });
-  g('lp-search')?.addEventListener('input',buildLpTarget); g('lp-filter-sub')?.addEventListener('change',buildLpTarget);
+  g('lp-search')?.addEventListener('input',buildLpTarget); g('lp-filter-sub')?.addEventListener('change',buildLpTarget); g('lp-filter-type')?.addEventListener('change',buildLpTarget);
   g('dpClose').addEventListener('click',closeDetail); g('fpClose').addEventListener('click',closeForm); g('fpCancel').addEventListener('click',closeForm);
   g('fpSave').addEventListener('click',saveNote); g('delBtn').addEventListener('click',deleteNote); g('exportBtn').addEventListener('click',exportData);
   g('tpClose').addEventListener('click',()=>g('tp').classList.remove('open')); g('addTypeBtn').addEventListener('click',()=>addTag('type')); g('addSubBtn').addEventListener('click',()=>addTag('sub'));
@@ -717,7 +764,17 @@ window.addEventListener('load',()=>{
   g('mapAutoBtn')?.addEventListener('click',()=>{ const btn=g('mapAutoBtn'), orig=btn.textContent; btn.textContent='排列中...'; btn.disabled=true; setTimeout(()=>{ nodePos={}; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); g('zoomLabel').textContent='100%'; btn.textContent=orig; btn.disabled=false; showToast('已自動排列'); },30); });
   g('mapResetBtn')?.addEventListener('click',()=>{ nodePos={}; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); g('zoomLabel').textContent='100%'; showToast('已重置'); });
   const canvas=g('mapCanvas'); let panStart=null, panOffXStart=0, panOffYStart=0;
-  const onDragMove=(x,y)=>{ const rect=canvas.getBoundingClientRect(); let cx=(x-rect.left-dragOffX-mapOffX)/mapScale, cy=(y-rect.top-dragOffY-mapOffY)/mapScale; cx=Math.max(22,Math.min(mapW-22,cx)); cy=Math.max(22,Math.min(mapH-22,cy)); nodePos[dragNode]={x:cx,y:cy}; if(rafId)cancelAnimationFrame(rafId); rafId=requestAnimationFrame(()=>{ moveNodeEl(dragNode,cx,cy); redrawLines(dragNode); rafId=null; }); };
+const onDragMove=(x,y)=>{
+    const rect=canvas.getBoundingClientRect();
+    let cx=(x-rect.left-dragOffX-mapOffX)/mapScale, cy=(y-rect.top-dragOffY-mapOffY)/mapScale;
+    cx=Math.max(22,Math.min(mapW-22,cx)); cy=Math.max(22,Math.min(mapH-22,cy));
+    nodePos[dragNode]={x:cx,y:cy};
+    const visIds={}; visibleNotes().forEach(n=>visIds[n.id]=true);
+    pushNodeOffLinks(dragNode, visibleLinks(visIds), 10);
+    cx=nodePos[dragNode].x; cy=nodePos[dragNode].y;
+    if(rafId)cancelAnimationFrame(rafId);
+    rafId=requestAnimationFrame(()=>{ moveNodeEl(dragNode,cx,cy); redrawLines(dragNode); rafId=null; });
+  };
   const onPanMove=(x,y)=>{ if(!panStart)return; mapOffX=panOffXStart+(x-panStart.x); mapOffY=panOffYStart+(y-panStart.y); if(rafId)cancelAnimationFrame(rafId); rafId=requestAnimationFrame(()=>{ const gw=g('mapSvg').querySelector('#mapWrap'); if(gw)gw.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`); redrawLines(); rafId=null; }); };
   canvas.addEventListener('mousedown',e=>{ if(!dragNode){ panStart={x:e.clientX,y:e.clientY}; panOffXStart=mapOffX; panOffYStart=mapOffY; canvas.style.cursor='grabbing'; } });
   canvas.addEventListener('mousemove',e=>{ if(dragNode) onDragMove(e.clientX,e.clientY); else if(panStart) onPanMove(e.clientX,e.clientY); });

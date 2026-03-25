@@ -407,7 +407,24 @@ function execShortcut(id) {
   showShortcutHint({new:'新增筆記',search:'搜尋',map:'開啟體系圖',back:'返回筆記列表',close:'關閉',edit:'編輯筆記',link:'新增關聯',export:'匯出備份',flash:'複習模式',stats:'統計',shortcuts:'快捷鍵設定'}[id]);
 }
 function showShortcutHint(t){ const h=g('scHint'); h.textContent=t; h.style.display='block'; clearTimeout(h._t); h._t=setTimeout(()=>h.style.display='none',1800); }
-function toggleMapView(open) { isMapOpen=open; g('notesView').style.display=open?'none':'block'; g('mapView').classList.toggle('open',open); g('subbar').style.display=open?'none':'flex'; g('search-results-bar').style.display=open?'none':''; if(open){ buildMapFilters(); mapScale=1; mapOffX=mapOffY=0; g('zoomLabel').textContent='100%'; mapLinkedOnly=true; const mlo=g('mapLinkedOnlyBtn'); if(mlo){ mlo.style.background='#3B6D11'; mlo.style.color='#fff'; } setTimeout(()=>{ if(!Object.keys(nodePos).length) forceLayout(); drawMap(); },80); } }
+function toggleMapView(open) {
+  isMapOpen=open;
+  g('notesView').style.display=open?'none':'block';
+  g('mapView').classList.toggle('open',open);
+  g('subbar').style.display=open?'none':'flex';
+  g('search-results-bar').style.display=open?'none':'';
+  if(open){
+    buildMapFilters();
+    g('zoomLabel').textContent=Math.round(mapScale*100)+'%';
+    const mlo=g('mapLinkedOnlyBtn');
+    if(mlo){
+      mlo.style.background=mapLinkedOnly?'#3B6D11':'#EAF3DE';
+      mlo.style.color=mapLinkedOnly?'#fff':'#3B6D11';
+      mlo.textContent=mapLinkedOnly?'✓ 只顯示關聯':'🔗 只顯示關聯';
+    }
+    setTimeout(()=>{ if(!Object.keys(nodePos).length) forceLayout(); drawMap(); },80);
+  }
+}
 
 // ==================== 統計 ====================
 function openStats() { const sp=g('statsPanel'); if(sp.classList.contains('open')){ sp.classList.remove('open'); return; } const total=notes.length, byT={}, byS={}; notes.forEach(n=>{ byT[n.type]=(byT[n.type]||0)+1; byS[n.subject]=(byS[n.subject]||0)+1; }); const lnk={}; links.forEach(l=>{ lnk[l.from]=true; lnk[l.to]=true; }); const lc=Object.keys(lnk).length; let html=`<div class="stats-grid"><div class="stat-card"><div class="stat-num">${total}</div><div class="stat-lbl">筆記總數</div></div><div class="stat-card"><div class="stat-num">${links.length}</div><div class="stat-lbl">關聯數量</div></div><div class="stat-card"><div class="stat-num">${lc}</div><div class="stat-lbl">有關聯筆記</div></div><div class="stat-card"><div class="stat-num">${subjects.length}</div><div class="stat-lbl">科目數</div></div></div><div style="font-size:11px;font-weight:700;color:#888;margin-bottom:8px;">各科目筆記數</div>`;

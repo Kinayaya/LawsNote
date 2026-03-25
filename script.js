@@ -57,6 +57,7 @@ const saveDataDeferred = () => { clearTimeout(_saveTimer); _saveTimer = setTimeo
 const typeByKey = k => types.find(t=>t.key===k) || {key:k,label:k,color:'#888'};
 const subByKey = k => subjects.find(s=>s.key===k) || {key:k,label:k,color:'#888'};
 const noteById = id => notes.find(n=>n.id===id);
+const noteTags = n => Array.isArray(n?.tags) ? n.tags : [];
 const hexRgb = hex => { if(hex.length===4) hex='#'+hex[1]+hex[1]+hex[2]+hex[2]+hex[3]+hex[3]; return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)]; };
 const lightC = hex => `rgba(${hexRgb(hex).join(',')},0.12)`;
 const darkC = hex => { let r=hexRgb(hex); return `rgb(${Math.round(r[0]*0.55)},${Math.round(r[1]*0.55)},${Math.round(r[2]*0.55)})`; };
@@ -83,7 +84,13 @@ function loadData() {
     if(raw) {
       const d = JSON.parse(raw);
       notes = d.notes || DEFAULTS.notes.slice();
-      notes.forEach(n=>{ if(!Array.isArray(n.todos)) n.todos=[]; });
+      notes.forEach(n=>{
+        if(!Array.isArray(n.todos)) n.todos=[];
+        if(!Array.isArray(n.tags)) n.tags=[];
+        if(typeof n.title!=='string') n.title='';
+        if(typeof n.body!=='string') n.body='';
+        if(typeof n.subject!=='string') n.subject='';
+      });
       links = d.links || DEFAULTS.links.slice();
       nid = d.nid || 10; lid = d.lid || 10;
       types = d.types || DEFAULTS.types.slice();
@@ -131,7 +138,7 @@ function rebuildUI() { buildTypeRow(); buildSubRow(); buildFormSelects(); }
 // ==================== 渲染 ====================
 function render() {
   const q = searchQ.trim().toLowerCase();
-  const filtered = sortedNotes(notes).filter(n => (cv==='all'||n.type===cv) && (cs==='all'||n.subject===cs) && (!q || `${n.title} ${n.body} ${n.subject} ${n.tags.join(' ')}`.toLowerCase().includes(q)));
+  const filtered = sortedNotes(notes).filter(n => (cv==='all'||n.type===cv) && (cs==='all'||n.subject===cs) && (!q || `${n.title} ${n.body} ${n.subject} ${noteTags(n).join(' ')}`.toLowerCase().includes(q)));
   const sb = g('search-results-bar');
   if(q) { sb.style.display='block'; sb.textContent=`搜尋「${searchQ}」：找到 ${filtered.length} 筆筆記`; } else sb.style.display='none';
   const grid = g('grid');
@@ -142,7 +149,7 @@ function render() {
   const pgF = filtered.slice((gridPage-1)*PAGE_SIZE, gridPage*PAGE_SIZE);
   grid.innerHTML = pgF.map(n => {
     const tp = typeByKey(n.type), sb2 = subByKey(n.subject);
-    const chips = n.tags.slice(0,2).map(t=>`<span class="chip">${hl(t,q)}</span>`).join('');
+    const chips = noteTags(n).slice(0,2).map(t=>`<span class="chip">${hl(t,q)}</span>`).join('');
     const lc = links.filter(l=>l.from===n.id||l.to===n.id).length;
     return `<div class="card" data-id="${n.id}"><div class="sel-check"></div><div class="cbar" style="background:${tp.color}"></div><div class="ctop"><span class="ctag" style="background:${tp.color}">${tp.label}</span><span class="cdate">${n.date}</span></div><div class="ctitle">${hl(n.title,q)}</div><div class="cbody">${n.body}</div><div class="cfoot"><span class="chip" style="background:${lightC(sb2.color)};color:${darkC(sb2.color)}">${sb2.label}</span>${chips}${lc?`<span class="chip" style="background:#EAF3DE">🔗 ${lc}</span>`:''}</div></div>`;
   }).join('');
@@ -184,7 +191,7 @@ function openNote(id) {
     todoWrap.style.display='none';
     todoWrap.innerHTML = '';
   }
-  g('dp-chips').innerHTML = `<span class="chip" style="background:${lightC(sb.color)};color:${darkC(sb.color)}">${sb.label}</span>` + n.tags.map(t=>`<span class="chip">${t}</span>`).join('');
+  g('dp-chips').innerHTML = `<span class="chip" style="background:${lightC(sb.color)};color:${darkC(sb.color)}">${sb.label}</span>` + noteTags(n).map(t=>`<span class="chip">${t}</span>`).join('');
   renderLinksForNote(id);
   g('dp').classList.add('open'); ['fp','lp','tp'].forEach(p=>g(p).classList.remove('open'));
   setTimeout(()=>g('dp').scrollIntoView({behavior:'smooth',block:'nearest'}),60);
@@ -213,7 +220,7 @@ function openForm(isEdit) {
     const n = noteById(openId); if(!n) return;
     g('form-title').textContent='編輯筆記';
     g('ft').value=n.type; g('fs2').value=n.subject; g('fti').value=n.title; g('fbo').value=n.body;
-    g('fde').value=n.detail||''; g('fta').value=n.tags.join(', ');
+    g('fde').value=n.detail||''; g('fta').value=noteTags(n).join(', ');
     if(g('f-todos')) g('f-todos').value = formatTodosForEdit(n.todos);
     ['f-dispute','f-article','f-elements','f-conclusion'].forEach((id,i)=>{ const el=g(id); if(el) el.value=[n.dispute,n.f_article,n.f_elements,n.f_conclusion][i]||''; });
     toggleTemplate(n.type==='case'||(n.dispute||n.f_article));
@@ -728,7 +735,7 @@ function redrawLines(affectedId){
     els.p.setAttribute('d',c.d);
   });
 }
-function visibleNotes(){ const q=mapFilter.q.toLowerCase(), linkedIds={}; if(mapLinkedOnly) links.forEach(l=>{ linkedIds[l.from]=true; linkedIds[l.to]=true; }); return notes.filter(n=>(mapFilter.sub==='all'||n.subject===mapFilter.sub)&&(mapFilter.type==='all'||n.type===mapFilter.type)&&(!q||`${n.title}${n.subject}${n.tags.join('')}`.toLowerCase().includes(q))&&(!mapLinkedOnly||linkedIds[n.id])); }
+function visibleNotes(){ const q=mapFilter.q.toLowerCase(), linkedIds={}; if(mapLinkedOnly) links.forEach(l=>{ linkedIds[l.from]=true; linkedIds[l.to]=true; }); return notes.filter(n=>(mapFilter.sub==='all'||n.subject===mapFilter.sub)&&(mapFilter.type==='all'||n.type===mapFilter.type)&&(!q||`${n.title}${n.subject}${noteTags(n).join('')}`.toLowerCase().includes(q))&&(!mapLinkedOnly||linkedIds[n.id])); }
 function drawMap() {
   initNodePos(); const svg=g('mapSvg'), canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||500;
   svg.setAttribute('width',mapW); svg.setAttribute('height',mapH); const ll=g('linksLayer'), nl=g('nodesLayer'); ll.innerHTML=''; nl.innerHTML='';

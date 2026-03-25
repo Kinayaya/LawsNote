@@ -546,7 +546,7 @@ function showResult(r) {
 function closeExamView() { clearInterval(examTimer); g('examView').classList.remove('open'); g('notesView').style.display='block'; g('subbar').style.display='flex'; }
 
 // ==================== 體系圖 ====================
-function initNodePos() { const canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||500; const cx=mapW/2,cy=mapH/2,r=Math.min(mapW,mapH)*0.38; notes.forEach((n,i)=>{ if(!nodePos[n.id]){ const angle=(i/notes.length)*2*Math.PI; nodePos[n.id]={x:cx+r*Math.cos(angle),y:cy+r*Math.sin(angle)}; } }); }
+function initNodePos() { const canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||500; const cx=mapW/2,cy=mapH/2,r=Math.min(mapW,mapH)*0.44; notes.forEach((n,i)=>{ if(!nodePos[n.id]){ const angle=(i/notes.length)*2*Math.PI; nodePos[n.id]={x:cx+r*Math.cos(angle),y:cy+r*Math.sin(angle)}; } }); }
 function getNodeRadius(id){ return clampMapRadius(parseFloat(nodeSizes[id])||MAP_NODE_RADIUS_DEFAULT); }
 function clampNodeToCanvas(id){ const r=getNodeRadius(id)+6; nodePos[id].x=Math.max(r,Math.min(mapW-r,nodePos[id].x)); nodePos[id].y=Math.max(r,Math.min(mapH-r,nodePos[id].y)); }
 function segmentsCross(a,b,c,d){
@@ -555,7 +555,7 @@ function segmentsCross(a,b,c,d){
   return (d1*d2<0)&&(d3*d4<0);
 }
 function forceLayout() {
-  const canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||500;
+  const canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||600function clampNodeToCanvas(id){ const r=getNodeRadius(id)+2;;
   const layoutNotes=visibleNotes(), visIds={}; layoutNotes.forEach(n=>visIds[n.id]=true);
   const visLinks=visibleLinks(visIds), n2=layoutNotes.length;
   if(!n2) return;

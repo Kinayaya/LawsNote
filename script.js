@@ -522,24 +522,66 @@ function closeExamView() { clearInterval(examTimer); g('examView').classList.rem
 
 // ==================== 體系圖 ====================
 function initNodePos() { const canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||500; const cx=mapW/2,cy=mapH/2,r=Math.min(mapW,mapH)*0.38; notes.forEach((n,i)=>{ if(!nodePos[n.id]){ const angle=(i/notes.length)*2*Math.PI; nodePos[n.id]={x:cx+r*Math.cos(angle),y:cy+r*Math.sin(angle)}; } }); }
+function getNodeRadius(id){ const lc=links.filter(l=>l.from===id||l.to===id).length; return 20+Math.min(lc*3,12); }
+function clampNodeToCanvas(id){ const r=getNodeRadius(id)+6; nodePos[id].x=Math.max(r,Math.min(mapW-r,nodePos[id].x)); nodePos[id].y=Math.max(r,Math.min(mapH-r,nodePos[id].y)); }
+function segmentsCross(a,b,c,d){
+  const det=(p,q,r)=>(q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x);
+  const d1=det(a,b,c), d2=det(a,b,d), d3=det(c,d,a), d4=det(c,d,b);
+  return (d1*d2<0)&&(d3*d4<0);
+}
 function forceLayout() {
   const canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||500;
-  let layoutNotes=visibleNotes(); const n2=layoutNotes.length;
+  const layoutNotes=visibleNotes(), visIds={}; layoutNotes.forEach(n=>visIds[n.id]=true);
+  const visLinks=visibleLinks(visIds), n2=layoutNotes.length;
   if(!n2) return;
-  const NODE_R=38, LINK_IDEAL=NODE_R*5, LINK_MIN=NODE_R*2.2, linkedPairs={};
-  links.forEach(lk=>{ linkedPairs[lk.from+'_'+lk.to]=true; linkedPairs[lk.to+'_'+lk.from]=true; });
+  const NODE_R=38, LINK_IDEAL=NODE_R*4.4, linkedPairs={};
+  visLinks.forEach(lk=>{ linkedPairs[lk.from+'_'+lk.to]=true; linkedPairs[lk.to+'_'+lk.from]=true; });
   const isLinked=(a,b)=>!!linkedPairs[a+'_'+b];
   const cols=Math.ceil(Math.sqrt(n2*1.4)), cellW=Math.max(mapW/(cols+1),NODE_R*3), cellH=Math.max(mapH/(Math.ceil(n2/cols)+1),NODE_R*3);
   layoutNotes.forEach((n,i)=>{ const col=i%cols,row=Math.floor(i/cols); nodePos[n.id]={x:cellW*(col+1)+(Math.random()-0.5)*cellW*0.25,y:cellH*(row+1)+(Math.random()-0.5)*cellH*0.25}; });
-  for(let t=0;t<300;t++){ const cool=Math.pow(1-t/300,1.5), disp={}; layoutNotes.forEach(n=>disp[n.id]={x:0,y:0});
+  for(let t=0;t<340;t++){ const cool=Math.pow(1-t/340,1.35), disp={}; layoutNotes.forEach(n=>disp[n.id]={x:0,y:0});
     for(let i=0;i<n2;i++) for(let j=i+1;j<n2;j++){ const ai=layoutNotes[i].id,aj=layoutNotes[j].id, px=nodePos[ai],py=nodePos[aj], dx=px.x-py.x, dy=px.y-py.y, dist=Math.sqrt(dx*dx+dy*dy)||0.01, linked=isLinked(ai,aj);
-      let rep; if(linked) rep=(dist<LINK_MIN*1.5)?(LINK_MIN*LINK_MIN*6)/dist:0; else rep=(dist<NODE_R*1.2)?(NODE_R*NODE_R*0.8)/dist:0;
-      if(rep>0){ disp[ai].x+=dx/dist*rep; disp[ai].y+=dy/dist*rep; disp[aj].x-=dx/dist*rep; disp[aj].y-=dy/dist*rep; } }
-    links.forEach(lk=>{ const fp=nodePos[lk.from],tp=nodePos[lk.to]; if(!fp||!tp)return; const dx=tp.x-fp.x, dy=tp.y-fp.y, dist=Math.sqrt(dx*dx+dy*dy)||0.01; if(dist>LINK_IDEAL){ const att=(dist-LINK_IDEAL)*0.08; disp[lk.from].x+=dx/dist*att; disp[lk.from].y+=dy/dist*att; disp[lk.to].x-=dx/dist*att; disp[lk.to].y-=dy/dist*att; } });
-    const maxD=Math.max(mapW,mapH)*0.05*cool+2, pad=NODE_R+4;
-    layoutNotes.forEach(n=>{ const id=n.id,d=disp[id], len=Math.sqrt(d.x*d.x+d.y*d.y)||0.01, move=Math.min(len,maxD); nodePos[id].x=Math.max(pad,Math.min(mapW-pad,nodePos[id].x+d.x/len*move)); nodePos[id].y=Math.max(pad,Math.min(mapH-pad,nodePos[id].y+d.y/len*move)); });
+  const minDist=getNodeRadius(ai)+getNodeRadius(aj)+20;
+  let rep = ((NODE_R*NODE_R*1.2)/(dist*dist))*34;
+  if(linked) rep*=0.45;
+  if(dist<minDist) rep += ((minDist-dist)/Math.max(minDist,1))*52;
+  if(rep>0){ disp[ai].x+=dx/dist*rep; disp[ai].y+=dy/dist*rep; disp[aj].x-=dx/dist*rep; disp[aj].y-=dy/dist*rep; } }
+  visLinks.forEach(lk=>{ const fp=nodePos[lk.from],tp=nodePos[lk.to]; if(!fp||!tp)return; const dx=tp.x-fp.x, dy=tp.y-fp.y, dist=Math.sqrt(dx*dx+dy*dy)||0.01; const att=(dist-LINK_IDEAL)*0.06; disp[lk.from].x+=dx/dist*att; disp[lk.from].y+=dy/dist*att; disp[lk.to].x-=dx/dist*att; disp[lk.to].y-=dy/dist*att; });
+    const maxD=Math.max(mapW,mapH)*0.04*cool+1.8;
+    layoutNotes.forEach(n=>{ const id=n.id,d=disp[id], len=Math.sqrt(d.x*d.x+d.y*d.y)||0.01, move=Math.min(len,maxD); nodePos[id].x+=d.x/len*move; nodePos[id].y+=d.y/len*move; clampNodeToCanvas(id); });
   }
-  for(let pass=0;pass<30;pass++){ let moved=false; links.forEach(lk=>{ const fp=nodePos[lk.from],tp=nodePos[lk.to]; if(!fp||!tp)return; const dx=tp.x-fp.x, dy=tp.y-fp.y, dist=Math.sqrt(dx*dx+dy*dy)||0.01; if(dist<LINK_MIN){ const push=(LINK_MIN-dist)/2+1, nx=dx/dist, ny=dy/dist, pad=NODE_R+4; nodePos[lk.from].x=Math.max(pad,Math.min(mapW-pad,nodePos[lk.from].x-nx*push)); nodePos[lk.from].y=Math.max(pad,Math.min(mapH-pad,nodePos[lk.from].y-ny*push)); nodePos[lk.to].x=Math.max(pad,Math.min(mapW-pad,nodePos[lk.to].x+nx*push)); nodePos[lk.to].y=Math.max(pad,Math.min(mapH-pad,nodePos[lk.to].y+ny*push)); moved=true; } }); if(!moved)break; }
+  for(let pass=0;pass<50;pass++){
+    let moved=false;
+    for(let i=0;i<n2;i++) for(let j=i+1;j<n2;j++){
+      const ai=layoutNotes[i].id, aj=layoutNotes[j].id, fp=nodePos[ai], tp=nodePos[aj];
+      const dx=tp.x-fp.x, dy=tp.y-fp.y, dist=Math.sqrt(dx*dx+dy*dy)||0.01;
+      const need=getNodeRadius(ai)+getNodeRadius(aj)+16;
+      if(dist<need){
+        const push=(need-dist)/2+0.6, nx=dx/dist, ny=dy/dist;
+        nodePos[ai].x-=nx*push; nodePos[ai].y-=ny*push;
+        nodePos[aj].x+=nx*push; nodePos[aj].y+=ny*push;
+        clampNodeToCanvas(ai); clampNodeToCanvas(aj); moved=true;
+      }
+    }
+    if(!moved) break;
+  }
+  for(let pass=0;pass<28;pass++){
+    let changed=false;
+    for(let i=0;i<visLinks.length;i++) for(let j=i+1;j<visLinks.length;j++){
+      const a=visLinks[i], b=visLinks[j];
+      if(a.from===b.from||a.from===b.to||a.to===b.from||a.to===b.to) continue;
+      const a1=nodePos[a.from], a2=nodePos[a.to], b1=nodePos[b.from], b2=nodePos[b.to];
+      if(!a1||!a2||!b1||!b2||!segmentsCross(a1,a2,b1,b2)) continue;
+      const ax=(a2.x-a1.x), ay=(a2.y-a1.y), al=Math.sqrt(ax*ax+ay*ay)||1, apx=-ay/al, apy=ax/al;
+      const bx=(b2.x-b1.x), by=(b2.y-b1.y), bl=Math.sqrt(bx*bx+by*by)||1, bpx=-by/bl, bpy=bx/bl;
+      const push=4.4;
+      nodePos[a.from].x+=apx*push; nodePos[a.from].y+=apy*push; nodePos[a.to].x-=apx*push; nodePos[a.to].y-=apy*push;
+      nodePos[b.from].x-=bpx*push; nodePos[b.from].y-=bpy*push; nodePos[b.to].x+=bpx*push; nodePos[b.to].y+=bpy*push;
+      [a.from,a.to,b.from,b.to].forEach(clampNodeToCanvas);
+      changed=true;
+    }
+    if(!changed) break;
+  }
   saveData();
 }
 function getArrowMarker(color){ const map={'#378ADD':'arrowBlue','#1D9E75':'arrowGreen','#7F77DD':'arrowPurple','#D85A30':'arrowOrange'}; return `url(#${map[color]||'arrowGray'})`; }

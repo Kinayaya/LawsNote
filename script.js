@@ -555,7 +555,7 @@ function segmentsCross(a,b,c,d){
   return (d1*d2<0)&&(d3*d4<0);
 }
 function forceLayout() {
-  const canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||600
+  const canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||600;
   const layoutNotes=visibleNotes(), visIds={}; layoutNotes.forEach(n=>visIds[n.id]=true);
   const visLinks=visibleLinks(visIds), n2=layoutNotes.length;
   if(!n2) return;

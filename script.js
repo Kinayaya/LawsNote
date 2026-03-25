@@ -540,12 +540,16 @@ function forceLayout() {
   const cols=Math.ceil(Math.sqrt(n2*1.2)), cellW=Math.max(mapW/(cols+1),NODE_R*3.6), cellH=Math.max(mapH/(Math.ceil(n2/cols)+1),NODE_R*3.6);
   layoutNotes.forEach((n,i)=>{ const col=i%cols,row=Math.floor(i/cols); nodePos[n.id]={x:cellW*(col+1)+(Math.random()-0.5)*cellW*0.25,y:cellH*(row+1)+(Math.random()-0.5)*cellH*0.25}; });
   for(let t=0;t<420;t++){ const cool=Math.pow(1-t/420,1.35), disp={}; layoutNotes.forEach(n=>disp[n.id]={x:0,y:0});
-    for(let i=0;i<n2;i++) for(let j=i+1;j<n2;j++){ const ai=layoutNotes[i].id,aj=layoutNotes[j].id, px=nodePos[ai],py=nodePos[aj], dx=px.x-py.x, dy=px.y-py.y, dist=Math.sqrt(dx*dx+dy*dy)||0.01, linked=isLinked(ai,aj);
-  const minDist=getNodeRadius(ai)+getNodeRadius(aj)+34;
-  let rep = ((NODE_R*NODE_R*1.26)/(dist*dist))*40;
-  if(linked) rep*=0.45;
-  if(dist<minDist) rep += ((minDist-dist)/Math.max(minDist,1))*70;
-  if(rep>0){ disp[ai].x+=dx/dist*rep; disp[ai].y+=dy/dist*rep; disp[aj].x-=dx/dist*rep; disp[aj].y-=dy/dist*rep; } }
+   for(let i=0;i<n2;i++) for(let j=i+1;j<n2;j++){
+      const ai=layoutNotes[i].id,aj=layoutNotes[j].id, px=nodePos[ai],py=nodePos[aj];
+      let dx=px.x-py.x, dy=px.y-py.y, dist=Math.sqrt(dx*dx+dy*dy), linked=isLinked(ai,aj);
+      if(dist<0.001){ const ang=Math.random()*Math.PI*2; dx=Math.cos(ang); dy=Math.sin(ang); dist=1; }
+      const minDist=getNodeRadius(ai)+getNodeRadius(aj)+34;
+      let rep=((NODE_R*NODE_R*1.26)/(dist*dist))*40;
+      if(linked) rep*=0.45;
+      if(dist<minDist) rep += ((minDist-dist)/Math.max(minDist,1))*70;
+      if(rep>0){ disp[ai].x+=dx/dist*rep; disp[ai].y+=dy/dist*rep; disp[aj].x-=dx/dist*rep; disp[aj].y-=dy/dist*rep; }
+    }
   visLinks.forEach(lk=>{ const fp=nodePos[lk.from],tp=nodePos[lk.to]; if(!fp||!tp)return; const dx=tp.x-fp.x, dy=tp.y-fp.y, dist=Math.sqrt(dx*dx+dy*dy)||0.01; const att=(dist-LINK_IDEAL)*0.06; disp[lk.from].x+=dx/dist*att; disp[lk.from].y+=dy/dist*att; disp[lk.to].x-=dx/dist*att; disp[lk.to].y-=dy/dist*att; });
     const maxD=Math.max(mapW,mapH)*0.035*cool+1.4;
     layoutNotes.forEach(n=>{ const id=n.id,d=disp[id], len=Math.sqrt(d.x*d.x+d.y*d.y)||0.01, move=Math.min(len,maxD); nodePos[id].x+=d.x/len*move; nodePos[id].y+=d.y/len*move; clampNodeToCanvas(id); });
@@ -554,7 +558,8 @@ function forceLayout() {
     let moved=false;
     for(let i=0;i<n2;i++) for(let j=i+1;j<n2;j++){
       const ai=layoutNotes[i].id, aj=layoutNotes[j].id, fp=nodePos[ai], tp=nodePos[aj];
-      const dx=tp.x-fp.x, dy=tp.y-fp.y, dist=Math.sqrt(dx*dx+dy*dy)||0.01;
+      let dx=tp.x-fp.x, dy=tp.y-fp.y, dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<0.001){ const ang=Math.random()*Math.PI*2; dx=Math.cos(ang); dy=Math.sin(ang); dist=1; }
       const need=getNodeRadius(ai)+getNodeRadius(aj)+26;
       if(dist<need){
         const push=(need-dist)/2+0.8, nx=dx/dist, ny=dy/dist;
@@ -613,8 +618,7 @@ function calcLinkPath(lk){
   const orient = laneOffset===0 ? (lk.from<lk.to?1:-1) : Math.sign(laneOffset);
   const curve = orient*(baseCurve+Math.abs(laneOffset));
   const mx=(x1+x2)/2 + (-ny)*curve, my=(y1+y2)/2 + nx*curve;
-  const labelCurve=curve*0.58;
-  return {d:`M${x1},${y1} Q${mx},${my} ${x2},${y2}`,lmx:(x1+x2)/2 + (-ny)*labelCurve,lmy:(y1+y2)/2 + nx*labelCurve};
+  return {d:`M${x1},${y1} Q${mx},${my} ${x2},${y2}`};
 }
 function redrawLines(affectedId){
   const visIds={}; visibleNotes().forEach(n=>visIds[n.id]=true);

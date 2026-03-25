@@ -46,7 +46,7 @@ let notes=[], links=[], nid=10, lid=10, types=[], subjects=[];
 let cv='all', cs='all', searchQ='', openId=null, editMode=false, selectedRel='';
 let nodePos={}, dragNode=null, dragOffX=0, dragOffY=0, mapW=800, mapH=500;
 let mapScale=1, mapOffX=0, mapOffY=0, mapFilter={sub:"all",type:"all",q:""}, mapLinkedOnly=true;
-let nodeEls={}, linkElsMap={}, nodeLinksIndex={}, isMapOpen=false;
+let nodeEls={}, linkElsMap={}, nodeLinksIndex={}, linkCurveOffsets={}, isMapOpen=false;
 let gridPage=1, sortMode='date_desc', multiSelMode=false, selectedIds={};
 let flashDeck=[], flashIdx=0, flashShowing=false, flashSubFilter='all', flashTypeFilter2='all', flashHard=[];
 let examList=[], examTimer=null, examSec=0, examTotal=0, currentExam=null;
@@ -544,8 +544,49 @@ function forceLayout() {
 }
 function getArrowMarker(color){ const map={'#378ADD':'arrowBlue','#1D9E75':'arrowGreen','#7F77DD':'arrowPurple','#D85A30':'arrowOrange'}; return `url(#${map[color]||'arrowGray'})`; }
 function moveNodeEl(id,x,y){ const grp=nodeEls[id]; if(!grp)return; const circles=grp.querySelectorAll('circle'), texts=grp.querySelectorAll('text'); if(circles[0]){circles[0].setAttribute('cx',x);circles[0].setAttribute('cy',y);} const r=parseFloat(circles[0]?circles[0].getAttribute('r'):24)||24; if(circles[1]){circles[1].setAttribute('cx',x+r-4);circles[1].setAttribute('cy',y-r+4);} if(texts[1]){texts[0].setAttribute('x',x+r-4);texts[0].setAttribute('y',y-r+4);texts[1].setAttribute('x',x);texts[1].setAttribute('y',y+r+12);} else if(texts[0]){texts[0].setAttribute('x',x);texts[0].setAttribute('y',y+r+12);} }
-function calcLinkPath(lk){ const fp=nodePos[lk.from],tp=nodePos[lk.to]; if(!fp||!tp)return null; const dx=tp.x-fp.x,dy=tp.y-fp.y,dist=Math.sqrt(dx*dx+dy*dy)||1, nx=dx/dist,ny=dy/dist,nr=22, x1=fp.x+nx*nr,y1=fp.y+ny*nr,x2=tp.x-nx*(nr+8),y2=tp.y-ny*(nr+8), mx=(x1+x2)/2,my=(y1+y2)/2-14; return{d:`M${x1},${y1} Q${mx},${my} ${x2},${y2}`,lmx:(x1+x2)/2,lmy:(y1+y2)/2-18}; }
-function redrawLines(affectedId){ const toUpdate=affectedId!==undefined?(nodeLinksIndex[affectedId]||[]).map(i=>links[i]):links; toUpdate.forEach(lk=>{ const els=linkElsMap[lk.id]; if(!els||!els.p)return; const c=calcLinkPath(lk); if(!c)return; els.p.setAttribute('d',c.d); if(els.r){els.r.setAttribute('x',c.lmx-18);els.r.setAttribute('y',c.lmy-9);} if(els.t){els.t.setAttribute('x',c.lmx);els.t.setAttribute('y',c.lmy+1);} }); }
+function visibleLinks(visIds){ return links.filter(lk=>visIds[lk.from]&&visIds[lk.to]); }
+function buildLinkCurveOffsets(visLinks){
+  const groups={}, spacing=12;
+  const laneOrder=idx=>idx===0?0:(idx%2===1?(idx+1)/2:-(idx/2));
+  visLinks.forEach(lk=>{
+    const fp=nodePos[lk.from], tp=nodePos[lk.to]; if(!fp||!tp)return;
+    const dx=tp.x-fp.x, dy=tp.y-fp.y, ang=Math.atan2(dy,dx), mx=(fp.x+tp.x)/2, my=(fp.y+tp.y)/2;
+    const key=`${Math.round(mx/84)}_${Math.round(my/84)}_${Math.round((ang+Math.PI)/(Math.PI/8))}`;
+    if(!groups[key]) groups[key]=[];
+    groups[key].push(lk);
+  });
+  const offsets={};
+  Object.values(groups).forEach(arr=>{
+    arr.sort((a,b)=>a.id-b.id);
+    arr.forEach((lk,idx)=>{ offsets[lk.id]=laneOrder(idx)*spacing; });
+  });
+  return offsets;
+}
+function calcLinkPath(lk){
+  const fp=nodePos[lk.from],tp=nodePos[lk.to]; if(!fp||!tp)return null;
+  const dx=tp.x-fp.x,dy=tp.y-fp.y,dist=Math.sqrt(dx*dx+dy*dy)||1, nx=dx/dist,ny=dy/dist,nr=24;
+  const x1=fp.x+nx*nr,y1=fp.y+ny*nr,x2=tp.x-nx*(nr+8),y2=tp.y-ny*(nr+8);
+  const baseCurve=Math.max(16,Math.min(48,dist*0.14));
+  const laneOffset=linkCurveOffsets[lk.id]||0;
+  const orient = laneOffset===0 ? (lk.from<lk.to?1:-1) : Math.sign(laneOffset);
+  const curve = orient*(baseCurve+Math.abs(laneOffset));
+  const mx=(x1+x2)/2 + (-ny)*curve, my=(y1+y2)/2 + nx*curve;
+  const labelCurve=curve*0.58;
+  return {d:`M${x1},${y1} Q${mx},${my} ${x2},${y2}`,lmx:(x1+x2)/2 + (-ny)*labelCurve,lmy:(y1+y2)/2 + nx*labelCurve};
+}
+function redrawLines(affectedId){
+  const visIds={}; visibleNotes().forEach(n=>visIds[n.id]=true);
+  linkCurveOffsets=buildLinkCurveOffsets(visibleLinks(visIds));
+  const toUpdate=affectedId!==undefined?(nodeLinksIndex[affectedId]||[]):Object.keys(linkElsMap).map(Number);
+  toUpdate.forEach(linkId=>{
+    const els=linkElsMap[linkId], lk=links.find(x=>x.id===linkId);
+    if(!els||!els.p||!lk)return;
+    const c=calcLinkPath(lk); if(!c)return;
+    els.p.setAttribute('d',c.d);
+    if(els.r){els.r.setAttribute('x',c.lmx-18);els.r.setAttribute('y',c.lmy-9);}
+    if(els.t){els.t.setAttribute('x',c.lmx);els.t.setAttribute('y',c.lmy+1);}
+  });
+}
 function visibleNotes(){ const q=mapFilter.q.toLowerCase(), linkedIds={}; if(mapLinkedOnly) links.forEach(l=>{ linkedIds[l.from]=true; linkedIds[l.to]=true; }); return notes.filter(n=>(mapFilter.sub==='all'||n.subject===mapFilter.sub)&&(mapFilter.type==='all'||n.type===mapFilter.type)&&(!q||`${n.title}${n.subject}${n.tags.join('')}`.toLowerCase().includes(q))&&(!mapLinkedOnly||linkedIds[n.id])); }
 function drawMap() {
   initNodePos(); const svg=g('mapSvg'), canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||500;
@@ -553,10 +594,18 @@ function drawMap() {
   let gw=svg.querySelector('#mapWrap'); if(!gw){ gw=document.createElementNS('http://www.w3.org/2000/svg','g'); gw.setAttribute('id','mapWrap'); svg.insertBefore(gw,svg.firstChild); gw.appendChild(ll); gw.appendChild(nl); }
   gw.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`);
   const vis=visibleNotes(), visIds={}; vis.forEach(v=>visIds[v.id]=true);
-  links.forEach(lk=>{ if(!visIds[lk.from]||!visIds[lk.to])return; const fp=nodePos[lk.from],tp=nodePos[lk.to]; if(!fp||!tp)return; const dx=tp.x-fp.x,dy=tp.y-fp.y,dist=Math.sqrt(dx*dx+dy*dy)||1, nx=dx/dist,ny=dy/dist,nr=24, x1=fp.x+nx*nr,y1=fp.y+ny*nr,x2=tp.x-nx*(nr+8),y2=tp.y-ny*(nr+8), mx=(x1+x2)/2,my=(y1+y2)/2-16;
-    const line=document.createElementNS('http://www.w3.org/2000/svg','path'); line.setAttribute('d',`M${x1},${y1} Q${mx},${my} ${x2},${y2}`); line.setAttribute('stroke',lk.color); line.setAttribute('stroke-width','2'); line.setAttribute('fill','none'); line.setAttribute('marker-end',getArrowMarker(lk.color)); ll.appendChild(line);
-    const rct=document.createElementNS('http://www.w3.org/2000/svg','rect'); rct.setAttribute('x',(x1+x2)/2-18); rct.setAttribute('y',(y1+y2)/2-20-9); rct.setAttribute('width','36'); rct.setAttribute('height','16'); rct.setAttribute('rx','8'); rct.setAttribute('fill',lk.color); ll.appendChild(rct);
-    const lt=document.createElementNS('http://www.w3.org/2000/svg','text'); lt.setAttribute('x',(x1+x2)/2); lt.setAttribute('y',(y1+y2)/2-20); lt.setAttribute('text-anchor','middle'); lt.setAttribute('dominant-baseline','middle'); lt.setAttribute('font-size','9'); lt.setAttribute('fill','#fff'); lt.setAttribute('font-weight','600'); lt.textContent=lk.rel; ll.appendChild(lt);
+  const visLinks=visibleLinks(visIds); linkCurveOffsets=buildLinkCurveOffsets(visLinks);
+  linkElsMap={}; nodeLinksIndex={};
+  visLinks.forEach(lk=>{
+    const c=calcLinkPath(lk); if(!c)return;
+    const line=document.createElementNS('http://www.w3.org/2000/svg','path'); line.setAttribute('d',c.d); line.setAttribute('stroke',lk.color); line.setAttribute('stroke-width','2'); line.setAttribute('fill','none'); line.setAttribute('marker-end',getArrowMarker(lk.color)); ll.appendChild(line);
+    const rct=document.createElementNS('http://www.w3.org/2000/svg','rect'); rct.setAttribute('x',c.lmx-18); rct.setAttribute('y',c.lmy-9); rct.setAttribute('width','36'); rct.setAttribute('height','16'); rct.setAttribute('rx','8'); rct.setAttribute('fill',lk.color); ll.appendChild(rct);
+    const lt=document.createElementNS('http://www.w3.org/2000/svg','text'); lt.setAttribute('x',c.lmx); lt.setAttribute('y',c.lmy+1); lt.setAttribute('text-anchor','middle'); lt.setAttribute('dominant-baseline','middle'); lt.setAttribute('font-size','9'); lt.setAttribute('fill','#fff'); lt.setAttribute('font-weight','600'); lt.textContent=lk.rel; ll.appendChild(lt);
+    linkElsMap[lk.id]={p:line,r:rct,t:lt};
+    if(!nodeLinksIndex[lk.from]) nodeLinksIndex[lk.from]=[];
+    if(!nodeLinksIndex[lk.to]) nodeLinksIndex[lk.to]=[];
+    nodeLinksIndex[lk.from].push(lk.id);
+    nodeLinksIndex[lk.to].push(lk.id);
   });
   notes.forEach(n=>{ if(!visIds[n.id])return; const pos=nodePos[n.id]; if(!pos)return; const tp=typeByKey(n.type), lc=links.filter(l=>l.from===n.id||l.to===n.id).length, radius=20+Math.min(lc*3,12);
     const grp=document.createElementNS('http://www.w3.org/2000/svg','g'); grp.setAttribute('class','map-node'); grp.setAttribute('data-id',n.id);
@@ -566,9 +615,7 @@ function drawMap() {
     grp.addEventListener('click',()=>showMapInfo(n.id)); grp.addEventListener('mousedown',e=>startDrag(e,n.id)); grp.addEventListener('touchstart',e=>startDragTouch(e,n.id),{passive:true}); nl.appendChild(grp);
   });
   nodeEls={}; nl.querySelectorAll('.map-node').forEach(ng=>{ nodeEls[parseInt(ng.dataset.id)]=ng; });
-  linkElsMap={}; const ap=ll.querySelectorAll('path'), ar=ll.querySelectorAll('rect'), at=ll.querySelectorAll('text'); links.forEach((lk,i)=>{ linkElsMap[lk.id]={p:ap[i],r:ar[i],t:at[i]}; });
-  nodeLinksIndex={}; links.forEach((lk,i)=>{ if(!nodeLinksIndex[lk.from])nodeLinksIndex[lk.from]=[]; if(!nodeLinksIndex[lk.to])nodeLinksIndex[lk.to]=[]; nodeLinksIndex[lk.from].push(i); nodeLinksIndex[lk.to].push(i); });
-}
+ }
 function showMapInfo(id){ const n=noteById(id); if(!n)return; const tp=typeByKey(n.type), sb=subByKey(n.subject), related=links.filter(l=>l.from===id||l.to===id);
   g('mpBadge').textContent=tp.label; g('mpBadge').style.background=tp.color; g('mpTitle').textContent=n.title; g('mpSubject').textContent=sb.label; g('mpSubject').style.background=sb.color+'22'; g('mpSubject').style.color=sb.color;
   const linksEl=g('mpLinks'); if(!related.length){ linksEl.innerHTML='<span class="mp-no-links">尚無關聯</span>'; } else { linksEl.innerHTML=related.map(l=>{ const otherId=l.from===id?l.to:l.from, other=noteById(otherId), dir=l.from===id?'→':'←', name=other?other.title:'（已刪除）'; return `<div class="mp-link-row"><span class="mp-link-badge" style="background:${l.color}">${dir} ${l.rel}</span><span class="mp-link-name" data-nid="${otherId}">${name.slice(0,18)}${name.length>18?'..':''}</span></div>`; }).join(''); linksEl.querySelectorAll('.mp-link-name').forEach(el=>{ el.addEventListener('click',()=>{ closeMapPopup(); const tid=parseInt(el.dataset.nid); showMapInfo(tid); highlightNode(tid); }); }); }

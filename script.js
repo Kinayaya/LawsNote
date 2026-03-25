@@ -45,6 +45,7 @@ const DEFAULT_SHORTCUTS = [
 let notes=[], links=[], nid=10, lid=10, types=[], subjects=[];
 let cv='all', cs='all', searchQ='', openId=null, editMode=false, selectedRel='';
 let nodePos={}, dragNode=null, dragOffX=0, dragOffY=0, mapW=800, mapH=500;
+let nodeSizes={};
 let mapScale=1, mapOffX=0, mapOffY=0, mapFilter={sub:"all",type:"all",q:""}, mapLinkedOnly=true;
 let nodeEls={}, linkElsMap={}, nodeLinksIndex={}, linkCurveOffsets={}, isMapOpen=false;
 let gridPage=1, sortMode='date_desc', multiSelMode=false, selectedIds={};
@@ -76,6 +77,8 @@ const getAiKey = () => localStorage.getItem('klaws_ai_key') || '';
 const saveAiKey = k => localStorage.setItem('klaws_ai_key', k);
 const getAiModel = () => localStorage.getItem('klaws_ai_model') || 'openrouter/free';
 const saveAiModel = m => localStorage.setItem('klaws_ai_model', m);
+const MAP_NODE_RADIUS_MIN = 18, MAP_NODE_RADIUS_MAX = 42, MAP_NODE_RADIUS_DEFAULT = 26;
+const clampMapRadius = r => Math.max(MAP_NODE_RADIUS_MIN, Math.min(MAP_NODE_RADIUS_MAX, r));
 
 // ==================== 資料儲存 ====================
 function loadData() {
@@ -91,6 +94,7 @@ function loadData() {
       if(!types.some(t=>t.key==='diary')) types.push({key:'diary',label:'日記',color:'#D85A30'});
       subjects = d.subjects || DEFAULTS.subjects.slice();
       nodePos = d.nodePos || {};
+      nodeSizes = d.nodeSizes || {};
       if(d.sortMode) sortMode = d.sortMode;
       let repaired = false;
       types.forEach(t=>{ if(/^tag_t_/.test(t.key)) { let old=t.key; t.key=t.label; notes.forEach(n=>{if(n.type===old)n.type=t.label;}); repaired=true; } });
@@ -99,14 +103,16 @@ function loadData() {
     } else {
       notes = DEFAULTS.notes.slice(); links = DEFAULTS.links.slice();
       types = DEFAULTS.types.slice(); subjects = DEFAULTS.subjects.slice();
+      nodeSizes = {};
       saveData();
     }
   } catch(e) {
     notes = DEFAULTS.notes.slice(); links = DEFAULTS.links.slice();
     types = DEFAULTS.types.slice(); subjects = DEFAULTS.subjects.slice();
+    nodeSizes = {};
   }
 }
-function saveData() { try { localStorage.setItem(SKEY, JSON.stringify({notes,links,nid,lid,types,subjects,nodePos,sortMode})); } catch(e) {} }
+function saveData() { try { localStorage.setItem(SKEY, JSON.stringify({notes,links,nid,lid,types,subjects,nodePos,nodeSizes,sortMode})); } catch(e) {} }
 
 // ==================== UI 建構 ====================
 function buildTypeRow() {
@@ -336,7 +342,7 @@ function addTag(kind) {
 
 // ==================== 匯入/匯出 ====================
 function exportData() {
-  const json = JSON.stringify({notes,links,nid,lid,types,subjects,exported:new Date().toISOString()},null,2);
+  const json = JSON.stringify({notes,links,nid,lid,types,subjects,nodeSizes,exported:new Date().toISOString()},null,2);
   const blob = new Blob([json],{type:'application/json'});
   const url = URL.createObjectURL(blob); const a = document.createElement('a');
   const d = new Date();
@@ -351,6 +357,7 @@ function importData(file) {
       d.notes.forEach(n=>{ if(!n.dispute) n.dispute=''; if(!n.f_article) n.f_article=''; if(!n.f_elements) n.f_elements=''; if(!n.f_conclusion) n.f_conclusion=''; if(!n.tags) n.tags=[]; if(!n.detail) n.detail=''; if(!Array.isArray(n.todos)) n.todos=[]; });
       if(confirm('確定 = 完整覆蓋（取代所有現有筆記）\n取消 = 合併（只加入新筆記）')) {
         notes = d.notes; links = d.links||[]; types = d.types||DEFAULTS.types.slice(); subjects = d.subjects||DEFAULTS.subjects.slice();
+        nodeSizes = d.nodeSizes||{};
         nid = d.nid||notes.length+100; lid = d.lid||10; notes.sort((a,b)=>b.id-a.id);
         saveData(); rebuildUI(); render(); showToast(`已覆蓋，共 ${notes.length} 筆筆記`);
       } else {
@@ -359,6 +366,7 @@ function importData(file) {
         if(d.links) links = d.links;
         if(d.types) types = d.types;
         if(d.subjects) subjects = d.subjects;
+        if(d.nodeSizes) nodeSizes = {...nodeSizes, ...d.nodeSizes};
         notes.sort((a,b)=>b.id-a.id);
         saveData(); rebuildUI(); render(); showToast(`已合併，新增 ${added} 筆`);
       }
@@ -526,7 +534,7 @@ function closeExamView() { clearInterval(examTimer); g('examView').classList.rem
 
 // ==================== 體系圖 ====================
 function initNodePos() { const canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||500; const cx=mapW/2,cy=mapH/2,r=Math.min(mapW,mapH)*0.38; notes.forEach((n,i)=>{ if(!nodePos[n.id]){ const angle=(i/notes.length)*2*Math.PI; nodePos[n.id]={x:cx+r*Math.cos(angle),y:cy+r*Math.sin(angle)}; } }); }
-function getNodeRadius(id){ const lc=links.filter(l=>l.from===id||l.to===id).length; return 20+Math.min(lc*3,12); }
+function getNodeRadius(id){ return clampMapRadius(parseFloat(nodeSizes[id])||MAP_NODE_RADIUS_DEFAULT); }
 function clampNodeToCanvas(id){ const r=getNodeRadius(id)+6; nodePos[id].x=Math.max(r,Math.min(mapW-r,nodePos[id].x)); nodePos[id].y=Math.max(r,Math.min(mapH-r,nodePos[id].y)); }
 function segmentsCross(a,b,c,d){
   const det=(p,q,r)=>(q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x);
@@ -598,6 +606,34 @@ function forceLayout() {
     }
     if(!changed) break;
   }
+  const countCrossings=()=>{
+    let c=0;
+    for(let i=0;i<visLinks.length;i++) for(let j=i+1;j<visLinks.length;j++){
+      const a=visLinks[i], b=visLinks[j];
+      if(a.from===b.from||a.from===b.to||a.to===b.from||a.to===b.to) continue;
+      const a1=nodePos[a.from], a2=nodePos[a.to], b1=nodePos[b.from], b2=nodePos[b.to];
+      if(a1&&a2&&b1&&b2&&segmentsCross(a1,a2,b1,b2)) c++;
+    }
+    return c;
+  };
+  const layoutScore=()=>{
+    let overlapPenalty=0;
+    for(let i=0;i<n2;i++) for(let j=i+1;j<n2;j++){
+      const ai=layoutNotes[i].id, aj=layoutNotes[j].id, a=nodePos[ai], b=nodePos[aj];
+      const need=getNodeRadius(ai)+getNodeRadius(aj)+14, d=Math.hypot(a.x-b.x,a.y-b.y);
+      if(d<need) overlapPenalty += (need-d);
+    }
+    return countCrossings()*180 + overlapPenalty*8;
+  };
+  for(let pass=0;pass<220;pass++){
+    const a=layoutNotes[Math.floor(Math.random()*n2)], b=layoutNotes[Math.floor(Math.random()*n2)];
+    if(!a||!b||a.id===b.id) continue;
+    const aPos={...nodePos[a.id]}, bPos={...nodePos[b.id]}, before=layoutScore();
+    nodePos[a.id]=bPos; nodePos[b.id]=aPos;
+    clampNodeToCanvas(a.id); clampNodeToCanvas(b.id);
+    const after=layoutScore();
+    if(after>before){ nodePos[a.id]=aPos; nodePos[b.id]=bPos; }
+  }
   saveData();
 }
 function pointToSegmentDistance(px,py,x1,y1,x2,y2){
@@ -658,8 +694,9 @@ function buildLinkCurveOffsets(visLinks){
 }
 function calcLinkPath(lk){
   const fp=nodePos[lk.from],tp=nodePos[lk.to]; if(!fp||!tp)return null;
-  const dx=tp.x-fp.x,dy=tp.y-fp.y,dist=Math.sqrt(dx*dx+dy*dy)||1, nx=dx/dist,ny=dy/dist,nr=24;
-  const x1=fp.x+nx*nr,y1=fp.y+ny*nr,x2=tp.x-nx*(nr+8),y2=tp.y-ny*(nr+8);
+  const dx=tp.x-fp.x,dy=tp.y-fp.y,dist=Math.sqrt(dx*dx+dy*dy)||1, nx=dx/dist,ny=dy/dist;
+  const rf=getNodeRadius(lk.from), rt=getNodeRadius(lk.to);
+  const x1=fp.x+nx*rf,y1=fp.y+ny*rf,x2=tp.x-nx*(rt+8),y2=tp.y-ny*(rt+8);
   const baseCurve=Math.max(16,Math.min(48,dist*0.14));
   const laneOffset=linkCurveOffsets[lk.id]||0;
   const orient = laneOffset===0 ? (lk.from<lk.to?1:-1) : Math.sign(laneOffset);
@@ -696,10 +733,10 @@ function drawMap() {
     nodeLinksIndex[lk.from].push(lk.id);
     nodeLinksIndex[lk.to].push(lk.id);
   });
-  notes.forEach(n=>{ if(!visIds[n.id])return; const pos=nodePos[n.id]; if(!pos)return; const tp=typeByKey(n.type), lc=links.filter(l=>l.from===n.id||l.to===n.id).length, radius=20+Math.min(lc*3,12);
+  notes.forEach(n=>{ if(!visIds[n.id])return; const pos=nodePos[n.id]; if(!pos)return; const tp=typeByKey(n.type), lc=links.filter(l=>l.from===n.id||l.to===n.id).length, radius=getNodeRadius(n.id);
     const grp=document.createElementNS('http://www.w3.org/2000/svg','g'); grp.setAttribute('class','map-node'); grp.setAttribute('data-id',n.id);
     const circ=document.createElementNS('http://www.w3.org/2000/svg','circle'); circ.setAttribute('class','node-main'); circ.setAttribute('cx',pos.x); circ.setAttribute('cy',pos.y); circ.setAttribute('r',radius); circ.setAttribute('fill',tp.color); circ.setAttribute('stroke','#fff'); circ.setAttribute('stroke-width','2'); grp.appendChild(circ);
-    if(lc>0){ const bt=document.createElementNS('http://www.w3.org/2000/svg','text'); bt.setAttribute('class','node-count'); bt.setAttribute('x',pos.x); bt.setAttribute('y',pos.y); bt.setAttribute('text-anchor','middle'); bt.setAttribute('dominant-baseline','middle'); bt.setAttribute('font-size',String(Math.max(9,Math.min(12,radius*0.45)))); bt.setAttribute('fill','#fff'); bt.setAttribute('font-weight','800'); bt.textContent=lc; grp.appendChild(bt); }
+    if(lc>0){ const bt=document.createElementNS('http://www.w3.org/2000/svg','text'); bt.setAttribute('class','node-count'); bt.setAttribute('x',pos.x); bt.setAttribute('y',pos.y); bt.setAttribute('text-anchor','middle'); bt.setAttribute('dominant-baseline','middle'); bt.setAttribute('font-size',String(Math.max(9,Math.min(13,radius*0.45)))); bt.setAttribute('fill','#fff'); bt.setAttribute('font-weight','800'); bt.textContent=lc; grp.appendChild(bt); }
     const short=n.title.length>9?n.title.slice(0,9)+'..':n.title, txt=document.createElementNS('http://www.w3.org/2000/svg','text'); txt.setAttribute('class','node-title'); txt.setAttribute('x',pos.x); txt.setAttribute('y',pos.y+radius+12); txt.setAttribute('text-anchor','middle'); txt.setAttribute('font-size','10'); txt.setAttribute('fill','#444'); txt.textContent=short; grp.appendChild(txt);
     grp.addEventListener('click',()=>showMapInfo(n.id)); grp.addEventListener('mousedown',e=>startDrag(e,n.id)); grp.addEventListener('touchstart',e=>startDragTouch(e,n.id),{passive:true}); nl.appendChild(grp);
   });
@@ -707,6 +744,23 @@ function drawMap() {
  }
 function showMapInfo(id){ const n=noteById(id); if(!n)return; const tp=typeByKey(n.type), sb=subByKey(n.subject), related=links.filter(l=>l.from===id||l.to===id);
   g('mpBadge').textContent=tp.label; g('mpBadge').style.background=tp.color; g('mpTitle').textContent=n.title; g('mpSubject').textContent=sb.label; g('mpSubject').style.background=sb.color+'22'; g('mpSubject').style.color=sb.color;
+   const sizeRange=g('mpNodeSizeRange'), sizeValue=g('mpNodeSizeValue');
+  if(sizeRange&&sizeValue){
+    const radius=getNodeRadius(id);
+    sizeRange.min=String(MAP_NODE_RADIUS_MIN); sizeRange.max=String(MAP_NODE_RADIUS_MAX); sizeRange.value=String(radius);
+    sizeValue.textContent=String(Math.round(radius));
+    sizeRange.oninput=()=>{ sizeValue.textContent=sizeRange.value; };
+    sizeRange.onchange=()=>{
+      nodeSizes[id]=clampMapRadius(parseInt(sizeRange.value,10)||MAP_NODE_RADIUS_DEFAULT);
+      clampNodeToCanvas(id); moveNodeEl(id,nodePos[id].x,nodePos[id].y); redrawLines(id); saveDataDeferred();
+    };
+    g('mpNodeSizeReset').onclick=()=>{
+      delete nodeSizes[id];
+      const nr=getNodeRadius(id);
+      sizeRange.value=String(nr); sizeValue.textContent=String(Math.round(nr));
+      clampNodeToCanvas(id); moveNodeEl(id,nodePos[id].x,nodePos[id].y); redrawLines(id); saveDataDeferred();
+    };
+  }                       
   const linksEl=g('mpLinks'); if(!related.length){ linksEl.innerHTML='<span class="mp-no-links">尚無關聯</span>'; } else { linksEl.innerHTML=related.map(l=>{ const otherId=l.from===id?l.to:l.from, other=noteById(otherId), dir=l.from===id?'→':'←', name=other?other.title:'（已刪除）'; return `<div class="mp-link-row"><span class="mp-link-badge" style="background:${l.color}">${dir} ${l.rel}</span><span class="mp-link-name" data-nid="${otherId}">${name.slice(0,18)}${name.length>18?'..':''}</span></div>`; }).join(''); linksEl.querySelectorAll('.mp-link-name').forEach(el=>{ el.addEventListener('click',()=>{ closeMapPopup(); const tid=parseInt(el.dataset.nid); showMapInfo(tid); highlightNode(tid); }); }); }
   const canvas=g('mapCanvas'), cw=canvas.offsetWidth||800, ch=canvas.offsetHeight||500, pos=nodePos[id], sx=pos.x*mapScale+mapOffX, sy=pos.y*mapScale+mapOffY, popup=g('mapPopup'); popup.classList.add('open'); const pw=popup.offsetWidth||240, ph=popup.offsetHeight||160; let px=sx+30, py=sy-ph/2; if(px+pw>cw-10) px=sx-pw-30; if(px<10) px=10; if(py<10) py=10; if(py+ph>ch-10) py=ch-ph-10; popup.style.left=px+'px'; popup.style.top=py+'px'; g('mpGoto').onclick=()=>{ closeMapPopup(); isMapOpen=false; g('notesView').style.display='block'; g('mapView').classList.remove('open'); g('subbar').style.display='flex'; setTimeout(()=>openNote(id),80); }; }
 function closeMapPopup(){ g('mapPopup').classList.remove('open'); }
@@ -767,7 +821,8 @@ window.addEventListener('load',()=>{
 const onDragMove=(x,y)=>{
     const rect=canvas.getBoundingClientRect();
     let cx=(x-rect.left-dragOffX-mapOffX)/mapScale, cy=(y-rect.top-dragOffY-mapOffY)/mapScale;
-    cx=Math.max(22,Math.min(mapW-22,cx)); cy=Math.max(22,Math.min(mapH-22,cy));
+    const r=getNodeRadius(dragNode)+6;
+    cx=Math.max(r,Math.min(mapW-r,cx)); cy=Math.max(r,Math.min(mapH-r,cy));
     nodePos[dragNode]={x:cx,y:cy};
     const visIds={}; visibleNotes().forEach(n=>visIds[n.id]=true);
     pushNodeOffLinks(dragNode, visibleLinks(visIds), 10);

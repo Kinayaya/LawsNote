@@ -117,6 +117,9 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 .link-del{padding:3px 8px;border-radius:6px;border:1px solid #FFCDD2;background:#FFF0F0;font-size:11px;color:#D92B2B;cursor:pointer}
 .rel-btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .rel-btn{padding:5px 12px;border-radius:99px;border:2px solid;font-size:12px;font-weight:600;cursor:pointer;background:#fff}
+.lp-search-center{display:flex;flex-direction:column;gap:8px;max-width:560px;margin:0 auto 8px}
+.lp-filter-row{display:flex;gap:8px}
+.lp-filter-row .fs{flex:1;min-width:0}
 
 /* Flash & Exam */
 #flashView{display:none;flex-direction:column;min-height:100vh;background:#f2f2f7}

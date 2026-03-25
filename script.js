@@ -418,7 +418,7 @@ function toggleMapView(open) {
       mlo.style.color=mapLinkedOnly?'#fff':'#3B6D11';
       mlo.textContent=mapLinkedOnly?'✓ 只顯示關聯':'🔗 只顯示關聯';
     }
-    setTimeout(()=>{ if(!Object.keys(nodePos).length) forceLayout(); drawMap(); },80);
+    setTimeout(()=>{ const hadNodePos=Object.keys(nodePos).length>0; initNodePos(); drawMap(); if(!hadNodePos) saveData(); },80);
   }
 }
 

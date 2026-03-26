@@ -111,7 +111,7 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 .mp-links{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
 .mp-link-row{display:flex;align-items:center;gap:6px;font-size:11px}
 .mp-link-badge{padding:1px 6px;border-radius:99px;color:#fff;font-size:10px;font-weight:600}
-.mp-link-name{color:#007AFF;cursor:pointer;text-decoration:underline}
+.mp-link-name{color:#007AFF;cursor:pointer;text-decoration:underline;word-break:break-word;overflow-wrap:anywhere}
 .mp-goto{width:100%;padding:8px;background:#007AFF;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;margin-top:2px}
 .mp-goto:active{background:#0062cc}
 .mp-close{position:absolute;top:8px;right:10px;background:none;border:none;font-size:18px;color:#aaa;cursor:pointer;line-height:1;padding:2px 4px}

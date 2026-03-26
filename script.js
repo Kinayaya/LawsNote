@@ -91,7 +91,7 @@ function loadData() {
     const raw = localStorage.getItem(SKEY);
     if(raw) {
       const d = JSON.parse(raw);
-      notes = d.notes || DEFAULTS.notes.slice();
+      notes = Array.isArray(d.notes) ? d.notes : DEFAULTS.notes.slice();
       notes.forEach(n=>{
         if(!Array.isArray(n.todos)) n.todos=[];
         if(!Array.isArray(n.tags)) n.tags=[];
@@ -99,13 +99,12 @@ function loadData() {
         if(typeof n.body!=='string') n.body='';
         if(typeof n.subject!=='string') n.subject='';
       });
-      links = d.links || DEFAULTS.links.slice();
-      nid = d.nid || 10; lid = d.lid || 10;
-      types = d.types || DEFAULTS.types.slice();
+      links = Array.isArray(d.links) ? d.links : DEFAULTS.links.slice();
+      types = Array.isArray(d.types) ? d.types : DEFAULTS.types.slice();
       if(!types.some(t=>t.key==='diary')) types.push({key:'diary',label:'日記',color:'#D85A30'});
-      subjects = d.subjects || DEFAULTS.subjects.slice();
-      nodePos = d.nodePos || {};
-      nodeSizes = d.nodeSizes || {};
+      subjects = Array.isArray(d.subjects) ? d.subjects : DEFAULTS.subjects.slice();
+      nodePos = (d.nodePos && typeof d.nodePos==='object' && !Array.isArray(d.nodePos)) ? d.nodePos : {};
+      nodeSizes = (d.nodeSizes && typeof d.nodeSizes==='object' && !Array.isArray(d.nodeSizes)) ? d.nodeSizes : {};
       if(d.sortMode) sortMode = d.sortMode;
       let repaired = false;
       types.forEach(t=>{ if(/^tag_t_/.test(t.key)) { let old=t.key; t.key=t.label; notes.forEach(n=>{if(n.type===old)n.type=t.label;}); repaired=true; } });

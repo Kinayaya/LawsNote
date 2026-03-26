@@ -797,9 +797,25 @@ function showMapInfo(id){ const n=noteById(id); if(!n)return; const tp=typeByKey
       clampNodeToCanvas(id); moveNodeEl(id,nodePos[id].x,nodePos[id].y); redrawLines(id); saveDataDeferred();
     };
   }
-  const linksEl=g('mpLinks'); if(!related.length){ linksEl.innerHTML='<span class="mp-no-links">尚無關聯</span>'; } else { linksEl.innerHTML=related.map(l=>{ const otherId=l.from===id?l.to:l.from, other=noteById(otherId), dir=l.from===id?'→':'←', name=other?other.title:'（已刪除）'; return `<div class="mp-link-row"><span class="mp-link-badge" style="background:${l.color}">${dir} ${l.rel}</span><span class="mp-link-name" data-nid="${otherId}">${name.slice(0,18)}${name.length>18?'..':''}</span></div>`; }).join(''); linksEl.querySelectorAll('.mp-link-name').forEach(el=>{ el.addEventListener('click',()=>{ closeMapPopup(); const tid=parseInt(el.dataset.nid); showMapInfo(tid); highlightNode(tid); }); }); }
-  const linksEl=g('mpLinks'); if(!related.length){ linksEl.innerHTML='<span class="mp-no-links">尚無關聯</span>'; } else { linksEl.innerHTML=related.map(l=>{ const otherId=l.from===id?l.to:l.from, other=noteById(otherId), dir=l.from===id?'→':'←', name=other?other.title:'（已刪除）'; return `<div class="mp-link-row"><span class="mp-link-badge" style="background:${l.color}">${dir} ${l.rel}</span><span class="mp-link-name" data-nid="${otherId}">${name}</span></div>`; }).join(''); linksEl.querySelectorAll('.mp-link-name').forEach(el=>{ el.addEventListener('click',()=>{ closeMapPopup(); const tid=parseInt(el.dataset.nid); showMapInfo(tid); highlightNode(tid); }); }); }
-function closeMapPopup(){ g('mapPopup').classList.remove('open'); }
+ const linksEl=g('mpLinks');
+ if(!related.length){
+    linksEl.innerHTML='<span class="mp-no-links">尚無關聯</span>';
+  } else {
+    linksEl.innerHTML=related.map(l=>{
+      const otherId=l.from===id?l.to:l.from, other=noteById(otherId), dir=l.from===id?'→':'←', name=other?other.title:'（已刪除）';
+      return `<div class="mp-link-row"><span class="mp-link-badge" style="background:${l.color}">${dir} ${l.rel}</span><span class="mp-link-name" data-nid="${otherId}">${name}</span></div>`;
+    }).join('');
+    linksEl.querySelectorAll('.mp-link-name').forEach(el=>{
+      el.addEventListener('click',()=>{
+        closeMapPopup();
+        const tid=parseInt(el.dataset.nid);
+        showMapInfo(tid);
+        highlightNode(tid);
+      });
+    });
+  }
+}
+  function closeMapPopup(){ g('mapPopup').classList.remove('open'); }
 function highlightNode(id){ g('nodesLayer').querySelectorAll('.map-node').forEach(grp=>{ grp.classList.remove('map-node-highlight'); if(parseInt(grp.dataset.id)===id) grp.classList.add('map-node-highlight'); }); }
 function startDrag(e,id){ e.preventDefault(); e.stopPropagation(); closeMapPopup(); dragNode=id; const pos=nodePos[id], rect=g('mapCanvas').getBoundingClientRect(); dragOffX=e.clientX-rect.left-(pos.x*mapScale+mapOffX); dragOffY=e.clientY-rect.top-(pos.y*mapScale+mapOffY); }
 function startDragTouch(e,id){ e.stopPropagation(); dragNode=id; const pos=nodePos[id], rect=g('mapCanvas').getBoundingClientRect(), touch=e.touches[0]; dragOffX=touch.clientX-rect.left-(pos.x*mapScale+mapOffX); dragOffY=touch.clientY-rect.top-(pos.y*mapScale+mapOffY); }

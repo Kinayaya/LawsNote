@@ -75,7 +75,7 @@ const saveAiKey = k => localStorage.setItem('klaws_ai_key', k);
 const getAiModel = () => localStorage.getItem('klaws_ai_model') || 'openrouter/free';
 const saveAiModel = m => localStorage.setItem('klaws_ai_model', m);
 // ★ 修改1：min=15, max=100
-const MAP_NODE_RADIUS_MIN = 15, MAP_NODE_RADIUS_MAX = 100, MAP_NODE_RADIUS_DEFAULT = 26;
+const MAP_NODE_RADIUS_MIN = 10, MAP_NODE_RADIUS_MAX = 100, MAP_NODE_RADIUS_DEFAULT = 10;
 const clampMapRadius = r => Math.max(MAP_NODE_RADIUS_MIN, Math.min(MAP_NODE_RADIUS_MAX, r));
 
 // ==================== 資料儲存 ====================
@@ -759,8 +759,7 @@ function drawMap() {
     const grp=document.createElementNS('http://www.w3.org/2000/svg','g'); grp.setAttribute('class','map-node'); grp.setAttribute('data-id',n.id);
     const circ=document.createElementNS('http://www.w3.org/2000/svg','circle'); circ.setAttribute('class','node-main'); circ.setAttribute('cx',pos.x); circ.setAttribute('cy',pos.y); circ.setAttribute('r',radius); circ.setAttribute('fill',tp.color); circ.setAttribute('stroke','#fff'); circ.setAttribute('stroke-width','2'); grp.appendChild(circ);
     if(lc>0){ const bt=document.createElementNS('http://www.w3.org/2000/svg','text'); bt.setAttribute('class','node-count'); bt.setAttribute('x',pos.x); bt.setAttribute('y',pos.y); bt.setAttribute('text-anchor','middle'); bt.setAttribute('dominant-baseline','middle'); bt.setAttribute('font-size',String(Math.max(9,Math.min(13,radius*0.45)))); bt.setAttribute('fill','#fff'); bt.setAttribute('font-weight','800'); bt.textContent=lc; grp.appendChild(bt); }
-    const short=n.title.length>9?n.title.slice(0,9)+'..':n.title, txt=document.createElementNS('http://www.w3.org/2000/svg','text'); txt.setAttribute('class','node-title'); txt.setAttribute('x',pos.x); txt.setAttribute('y',pos.y+radius+12); txt.setAttribute('text-anchor','middle'); txt.setAttribute('font-size','10'); txt.setAttribute('fill','#444'); txt.textContent=short; grp.appendChild(txt);
-    grp.addEventListener('click',()=>showMapInfo(n.id)); grp.addEventListener('mousedown',e=>startDrag(e,n.id)); grp.addEventListener('touchstart',e=>startDragTouch(e,n.id),{passive:true}); nl.appendChild(grp);
+    const txt=document.createElementNS('http://www.w3.org/2000/svg','text'); txt.setAttribute('class','node-title'); txt.setAttribute('x',pos.x); txt.setAttribute('y',pos.y+radius+12); txt.setAttribute('text-anchor','middle'); txt.setAttribute('font-size','10'); txt.setAttribute('fill','#444'); txt.textContent=n.title; grp.appendChild(txt);    grp.addEventListener('click',()=>showMapInfo(n.id)); grp.addEventListener('mousedown',e=>startDrag(e,n.id)); grp.addEventListener('touchstart',e=>startDragTouch(e,n.id),{passive:true}); nl.appendChild(grp);
   });
   nodeEls={}; nl.querySelectorAll('.map-node').forEach(ng=>{ nodeEls[parseInt(ng.dataset.id)]=ng; });
  }
@@ -786,7 +785,7 @@ function showMapInfo(id){ const n=noteById(id); if(!n)return; const tp=typeByKey
     };
   }
   const linksEl=g('mpLinks'); if(!related.length){ linksEl.innerHTML='<span class="mp-no-links">尚無關聯</span>'; } else { linksEl.innerHTML=related.map(l=>{ const otherId=l.from===id?l.to:l.from, other=noteById(otherId), dir=l.from===id?'→':'←', name=other?other.title:'（已刪除）'; return `<div class="mp-link-row"><span class="mp-link-badge" style="background:${l.color}">${dir} ${l.rel}</span><span class="mp-link-name" data-nid="${otherId}">${name.slice(0,18)}${name.length>18?'..':''}</span></div>`; }).join(''); linksEl.querySelectorAll('.mp-link-name').forEach(el=>{ el.addEventListener('click',()=>{ closeMapPopup(); const tid=parseInt(el.dataset.nid); showMapInfo(tid); highlightNode(tid); }); }); }
-  const canvas=g('mapCanvas'), cw=canvas.offsetWidth||800, ch=canvas.offsetHeight||500, pos=nodePos[id], sx=pos.x*mapScale+mapOffX, sy=pos.y*mapScale+mapOffY, popup=g('mapPopup'); popup.classList.add('open'); const pw=popup.offsetWidth||240, ph=popup.offsetHeight||160; let px=sx+30, py=sy-ph/2; if(px+pw>cw-10) px=sx-pw-30; if(px<10) px=10; if(py<10) py=10; if(py+ph>ch-10) py=ch-ph-10; popup.style.left=px+'px'; popup.style.top=py+'px'; g('mpGoto').onclick=()=>{ closeMapPopup(); isMapOpen=false; g('notesView').style.display='block'; g('mapView').classList.remove('open'); g('subbar').style.display='flex'; setTimeout(()=>openNote(id),80); }; }
+  const linksEl=g('mpLinks'); if(!related.length){ linksEl.innerHTML='<span class="mp-no-links">尚無關聯</span>'; } else { linksEl.innerHTML=related.map(l=>{ const otherId=l.from===id?l.to:l.from, other=noteById(otherId), dir=l.from===id?'→':'←', name=other?other.title:'（已刪除）'; return `<div class="mp-link-row"><span class="mp-link-badge" style="background:${l.color}">${dir} ${l.rel}</span><span class="mp-link-name" data-nid="${otherId}">${name}</span></div>`; }).join(''); linksEl.querySelectorAll('.mp-link-name').forEach(el=>{ el.addEventListener('click',()=>{ closeMapPopup(); const tid=parseInt(el.dataset.nid); showMapInfo(tid); highlightNode(tid); }); }); }
 function closeMapPopup(){ g('mapPopup').classList.remove('open'); }
 function highlightNode(id){ g('nodesLayer').querySelectorAll('.map-node').forEach(grp=>{ grp.classList.remove('map-node-highlight'); if(parseInt(grp.dataset.id)===id) grp.classList.add('map-node-highlight'); }); }
 function startDrag(e,id){ e.preventDefault(); e.stopPropagation(); closeMapPopup(); dragNode=id; const pos=nodePos[id], rect=g('mapCanvas').getBoundingClientRect(); dragOffX=e.clientX-rect.left-(pos.x*mapScale+mapOffX); dragOffY=e.clientY-rect.top-(pos.y*mapScale+mapOffY); }

@@ -77,6 +77,13 @@ const saveAiModel = m => localStorage.setItem('klaws_ai_model', m);
 // ★ 修改1：min=15, max=100
 const MAP_NODE_RADIUS_MIN = 15, MAP_NODE_RADIUS_MAX = 100, MAP_NODE_RADIUS_DEFAULT = 15;
 const clampMapRadius = r => Math.max(MAP_NODE_RADIUS_MIN, Math.min(MAP_NODE_RADIUS_MAX, r));
+const splitMapTitleLines = (title, maxCharsPerLine = 8) => {
+  const safe = String(title || '').trim();
+  if(!safe) return ['（未命名）'];
+  const lines = [];
+  for(let i=0;i<safe.length;i+=maxCharsPerLine) lines.push(safe.slice(i, i + maxCharsPerLine));
+  return lines;
+};
 
 // ==================== 資料儲存 ====================
 function loadData() {
@@ -694,7 +701,11 @@ function moveNodeEl(id,x,y){
   if(mainCircle){ mainCircle.setAttribute('cx',x); mainCircle.setAttribute('cy',y); }
   const r=parseFloat(mainCircle?mainCircle.getAttribute('r'):24)||24;
   if(countText){ countText.setAttribute('x',x); countText.setAttribute('y',y); }
-  if(titleText){ titleText.setAttribute('x',x); titleText.setAttribute('y',y+r+12); }
+  if(titleText){
+    titleText.setAttribute('x',x);
+    titleText.setAttribute('y',y+r+12);
+    titleText.querySelectorAll('tspan').forEach(t=>t.setAttribute('x',x));
+  }
 }
 function visibleLinks(visIds){ return links.filter(lk=>visIds[lk.from]&&visIds[lk.to]); }
 function buildLinkCurveOffsets(visLinks){
@@ -759,7 +770,9 @@ function drawMap() {
     const grp=document.createElementNS('http://www.w3.org/2000/svg','g'); grp.setAttribute('class','map-node'); grp.setAttribute('data-id',n.id);
     const circ=document.createElementNS('http://www.w3.org/2000/svg','circle'); circ.setAttribute('class','node-main'); circ.setAttribute('cx',pos.x); circ.setAttribute('cy',pos.y); circ.setAttribute('r',radius); circ.setAttribute('fill',tp.color); circ.setAttribute('stroke','#fff'); circ.setAttribute('stroke-width','2'); grp.appendChild(circ);
     if(lc>0){ const bt=document.createElementNS('http://www.w3.org/2000/svg','text'); bt.setAttribute('class','node-count'); bt.setAttribute('x',pos.x); bt.setAttribute('y',pos.y); bt.setAttribute('text-anchor','middle'); bt.setAttribute('dominant-baseline','middle'); bt.setAttribute('font-size',String(Math.max(9,Math.min(13,radius*0.45)))); bt.setAttribute('fill','#fff'); bt.setAttribute('font-weight','800'); bt.textContent=lc; grp.appendChild(bt); }
-    const txt=document.createElementNS('http://www.w3.org/2000/svg','text'); txt.setAttribute('class','node-title'); txt.setAttribute('x',pos.x); txt.setAttribute('y',pos.y+radius+12); txt.setAttribute('text-anchor','middle'); txt.setAttribute('font-size','10'); txt.setAttribute('fill','#444'); txt.textContent=n.title; grp.appendChild(txt);
+    const txt=document.createElementNS('http://www.w3.org/2000/svg','text'); txt.setAttribute('class','node-title'); txt.setAttribute('x',pos.x); txt.setAttribute('y',pos.y+radius+12); txt.setAttribute('text-anchor','middle'); txt.setAttribute('font-size','10'); txt.setAttribute('fill','#444');
+    splitMapTitleLines(n.title).forEach((line,idx)=>{ const sp=document.createElementNS('http://www.w3.org/2000/svg','tspan'); sp.setAttribute('x',pos.x); sp.setAttribute('dy',idx===0?'0':'1.15em'); sp.textContent=line; txt.appendChild(sp); });
+    grp.appendChild(txt);
   });
   nodeEls={}; nl.querySelectorAll('.map-node').forEach(ng=>{ nodeEls[parseInt(ng.dataset.id)]=ng; });
  }

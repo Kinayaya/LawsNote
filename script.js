@@ -765,15 +765,25 @@ function scheduleMapRedraw(delay=80){
 }
 function drawMap() {
   initNodePos(); const svg=g('mapSvg'), canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||500;
-  svg.setAttribute('width',mapW); svg.setAttribute('height',mapH); const ll=g('linksLayer'), nl=g('nodesLayer'); ll.innerHTML=''; nl.innerHTML='';
-  let gw=svg.querySelector('#mapWrap'); if(!gw){ gw=document.createElementNS('http://www.w3.org/2000/svg','g'); gw.setAttribute('id','mapWrap'); svg.insertBefore(gw,svg.firstChild); gw.appendChild(ll); gw.appendChild(nl); }
+  svg.setAttribute('width',mapW); svg.setAttribute('height',mapH); const ll=g('linksLayer'), nl=g('nodesLayer');
+  let gw=svg.querySelector('#mapWrap');
+  if(!gw){
+    gw=document.createElementNS('http://www.w3.org/2000/svg','g');
+    gw.setAttribute('id','mapWrap');
+    svg.insertBefore(gw,svg.firstChild);
+  }
+  // Safari/iPad 在縮放或快速互動後，<g> 可能脫離 mapWrap，導致連線層不再顯示。
+  // 每次重繪都強制把圖層放回 mapWrap，避免連線「消失」。
+  gw.appendChild(ll);
+  gw.appendChild(nl);
+  ll.innerHTML=''; nl.innerHTML='';
   gw.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`);
   const vis=visibleNotes(), visIds={}; vis.forEach(v=>visIds[v.id]=true);
   const visLinks=visibleLinks(visIds); linkCurveOffsets=buildLinkCurveOffsets(visLinks);
   linkElsMap={}; nodeLinksIndex={};
   visLinks.forEach(lk=>{
     const c=calcLinkPath(lk); if(!c)return;
-    const line=document.createElementNS('http://www.w3.org/2000/svg','path'); line.setAttribute('d',c.d); line.setAttribute('stroke',lk.color); line.setAttribute('stroke-width','2'); line.setAttribute('fill','none'); line.setAttribute('marker-end',getArrowMarker(lk.color)); ll.appendChild(line);
+    const line=document.createElementNS('http://www.w3.org/2000/svg','path'); line.setAttribute('d',c.d); line.setAttribute('stroke',lk.color); line.setAttribute('stroke-width','2'); line.setAttribute('fill','none'); line.setAttribute('marker-end',getArrowMarker(lk.color)); line.setAttribute('vector-effect','non-scaling-stroke'); line.setAttribute('stroke-linecap','round'); ll.appendChild(line);
     linkElsMap[lk.id]={p:line};
     if(!nodeLinksIndex[lk.from]) nodeLinksIndex[lk.from]=[];
     if(!nodeLinksIndex[lk.to]) nodeLinksIndex[lk.to]=[];

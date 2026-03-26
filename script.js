@@ -772,6 +772,7 @@ function drawMap() {
     const txt=document.createElementNS('http://www.w3.org/2000/svg','text'); txt.setAttribute('class','node-title'); txt.setAttribute('x',pos.x); txt.setAttribute('y',pos.y+radius+12); txt.setAttribute('text-anchor','middle'); txt.setAttribute('font-size','10'); txt.setAttribute('fill','#444');
     splitMapTitleLines(n.title).forEach((line,idx)=>{ const sp=document.createElementNS('http://www.w3.org/2000/svg','tspan'); sp.setAttribute('x',pos.x); sp.setAttribute('dy',idx===0?'0':'1.15em'); sp.textContent=line; txt.appendChild(sp); });
     grp.appendChild(txt);
+    nl.appendChild(grp);
   });
   nodeEls={}; nl.querySelectorAll('.map-node').forEach(ng=>{ nodeEls[parseInt(ng.dataset.id)]=ng; });
  }

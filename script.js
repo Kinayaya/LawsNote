@@ -573,8 +573,13 @@ function closeExamView() { clearInterval(examTimer); g('examView').classList.rem
 // ==================== 體系圖 ====================
 function initNodePos() { const canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||500; const cx=mapW/2,cy=mapH/2,r=Math.min(mapW,mapH)*0.44; notes.forEach((n,i)=>{ if(!nodePos[n.id]){ const angle=(i/notes.length)*2*Math.PI; nodePos[n.id]={x:cx+r*Math.cos(angle),y:cy+r*Math.sin(angle)}; } }); }
 function getNodeRadius(id){ return clampMapRadius(parseFloat(nodeSizes[id])||MAP_NODE_RADIUS_DEFAULT); }
-// ★ 修改2：邊界放寬 10 倍（從 +6 改為 -54，允許節點超出畫布邊界 ~54px）
-function clampNodeToCanvas(id){ const r=getNodeRadius(id)-54; nodePos[id].x=Math.max(r,Math.min(mapW-r,nodePos[id].x)); nodePos[id].y=Math.max(r,Math.min(mapH-r,nodePos[id].y)); }
+// 將節點限制在畫布可視範圍，保留少量內距避免圓點貼邊造成連線錯位。
+function clampNodeToCanvas(id){
+  if(!nodePos[id]) return;
+  const r=getNodeRadius(id)+12;
+  nodePos[id].x=Math.max(r,Math.min(mapW-r,nodePos[id].x));
+  nodePos[id].y=Math.max(r,Math.min(mapH-r,nodePos[id].y));
+}
 function segmentsCross(a,b,c,d){
   const det=(p,q,r)=>(q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x);
   const d1=det(a,b,c), d2=det(a,b,d), d3=det(c,d,a), d4=det(c,d,b);
@@ -928,16 +933,17 @@ window.addEventListener('load',()=>{
   g('mapResetBtn')?.addEventListener('click',()=>{ nodePos={}; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); g('zoomLabel').textContent='100%'; showToast('已重置'); });
   const canvas=g('mapCanvas'); let panStart=null, panOffXStart=0, panOffYStart=0;
 const onDragMove=(x,y)=>{
+    if(!dragNode||!nodePos[dragNode]) return;
+    const activeNodeId=dragNode;
     const rect=canvas.getBoundingClientRect();
     let cx=(x-rect.left-dragOffX-mapOffX)/mapScale, cy=(y-rect.top-dragOffY-mapOffY)/mapScale;
-    const r=getNodeRadius(dragNode)-54;
-    cx=Math.max(r,Math.min(mapW-r,cx)); cy=Math.max(r,Math.min(mapH-r,cy));
-    nodePos[dragNode]={x:cx,y:cy};
+    nodePos[activeNodeId]={x:cx,y:cy};
+    clampNodeToCanvas(activeNodeId);
     const visIds={}; visibleNotes().forEach(n=>visIds[n.id]=true);
-    pushNodeOffLinks(dragNode, visibleLinks(visIds), 10);
-    cx=nodePos[dragNode].x; cy=nodePos[dragNode].y;
+    pushNodeOffLinks(activeNodeId, visibleLinks(visIds), 10);
+    cx=nodePos[activeNodeId].x; cy=nodePos[activeNodeId].y;
     if(rafId)cancelAnimationFrame(rafId);
-    rafId=requestAnimationFrame(()=>{ moveNodeEl(dragNode,cx,cy); redrawLines(dragNode); rafId=null; });
+    rafId=requestAnimationFrame(()=>{ moveNodeEl(activeNodeId,cx,cy); redrawLines(activeNodeId); rafId=null; });
   };
   const onPanMove=(x,y)=>{ if(!panStart)return; mapOffX=panOffXStart+(x-panStart.x); mapOffY=panOffYStart+(y-panStart.y); if(rafId)cancelAnimationFrame(rafId); rafId=requestAnimationFrame(()=>{ const gw=g('mapSvg').querySelector('#mapWrap'); if(gw)gw.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`); rafId=null; }); };
   canvas.addEventListener('click',e=>{ if(e.target===canvas||e.target.id==='mapSvg'||e.target.id==='linksLayer') closeMapPopup(); });

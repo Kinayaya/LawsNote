@@ -432,7 +432,9 @@ function toggleMapView(open) {
       mlo.style.color=mapLinkedOnly?'#fff':'#3B6D11';
       mlo.textContent=mapLinkedOnly?'✓ 只顯示關聯':'🔗 只顯示關聯';
     }
-    setTimeout(()=>{ const hadNodePos=Object.keys(nodePos).length>0; initNodePos(); drawMap(); if(!hadNodePos) saveData(); },80);
+    setTimeout(()=>{ const hadNodePos=Object.keys(nodePos).length>0; initNodePos(); drawMap(); if(!hadNodePos) saveData(); },80
+  } else {
+    closeMapPopup();
   }
 }
 
@@ -774,8 +776,37 @@ function drawMap() {
     grp.appendChild(txt);
     nl.appendChild(grp);
   });
-  nodeEls={}; nl.querySelectorAll('.map-node').forEach(ng=>{ nodeEls[parseInt(ng.dataset.id)]=ng; });
+ nodeEls={}; nl.querySelectorAll('.map-node').forEach(ng=>{
+    const id=parseInt(ng.dataset.id,10);
+    if(Number.isNaN(id)) return;
+    nodeEls[id]=ng;
+    ng.addEventListener('mousedown',e=>startDrag(e,id));
+    ng.addEventListener('touchstart',e=>startDragTouch(e,id),{passive:true});
+    ng.addEventListener('click',e=>{
+      e.stopPropagation();
+      highlightNode(id);
+      showMapInfo(id);
+      openMapPopup(id);
+    });
+  });
  }
+function openMapPopup(id){
+  const popup=g('mapPopup'), pos=nodePos[id];
+  if(!popup||!pos) return;
+  const maxLeft=Math.max(8, mapW-320), maxTop=Math.max(8, mapH-250);
+  const left=Math.max(8, Math.min(maxLeft, pos.x*mapScale+mapOffX+14));
+  const top=Math.max(8, Math.min(maxTop, pos.y*mapScale+mapOffY+14));
+  popup.style.left=`${left}px`;
+  popup.style.top=`${top}px`;
+  popup.classList.add('open');
+  const goBtn=g('mpGoto');
+  if(goBtn){
+    goBtn.onclick=()=>{
+      toggleMapView(false);
+      openNote(id);
+    };
+  }
+}
 // ★ 修改3：showMapInfo 裡的 size row 改為 number input，移除 range slider
 function showMapInfo(id){ const n=noteById(id); if(!n)return; const tp=typeByKey(n.type), sb=subByKey(n.subject), related=links.filter(l=>l.from===id||l.to===id);
   g('mpBadge').textContent=tp.label; g('mpBadge').style.background=tp.color; g('mpTitle').textContent=n.title; g('mpSubject').textContent=sb.label; g('mpSubject').style.background=sb.color+'22'; g('mpSubject').style.color=sb.color;
@@ -883,6 +914,7 @@ const onDragMove=(x,y)=>{
     rafId=requestAnimationFrame(()=>{ moveNodeEl(dragNode,cx,cy); redrawLines(dragNode); rafId=null; });
   };
   const onPanMove=(x,y)=>{ if(!panStart)return; mapOffX=panOffXStart+(x-panStart.x); mapOffY=panOffYStart+(y-panStart.y); if(rafId)cancelAnimationFrame(rafId); rafId=requestAnimationFrame(()=>{ const gw=g('mapSvg').querySelector('#mapWrap'); if(gw)gw.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`); redrawLines(); rafId=null; }); };
+  canvas.addEventListener('click',e=>{ if(e.target===canvas||e.target.id==='mapSvg'||e.target.id==='linksLayer') closeMapPopup(); });
   canvas.addEventListener('mousedown',e=>{ if(!dragNode){ panStart={x:e.clientX,y:e.clientY}; panOffXStart=mapOffX; panOffYStart=mapOffY; canvas.style.cursor='grabbing'; } });
   canvas.addEventListener('mousemove',e=>{ if(dragNode) onDragMove(e.clientX,e.clientY); else if(panStart) onPanMove(e.clientX,e.clientY); });
   canvas.addEventListener('mouseup',()=>{ if(dragNode){ if(rafId)cancelAnimationFrame(rafId); saveDataDeferred(); dragNode=null; } panStart=null; canvas.style.cursor=''; });

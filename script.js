@@ -48,6 +48,7 @@ let gridPage=1, sortMode='date_desc', multiSelMode=false, selectedIds={};
 let flashDeck=[], flashIdx=0, flashShowing=false, flashSubFilter='all', flashTypeFilter2='all', flashHard=[];
 let examList=[], examTimer=null, examSec=0, examTotal=0, currentExam=null;
 let shortcuts=[], recordingBtn=null, _aiPendingAction=null, _saveTimer=null, rafId=null;
+let mapRedrawTimer=null, mapResizeObserver=null;
 
 // ==================== 工具函數 ====================
 const g = id => document.getElementById(id);
@@ -758,6 +759,10 @@ function redrawLines(affectedId){
   });
 }
 function visibleNotes(){ const q=mapFilter.q.toLowerCase(), linkedIds={}; if(mapLinkedOnly) links.forEach(l=>{ linkedIds[l.from]=true; linkedIds[l.to]=true; }); return notes.filter(n=>(mapFilter.sub==='all'||n.subject===mapFilter.sub)&&(mapFilter.type==='all'||n.type===mapFilter.type)&&(!q||`${n.title}${n.subject}${noteTags(n).join('')}`.toLowerCase().includes(q))&&(!mapLinkedOnly||linkedIds[n.id])); }
+function scheduleMapRedraw(delay=80){
+  clearTimeout(mapRedrawTimer);
+  mapRedrawTimer=setTimeout(()=>{ if(isMapOpen) drawMap(); },delay);
+}
 function drawMap() {
   initNodePos(); const svg=g('mapSvg'), canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||500;
   svg.setAttribute('width',mapW); svg.setAttribute('height',mapH); const ll=g('linksLayer'), nl=g('nodesLayer'); ll.innerHTML=''; nl.innerHTML='';
@@ -784,6 +789,9 @@ function drawMap() {
     grp.appendChild(txt);
     nl.appendChild(grp);
   });
+  if(visLinks.length && ll.childElementCount===0){
+    scheduleMapRedraw(120);
+  }
  nodeEls={}; nl.querySelectorAll('.map-node').forEach(ng=>{
     const id=parseInt(ng.dataset.id,10);
     if(Number.isNaN(id)) return;
@@ -921,7 +929,7 @@ const onDragMove=(x,y)=>{
     if(rafId)cancelAnimationFrame(rafId);
     rafId=requestAnimationFrame(()=>{ moveNodeEl(dragNode,cx,cy); redrawLines(dragNode); rafId=null; });
   };
-  const onPanMove=(x,y)=>{ if(!panStart)return; mapOffX=panOffXStart+(x-panStart.x); mapOffY=panOffYStart+(y-panStart.y); if(rafId)cancelAnimationFrame(rafId); rafId=requestAnimationFrame(()=>{ const gw=g('mapSvg').querySelector('#mapWrap'); if(gw)gw.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`); redrawLines(); rafId=null; }); };
+  const onPanMove=(x,y)=>{ if(!panStart)return; mapOffX=panOffXStart+(x-panStart.x); mapOffY=panOffYStart+(y-panStart.y); if(rafId)cancelAnimationFrame(rafId); rafId=requestAnimationFrame(()=>{ const gw=g('mapSvg').querySelector('#mapWrap'); if(gw)gw.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`); rafId=null; }); };
   canvas.addEventListener('click',e=>{ if(e.target===canvas||e.target.id==='mapSvg'||e.target.id==='linksLayer') closeMapPopup(); });
   canvas.addEventListener('mousedown',e=>{ if(!dragNode){ panStart={x:e.clientX,y:e.clientY}; panOffXStart=mapOffX; panOffYStart=mapOffY; canvas.style.cursor='grabbing'; } });
   canvas.addEventListener('mousemove',e=>{ if(dragNode) onDragMove(e.clientX,e.clientY); else if(panStart) onPanMove(e.clientX,e.clientY); });
@@ -933,6 +941,13 @@ const onDragMove=(x,y)=>{
   canvas.addEventListener('wheel',e=>{ e.preventDefault(); setZoom(mapScale+(e.deltaY>0?-0.1:0.1)); },{passive:false});
   let pinchDist=0; canvas.addEventListener('touchstart',e=>{ if(e.touches.length===2){ const d=e.touches[0].clientX-e.touches[1].clientX, dd=e.touches[0].clientY-e.touches[1].clientY; pinchDist=Math.sqrt(d*d+dd*dd); } },{passive:true});
   canvas.addEventListener('touchmove',e=>{ if(e.touches.length===2&&pinchDist){ e.preventDefault(); const d=e.touches[0].clientX-e.touches[1].clientX, dd=e.touches[0].clientY-e.touches[1].clientY, nd=Math.sqrt(d*d+dd*dd); setZoom(mapScale*nd/pinchDist); pinchDist=nd; } },{passive:false});
+  window.addEventListener('resize',()=>scheduleMapRedraw(100));
+  window.addEventListener('orientationchange',()=>scheduleMapRedraw(120));
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') scheduleMapRedraw(100); });
+  if(window.ResizeObserver){
+    mapResizeObserver=new ResizeObserver(()=>scheduleMapRedraw(60));
+    mapResizeObserver.observe(canvas);
+  }
   g('syncBtn').addEventListener('click',()=>{ g('syncModal').classList.add('open'); });
   g('syncCancelBtn').addEventListener('click',()=>g('syncModal').classList.remove('open'));
   g('syncUploadBtn').addEventListener('click',async()=>{ const token=g('syncTokenInput').value.trim(), gistId=g('syncGistInput').value.trim(); if(!token||!gistId){ showToast('請填寫 Token 和 Gist ID'); return; } try{ const data=localStorage.getItem(SKEY); await fetch(`https://api.github.com/gists/${gistId}`,{ method:"PATCH", headers:{"Authorization":`token ${token}`,"Content-Type":"application/json"}, body:JSON.stringify({files:{"klaws_data.json":{content:data}}}) }); showToast("已同步到 GitHub"); g('syncModal').classList.remove('open'); }catch(e){ showToast("同步失敗："+e.message); } });

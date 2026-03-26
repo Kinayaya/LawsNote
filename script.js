@@ -61,8 +61,15 @@ const noteTags = n => Array.isArray(n?.tags) ? n.tags : [];
 const hexRgb = hex => { if(hex.length===4) hex='#'+hex[1]+hex[1]+hex[2]+hex[2]+hex[3]+hex[3]; return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)]; };
 const lightC = hex => `rgba(${hexRgb(hex).join(',')},0.12)`;
 const darkC = hex => { let r=hexRgb(hex); return `rgb(${Math.round(r[0]*0.55)},${Math.round(r[1]*0.55)},${Math.round(r[2]*0.55)})`; };
-const hl = (text, q) => !q ? text : text.replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<span class="hl">$1</span>');
-const sortedNotes = arr => arr.slice().sort((a,b)=> sortMode==='date_desc'?b.date.localeCompare(a.date):sortMode==='date_asc'?a.date.localeCompare(b.date):sortMode==='title_asc'?a.title.localeCompare(b.title,'zh'):sortMode==='title_desc'?b.title.localeCompare(a.title,'zh'):sortMode==='subject'?a.subject.localeCompare(b.subject)||a.title.localeCompare(b.title):a.type.localeCompare(b.type)||a.title.localeCompare(b.title));
+const safeStr = v => typeof v==='string' ? v : '';
+const hl = (text, q) => {
+  const src = safeStr(text);
+  return !q ? src : src.replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<span class="hl">$1</span>');
+};
+const sortedNotes = arr => arr.slice().sort((a,b)=>{
+  const ad=safeStr(a?.date), bd=safeStr(b?.date), at=safeStr(a?.title), bt=safeStr(b?.title), as=safeStr(a?.subject), bs=safeStr(b?.subject), aty=safeStr(a?.type), bty=safeStr(b?.type);
+  return sortMode==='date_desc'?bd.localeCompare(ad):sortMode==='date_asc'?ad.localeCompare(bd):sortMode==='title_asc'?at.localeCompare(bt,'zh'):sortMode==='title_desc'?bt.localeCompare(at,'zh'):sortMode==='subject'?as.localeCompare(bs)||at.localeCompare(bt):aty.localeCompare(bty)||at.localeCompare(bt);
+});
 const parseTodos = raw => (raw||'').split('\n').map(x=>x.trim()).filter(Boolean).map(line=>{ const done=/^\[(x|X)\]/.test(line); return {text:line.replace(/^\[(x|X| )\]\s*/,''), done}; }).filter(x=>x.text);
 const formatTodosForEdit = todos => (Array.isArray(todos)?todos:[]).map(t=>`${t.done?'[x]':'[ ]'} ${t.text||''}`.trim()).join('\n');
 const renderTodoHtml = todos => {
@@ -98,6 +105,7 @@ function loadData() {
         if(typeof n.title!=='string') n.title='';
         if(typeof n.body!=='string') n.body='';
         if(typeof n.subject!=='string') n.subject='';
+        if(typeof n.date!=='string') n.date='1970-01-01';
       });
       links = Array.isArray(d.links) ? d.links : DEFAULTS.links.slice();
       types = Array.isArray(d.types) ? d.types : DEFAULTS.types.slice();

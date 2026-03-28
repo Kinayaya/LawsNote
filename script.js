@@ -6,9 +6,9 @@ const DEFAULTS = {
     {id:2,type:'case',subject:'刑法',title:'釋字第 775 號 — 累犯加重規定',body:'累犯一律加重最低本刑，違反憲法比例原則，應依個案審查。',tags:['累犯','比例原則'],date:'2025-02-28',detail:'大法官認定相關規定違憲，法院應依個案情形審查，不得機械式適用加重。'},
   ],
   links: [
-    {id:1,from:3,to:4,rel:'引用',color:'#378ADD'},
-    {id:2,from:3,to:2,rel:'相關',color:'#1D9E75'},
-    {id:3,from:1,to:5,rel:'補充',color:'#7F77DD'}
+    {id:1,from:3,to:4,rel:'關聯',color:'#378ADD'},
+    {id:2,from:3,to:2,rel:'關聯',color:'#378ADD'},
+    {id:3,from:1,to:5,rel:'關聯',color:'#378ADD'}
   ],
 types: [
     {key:'article',label:'條文',color:'#007AFF'},
@@ -18,9 +18,8 @@ types: [
   ],
   subjects: [{key:'民法',label:'民法',color:'#D85A30'},{key:'刑法',label:'刑法',color:'#1D9E75'},{key:'憲法',label:'憲法',color:'#7F77DD'},{key:'行政法',label:'行政法',color:'#378ADD'}]
 };
-const REL_TYPES = ['引用','相關','補充','對比','包含','延伸'];
-const REL_COLORS = {引用:'#378ADD',相關:'#1D9E75',補充:'#7F77DD',對比:'#D85A30',包含:'#E6A817',延伸:'#888'};
-const SKEY = 'legal_notes_v4', PAGE_SIZE = 10;
+const LINK_COLOR = '#378ADD';
+const SKEY = 'legal_notes_v4', PAGE_SIZE = 24;
 const AI_MODELS = [
   {id:'openrouter/free', label:'🔀 自動選最佳免費模型（推薦）'},
   {id:'meta-llama/llama-3.3-70b-instruct:free', label:'Llama 3.3 70B（Meta）'},
@@ -39,7 +38,7 @@ const DEFAULT_SHORTCUTS = [
 
 // ==================== 全域變數 ====================
 let notes=[], links=[], nid=10, lid=10, types=[], subjects=[];
-let cv='all', cs='all', searchQ='', openId=null, editMode=false, selectedRel='';
+let cv='all', cs='all', searchQ='', openId=null, editMode=false;
 let nodePos={}, dragNode=null, dragOffX=0, dragOffY=0, mapW=800, mapH=500;
 let nodeSizes={};
 let mapScale=1, mapOffX=0, mapOffY=0, mapFilter={sub:"all",type:"all",q:""}, mapLinkedOnly=true;
@@ -82,7 +81,6 @@ const getAiKey = () => localStorage.getItem('klaws_ai_key') || '';
 const saveAiKey = k => localStorage.setItem('klaws_ai_key', k);
 const getAiModel = () => localStorage.getItem('klaws_ai_model') || 'openrouter/free';
 const saveAiModel = m => localStorage.setItem('klaws_ai_model', m);
-// ★ 修改1：min=15, max=100
 const MAP_NODE_RADIUS_MIN = 15, MAP_NODE_RADIUS_MAX = 100, MAP_NODE_RADIUS_DEFAULT = 15;
 const clampMapRadius = r => Math.max(MAP_NODE_RADIUS_MIN, Math.min(MAP_NODE_RADIUS_MAX, r));
 const splitMapTitleLines = (title, maxCharsPerLine = 8) => {
@@ -109,6 +107,8 @@ function loadData() {
         if(typeof n.date!=='string') n.date='1970-01-01';
       });
       links = Array.isArray(d.links) ? d.links : DEFAULTS.links.slice();
+      // 統一舊連結顏色為預設色
+      links.forEach(l=>{ l.rel='關聯'; l.color=LINK_COLOR; });
       types = Array.isArray(d.types) ? d.types : DEFAULTS.types.slice();
       if(!types.some(t=>t.key==='diary')) types.push({key:'diary',label:'日記',color:'#D85A30'});
       subjects = Array.isArray(d.subjects) ? d.subjects : DEFAULTS.subjects.slice();
@@ -221,7 +221,7 @@ function renderLinksForNote(id) {
     const otherId = l.from===id ? l.to : l.from;
     const other = noteById(otherId);
     const dir = l.from===id ? '→' : '←';
-    return `<div class="link-item"><div class="link-dot" style="background:${l.color}"></div><span class="link-rel" style="background:${l.color}">${dir} ${l.rel}</span><span class="link-title link-jump" data-nid="${otherId}" style="cursor:pointer;color:#007AFF;text-decoration:underline;">${other?other.title:'（已刪除）'}</span><button class="link-del" data-lid="${l.id}">✕</button></div>`;
+    return `<div class="link-item"><div class="link-dot" style="background:${LINK_COLOR}"></div><span class="link-rel" style="background:${LINK_COLOR}">${dir} 關聯</span><span class="link-title link-jump" data-nid="${otherId}" style="cursor:pointer;color:#007AFF;text-decoration:underline;">${other?other.title:'（已刪除）'}</span><button class="link-del" data-lid="${l.id}">✕</button></div>`;
   }).join('');
   el.querySelectorAll('.link-jump').forEach(btn=>btn.addEventListener('click',()=>{ const nid2=parseInt(btn.dataset.nid); noteById(nid2)?openNote(nid2):showToast('筆記已被刪除'); }));
   el.querySelectorAll('.link-del').forEach(btn=>btn.addEventListener('click',()=>{ links=links.filter(l=>l.id!==parseInt(btn.dataset.lid)); saveData(); renderLinksForNote(id); render(); showToast('關聯已刪除'); }));
@@ -229,6 +229,7 @@ function renderLinksForNote(id) {
 
 function closeDetail() { g('dp').classList.remove('open'); openId=null; }
 
+// ==================== 表單（整合關聯筆記）====================
 function openForm(isEdit) {
   editMode = isEdit;
   buildFormSelects();
@@ -247,10 +248,67 @@ function openForm(isEdit) {
     toggleTemplate(g('ft').value==='case');
     toggleDiaryTodo(g('ft').value==='diary');
   }
+  // 建立關聯搜尋 UI
+  buildInlineLinksPanel();
   g('fp').classList.add('open'); ['dp','lp','tp'].forEach(p=>g(p).classList.remove('open'));
   setTimeout(()=>g('fp').scrollIntoView({behavior:'smooth',block:'nearest'}),60);
 }
 function closeForm() { g('fp').classList.remove('open'); }
+
+// ---- 表單內嵌關聯面板 ----
+function buildInlineLinksPanel() {
+  const wrap = g('form-links-wrap');
+  if(!wrap) return;
+  // 先顯示已有關聯
+  renderFormLinks();
+  // 搜尋欄
+  const searchEl = g('fl-search');
+  if(searchEl) {
+    searchEl.value = '';
+    searchEl.oninput = debounce(renderFormLinkSearch, 200);
+  }
+  renderFormLinkSearch();
+}
+
+function renderFormLinks() {
+  const el = g('form-links-list');
+  if(!el || !openId) { if(el) el.innerHTML=''; return; }
+  const related = links.filter(l=>l.from===openId||l.to===openId);
+  if(!related.length) { el.innerHTML='<span style="font-size:12px;color:#bbb">尚無關聯</span>'; return; }
+  el.innerHTML = related.map(l=>{
+    const otherId = l.from===openId ? l.to : l.from;
+    const other = noteById(otherId);
+    return `<div class="fl-item"><span class="fl-item-title">${other?other.title:'（已刪除）'}</span><button class="fl-del" data-lid="${l.id}">✕</button></div>`;
+  }).join('');
+  el.querySelectorAll('.fl-del').forEach(btn=>btn.addEventListener('click',()=>{
+    links=links.filter(l=>l.id!==parseInt(btn.dataset.lid));
+    saveData(); renderFormLinks(); if(isMapOpen) scheduleMapRedraw(100);
+    showToast('關聯已刪除');
+  }));
+}
+
+function renderFormLinkSearch() {
+  const el = g('fl-results');
+  if(!el) return;
+  const q = (g('fl-search')?.value||'').toLowerCase().trim();
+  // 非編輯模式（新增時）openId 可能為 null，不顯示搜尋結果
+  if(!q) { el.innerHTML=''; return; }
+  const existIds = links.filter(l=>openId&&(l.from===openId||l.to===openId)).map(l=>l.from===openId?l.to:l.from);
+  const pool = notes.filter(n=> n.id!==openId && !existIds.includes(n.id) && `${n.title} ${n.subject} ${typeByKey(n.type).label}`.toLowerCase().includes(q)).slice(0,8);
+  if(!pool.length) { el.innerHTML='<div style="font-size:12px;color:#bbb;padding:4px 0;">找不到符合的筆記</div>'; return; }
+  el.innerHTML = pool.map(n=>`<div class="fl-result-item" data-nid="${n.id}"><span class="fl-result-type" style="background:${typeByKey(n.type).color}">${typeByKey(n.type).label}</span><span class="fl-result-title">${n.title}</span></div>`).join('');
+  el.querySelectorAll('.fl-result-item').forEach(item=>{
+    item.addEventListener('click',()=>{
+      const toId = parseInt(item.dataset.nid);
+      // 若是新增模式，openId 可能沒有，先存筆記再連
+      if(!openId) { showToast('請先儲存筆記，再新增關聯'); return; }
+      if(links.some(l=>(l.from===openId&&l.to===toId)||(l.from===toId&&l.to===openId))){ showToast('已有關聯'); return; }
+      links.push({id:lid++, from:openId, to:toId, rel:'關聯', color:LINK_COLOR});
+      saveData(); renderFormLinks(); g('fl-search').value=''; renderFormLinkSearch();
+      showToast('關聯已建立！'); if(isMapOpen) scheduleMapRedraw(100);
+    });
+  });
+}
 
 function saveNote() {
   const title = (g('fti').value||'').trim();
@@ -270,9 +328,11 @@ function saveNote() {
   } else {
     const d = new Date();
     const dt = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    notes.unshift({id:nid++, type:g('ft').value, subject:g('fs2').value, title, body:(g('fbo').value||'').trim(),
+    const newNote = {id:nid++, type:g('ft').value, subject:g('fs2').value, title, body:(g('fbo').value||'').trim(),
       detail:(g('fde').value||'').trim(), tags, date:dt, dispute:getField('f-dispute'), f_article:getField('f-article'),
-      f_elements:getField('f-elements'), f_conclusion:getField('f-conclusion'), todos});
+      f_elements:getField('f-elements'), f_conclusion:getField('f-conclusion'), todos};
+    notes.unshift(newNote);
+    openId = newNote.id; // 新增後設定 openId，讓關聯功能可用
     saveData(); closeForm(); render(); showToast('筆記已儲存！');
     setTimeout(()=>{ window.scrollTo(0,0); setTimeout(()=>openNote(notes[0].id),300); },100);
   }
@@ -280,48 +340,6 @@ function saveNote() {
 function deleteNote() { if(!openId||!confirm('確定刪除這筆筆記？相關關聯也會一起刪除。')) return; links=links.filter(l=>l.from!==openId&&l.to!==openId); notes=notes.filter(n=>n.id!==openId); saveData(); closeDetail(); render(); showToast('已刪除'); }
 function toggleTemplate(show) { const tt=g('templateToggle'); if(tt) tt.style.display=show?'block':'none'; }
 function toggleDiaryTodo(show) { const box=g('diaryTodoWrap'); if(box) box.style.display=show?'block':'none'; }
-
-// ==================== 關聯面板 ====================
-function buildLpTarget() {
-  const sel = g('lp-target');
-  const sq = (g('lp-search').value||'').toLowerCase();
-  const sf = g('lp-filter-sub').value||'all';
-  const tf = g('lp-filter-type')?.value||'all';
-  const filtered = notes.filter(x=> x.id!==openId && (sf==='all'||x.subject===sf) && (tf==='all'||x.type===tf) && (!sq||`${x.title} ${x.subject} ${typeByKey(x.type).label}`.toLowerCase().includes(sq)));
-  sel.innerHTML = filtered.map(x=>`<option value="${x.id}">[${typeByKey(x.type).label}] ${x.subject} - ${x.title}</option>`).join('');
-  g('lp-count').textContent=`共 ${filtered.length} 筆`;
-}
-function openLinkPanel() {
-  if(!openId) return;
-  g('lp-from-title').textContent=`從：${noteById(openId).title}`;
-  const sfSel = g('lp-filter-sub');
-  const tfSel = g('lp-filter-type');
-  sfSel.innerHTML = '<option value="all">全部科目</option>' + subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join('');
-  tfSel.innerHTML = '<option value="all">全部類別</option>' + types.map(t=>`<option value="${t.key}">${t.label}</option>`).join('');
-  sfSel.value = 'all';
-  tfSel.value = 'all';
-  g('lp-search').value = '';
-  buildLpTarget();
-  selectedRel = REL_TYPES[0];
-  const rb = g('relBtns');
-  rb.innerHTML = REL_TYPES.map(r=>`<button class="rel-btn" data-rel="${r}" style="color:${REL_COLORS[r]||'#888'};border-color:${REL_COLORS[r]||'#888'}">${r}</button>`).join('');
-  const rbtns = rb.querySelectorAll('.rel-btn');
-  rbtns.forEach(btn=>btn.addEventListener('click',()=>{ selectedRel=btn.dataset.rel; rbtns.forEach(b=>{b.style.background='#fff';b.style.fontWeight='600';}); btn.style.background=REL_COLORS[selectedRel]||'#888'; btn.style.color='#fff'; }));
-  rbtns[0].style.background = REL_COLORS[REL_TYPES[0]]||'#888'; rbtns[0].style.color = '#fff';
-  g('lp-rel-custom').value = '';
-  g('lp').classList.add('open'); g('dp').classList.remove('open');
-  setTimeout(()=>g('lp').scrollIntoView({behavior:'smooth',block:'nearest'}),60);
-}
-function saveLinkPanel() {
-  const toId = parseInt(g('lp-target').value);
-  const rel = (g('lp-rel-custom').value||'').trim() || selectedRel || REL_TYPES[0];
-  const color = REL_COLORS[rel]||'#888';
-  if(links.some(l=>(l.from===openId&&l.to===toId)||(l.from===toId&&l.to===openId))) { showToast('這兩筆筆記已有關聯'); return; }
-  links.push({id:lid++, from:openId, to:toId, rel, color});
-  saveData(); g('lp').classList.remove('open'); renderLinksForNote(openId); render();
-  g('dp').classList.add('open'); showToast('關聯已建立！');
-  if(isMapOpen) drawMap();
-}
 
 // ==================== 標籤管理 ====================
 function openTagMgr() { g('tp').classList.add('open'); ['dp','fp','lp'].forEach(p=>g(p).classList.remove('open')); renderTagLists(); setTimeout(()=>g('tp').scrollIntoView({behavior:'smooth',block:'nearest'}),60); }
@@ -374,6 +392,7 @@ function importData(file) {
     try {
       const d = JSON.parse(e.target.result); if(!d.notes) throw new Error();
       d.notes.forEach(n=>{ if(!n.dispute) n.dispute=''; if(!n.f_article) n.f_article=''; if(!n.f_elements) n.f_elements=''; if(!n.f_conclusion) n.f_conclusion=''; if(!n.tags) n.tags=[]; if(!n.detail) n.detail=''; if(!Array.isArray(n.todos)) n.todos=[]; });
+      if(d.links) d.links.forEach(l=>{ l.rel='關聯'; l.color=LINK_COLOR; });
       if(confirm('確定 = 完整覆蓋（取代所有現有筆記）\n取消 = 合併（只加入新筆記）')) {
         notes = d.notes; links = d.links||[]; types = d.types||DEFAULTS.types.slice(); subjects = d.subjects||DEFAULTS.subjects.slice();
         nodeSizes = d.nodeSizes||{};
@@ -418,8 +437,8 @@ function execShortcut(id) {
   const map = {
     new:()=>{if(!isMapOpen) openForm(false);}, search:()=>{if(!isMapOpen){g('searchInput').focus();g('searchInput').select();}},
     map:()=>{if(!isMapOpen) toggleMapView(true);}, back:()=>{if(isMapOpen) toggleMapView(false);},
-    close:()=>{ if(g('scp').style.display==='block') closeShortcutMgr(); else if(g('tp').classList.contains('open')) g('tp').classList.remove('open'); else if(g('lp').classList.contains('open')){g('lp').classList.remove('open');g('dp').classList.add('open');} else if(g('fp').classList.contains('open')) closeForm(); else if(g('dp').classList.contains('open')) closeDetail(); },
-    edit:()=>{if(openId&&g('dp').classList.contains('open')) openForm(true);}, link:()=>{if(openId&&g('dp').classList.contains('open')) openLinkPanel();},
+    close:()=>{ if(g('scp').style.display==='block') closeShortcutMgr(); else if(g('tp').classList.contains('open')) g('tp').classList.remove('open'); else if(g('fp').classList.contains('open')) closeForm(); else if(g('dp').classList.contains('open')) closeDetail(); },
+    edit:()=>{if(openId&&g('dp').classList.contains('open')) openForm(true);}, link:()=>{if(openId&&g('dp').classList.contains('open')) openForm(true);},
     export:()=>exportData(), flash:()=>{if(!isMapOpen) openFlash();}, stats:()=>{if(!isMapOpen) openStats();}, shortcuts:()=>openShortcutMgr()
   };
   if(map[id]) map[id]();
@@ -431,6 +450,7 @@ function toggleMapView(open) {
   g('notesView').style.display=open?'none':'block';
   g('mapView').classList.toggle('open',open);
   g('subbar').style.display=open?'none':'flex';
+  g('sortBar').style.display=open?'none':'';
   g('search-results-bar').style.display=open?'none':'';
   if(open){
     buildMapFilters();
@@ -573,7 +593,6 @@ function closeExamView() { clearInterval(examTimer); g('examView').classList.rem
 // ==================== 體系圖 ====================
 function initNodePos() { const canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||500; const cx=mapW/2,cy=mapH/2,r=Math.min(mapW,mapH)*0.44; notes.forEach((n,i)=>{ if(!nodePos[n.id]){ const angle=(i/notes.length)*2*Math.PI; nodePos[n.id]={x:cx+r*Math.cos(angle),y:cy+r*Math.sin(angle)}; } }); }
 function getNodeRadius(id){ return clampMapRadius(parseFloat(nodeSizes[id])||MAP_NODE_RADIUS_DEFAULT); }
-// 將節點限制在畫布可視範圍，保留少量內距避免圓點貼邊造成連線錯位。
 function clampNodeToCanvas(id){
   if(!nodePos[id]) return;
   const r=getNodeRadius(id)+12;
@@ -707,7 +726,9 @@ function pushNodeOffLinks(nodeId, visLinks, pad=0){
   });
   return moved;
 }
-function getArrowMarker(color){ const map={'#378ADD':'arrowBlue','#1D9E75':'arrowGreen','#7F77DD':'arrowPurple','#D85A30':'arrowOrange'}; return `url(#${map[color]||'arrowGray'})`; }
+function getArrowMarker(color){ return `url(#arrowBlue)`; }
+
+// ==================== 體系圖核心繪製（修復拖曳連線）====================
 function moveNodeEl(id,x,y){
   const grp=nodeEls[id]; if(!grp)return;
   const mainCircle=grp.querySelector('circle.node-main');
@@ -752,62 +773,121 @@ function calcLinkPath(lk){
   const mx=(x1+x2)/2 + (-ny)*curve, my=(y1+y2)/2 + nx*curve;
   return {d:`M${x1},${y1} Q${mx},${my} ${x2},${y2}`};
 }
+
+// 修復：拖曳時同步更新所有受影響連線的路徑
 function redrawLines(affectedId){
-  const visIds={}; visibleNotes().forEach(n=>visIds[n.id]=true);
-  linkCurveOffsets=buildLinkCurveOffsets(visibleLinks(visIds));
-  const toUpdate=affectedId!==undefined?(nodeLinksIndex[affectedId]||[]):Object.keys(linkElsMap).map(Number);
-  toUpdate.forEach(linkId=>{
-    const els=linkElsMap[linkId], lk=links.find(x=>x.id===linkId);
-    if(!els||!els.p||!lk)return;
-    const c=calcLinkPath(lk); if(!c)return;
-    els.p.setAttribute('d',c.d);
+  const visIds={};
+  visibleNotes().forEach(n=>visIds[n.id]=true);
+  // 重建 curveOffsets（位置改變後偏移量要重算）
+  linkCurveOffsets = buildLinkCurveOffsets(visibleLinks(visIds));
+
+  // 如果有 affectedId，只更新和該節點相關的線；否則全部更新
+  const toUpdateIds = affectedId !== undefined
+    ? (nodeLinksIndex[affectedId] || [])
+    : Object.keys(linkElsMap).map(Number);
+
+  toUpdateIds.forEach(linkId=>{
+    const els = linkElsMap[linkId];
+    const lk = links.find(x=>x.id===linkId);
+    if(!els || !els.p || !lk) return;
+    // 確認兩端節點都在可視集合中
+    if(!visIds[lk.from] || !visIds[lk.to]) return;
+    const c = calcLinkPath(lk);
+    if(!c) return;
+    els.p.setAttribute('d', c.d);
   });
 }
+
 function visibleNotes(){ const q=mapFilter.q.toLowerCase(), linkedIds={}; if(mapLinkedOnly) links.forEach(l=>{ linkedIds[l.from]=true; linkedIds[l.to]=true; }); return notes.filter(n=>(mapFilter.sub==='all'||n.subject===mapFilter.sub)&&(mapFilter.type==='all'||n.type===mapFilter.type)&&(!q||`${n.title}${n.subject}${noteTags(n).join('')}`.toLowerCase().includes(q))&&(!mapLinkedOnly||linkedIds[n.id])); }
 function scheduleMapRedraw(delay=80){
   clearTimeout(mapRedrawTimer);
   mapRedrawTimer=setTimeout(()=>{ if(isMapOpen) drawMap(); },delay);
 }
 function drawMap() {
-  initNodePos(); const svg=g('mapSvg'), canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||500;
-  svg.setAttribute('width',mapW); svg.setAttribute('height',mapH); const ll=g('linksLayer'), nl=g('nodesLayer');
+  initNodePos();
+  const svg=g('mapSvg'), canvas=g('mapCanvas');
+  mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||500;
+  svg.setAttribute('width',mapW); svg.setAttribute('height',mapH);
+
+  const ll=g('linksLayer'), nl=g('nodesLayer');
   let gw=svg.querySelector('#mapWrap');
   if(!gw){
     gw=document.createElementNS('http://www.w3.org/2000/svg','g');
     gw.setAttribute('id','mapWrap');
     svg.insertBefore(gw,svg.firstChild);
   }
-  // Safari/iPad 在縮放或快速互動後，<g> 可能脫離 mapWrap，導致連線層不再顯示。
-  // 每次重繪都強制把圖層放回 mapWrap，避免連線「消失」。
+  // 每次重繪確保圖層在 mapWrap 中（修復 Safari/iPad 連線消失）
   gw.appendChild(ll);
   gw.appendChild(nl);
   ll.innerHTML=''; nl.innerHTML='';
   gw.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`);
-  const vis=visibleNotes(), visIds={}; vis.forEach(v=>visIds[v.id]=true);
-  const visLinks=visibleLinks(visIds); linkCurveOffsets=buildLinkCurveOffsets(visLinks);
+
+  const vis=visibleNotes(), visIds={};
+  vis.forEach(v=>visIds[v.id]=true);
+  const visLinks=visibleLinks(visIds);
+  linkCurveOffsets=buildLinkCurveOffsets(visLinks);
+
+  // 重置索引
   linkElsMap={}; nodeLinksIndex={};
+
+  // 繪製連線
   visLinks.forEach(lk=>{
     const c=calcLinkPath(lk); if(!c)return;
-    const line=document.createElementNS('http://www.w3.org/2000/svg','path'); line.setAttribute('d',c.d); line.setAttribute('stroke',lk.color); line.setAttribute('stroke-width','2'); line.setAttribute('fill','none'); line.setAttribute('marker-end',getArrowMarker(lk.color)); line.setAttribute('vector-effect','non-scaling-stroke'); line.setAttribute('stroke-linecap','round'); ll.appendChild(line);
+    const line=document.createElementNS('http://www.w3.org/2000/svg','path');
+    line.setAttribute('d',c.d);
+    line.setAttribute('stroke',LINK_COLOR);
+    line.setAttribute('stroke-width','2');
+    line.setAttribute('fill','none');
+    line.setAttribute('marker-end','url(#arrowBlue)');
+    line.setAttribute('vector-effect','non-scaling-stroke');
+    line.setAttribute('stroke-linecap','round');
+    ll.appendChild(line);
     linkElsMap[lk.id]={p:line};
     if(!nodeLinksIndex[lk.from]) nodeLinksIndex[lk.from]=[];
     if(!nodeLinksIndex[lk.to]) nodeLinksIndex[lk.to]=[];
     nodeLinksIndex[lk.from].push(lk.id);
     nodeLinksIndex[lk.to].push(lk.id);
   });
-  notes.forEach(n=>{ if(!visIds[n.id])return; const pos=nodePos[n.id]; if(!pos)return; const tp=typeByKey(n.type), lc=links.filter(l=>l.from===n.id||l.to===n.id).length, radius=getNodeRadius(n.id);
-    const grp=document.createElementNS('http://www.w3.org/2000/svg','g'); grp.setAttribute('class','map-node'); grp.setAttribute('data-id',n.id);
-    const circ=document.createElementNS('http://www.w3.org/2000/svg','circle'); circ.setAttribute('class','node-main'); circ.setAttribute('cx',pos.x); circ.setAttribute('cy',pos.y); circ.setAttribute('r',radius); circ.setAttribute('fill',tp.color); circ.setAttribute('stroke','#fff'); circ.setAttribute('stroke-width','2'); grp.appendChild(circ);
-    if(lc>0){ const bt=document.createElementNS('http://www.w3.org/2000/svg','text'); bt.setAttribute('class','node-count'); bt.setAttribute('x',pos.x); bt.setAttribute('y',pos.y); bt.setAttribute('text-anchor','middle'); bt.setAttribute('dominant-baseline','middle'); bt.setAttribute('font-size',String(Math.max(9,Math.min(13,radius*0.45)))); bt.setAttribute('fill','#fff'); bt.setAttribute('font-weight','800'); bt.textContent=lc; grp.appendChild(bt); }
-    const txt=document.createElementNS('http://www.w3.org/2000/svg','text'); txt.setAttribute('class','node-title'); txt.setAttribute('x',pos.x); txt.setAttribute('y',pos.y+radius+12); txt.setAttribute('text-anchor','middle'); txt.setAttribute('font-size','10'); txt.setAttribute('fill','#444');
-    splitMapTitleLines(n.title).forEach((line,idx)=>{ const sp=document.createElementNS('http://www.w3.org/2000/svg','tspan'); sp.setAttribute('x',pos.x); sp.setAttribute('dy',idx===0?'0':'1.15em'); sp.textContent=line; txt.appendChild(sp); });
+
+  // 繪製節點
+  notes.forEach(n=>{
+    if(!visIds[n.id])return;
+    const pos=nodePos[n.id]; if(!pos)return;
+    const tp=typeByKey(n.type), lc=links.filter(l=>l.from===n.id||l.to===n.id).length, radius=getNodeRadius(n.id);
+    const grp=document.createElementNS('http://www.w3.org/2000/svg','g');
+    grp.setAttribute('class','map-node'); grp.setAttribute('data-id',n.id);
+    const circ=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circ.setAttribute('class','node-main'); circ.setAttribute('cx',pos.x); circ.setAttribute('cy',pos.y);
+    circ.setAttribute('r',radius); circ.setAttribute('fill',tp.color);
+    circ.setAttribute('stroke','#fff'); circ.setAttribute('stroke-width','2');
+    grp.appendChild(circ);
+    if(lc>0){
+      const bt=document.createElementNS('http://www.w3.org/2000/svg','text');
+      bt.setAttribute('class','node-count'); bt.setAttribute('x',pos.x); bt.setAttribute('y',pos.y);
+      bt.setAttribute('text-anchor','middle'); bt.setAttribute('dominant-baseline','middle');
+      bt.setAttribute('font-size',String(Math.max(9,Math.min(13,radius*0.45))));
+      bt.setAttribute('fill','#fff'); bt.setAttribute('font-weight','800'); bt.textContent=lc;
+      grp.appendChild(bt);
+    }
+    const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('class','node-title'); txt.setAttribute('x',pos.x); txt.setAttribute('y',pos.y+radius+12);
+    txt.setAttribute('text-anchor','middle'); txt.setAttribute('font-size','10'); txt.setAttribute('fill','#444');
+    splitMapTitleLines(n.title).forEach((line,idx)=>{
+      const sp=document.createElementNS('http://www.w3.org/2000/svg','tspan');
+      sp.setAttribute('x',pos.x); sp.setAttribute('dy',idx===0?'0':'1.15em'); sp.textContent=line;
+      txt.appendChild(sp);
+    });
     grp.appendChild(txt);
     nl.appendChild(grp);
   });
+
   if(visLinks.length && ll.childElementCount===0){
     scheduleMapRedraw(120);
   }
- nodeEls={}; nl.querySelectorAll('.map-node').forEach(ng=>{
+
+  // 重建節點索引並綁定事件
+  nodeEls={};
+  nl.querySelectorAll('.map-node').forEach(ng=>{
     const id=parseInt(ng.dataset.id,10);
     if(Number.isNaN(id)) return;
     nodeEls[id]=ng;
@@ -820,7 +900,8 @@ function drawMap() {
       openMapPopup(id);
     });
   });
- }
+}
+
 function openMapPopup(id){
   const popup=g('mapPopup'), pos=nodePos[id];
   if(!popup||!pos) return;
@@ -838,7 +919,6 @@ function openMapPopup(id){
     };
   }
 }
-// ★ 修改3：showMapInfo 裡的 size row 改為 number input，移除 range slider
 function showMapInfo(id){ const n=noteById(id); if(!n)return; const tp=typeByKey(n.type), sb=subByKey(n.subject), related=links.filter(l=>l.from===id||l.to===id);
   g('mpBadge').textContent=tp.label; g('mpBadge').style.background=tp.color; g('mpTitle').textContent=n.title; g('mpSubject').textContent=sb.label; g('mpSubject').style.background=sb.color+'22'; g('mpSubject').style.color=sb.color;
   const sizeNumInput=g('mpNodeSizeNum');
@@ -865,7 +945,7 @@ function showMapInfo(id){ const n=noteById(id); if(!n)return; const tp=typeByKey
   } else {
     linksEl.innerHTML=related.map(l=>{
       const otherId=l.from===id?l.to:l.from, other=noteById(otherId), dir=l.from===id?'→':'←', name=other?other.title:'（已刪除）';
-      return `<div class="mp-link-row"><span class="mp-link-badge" style="background:${l.color}">${dir} ${l.rel}</span><span class="mp-link-name" data-nid="${otherId}">${name}</span></div>`;
+      return `<div class="mp-link-row"><span class="mp-link-badge" style="background:${LINK_COLOR}">${dir} 關聯</span><span class="mp-link-name" data-nid="${otherId}">${name}</span></div>`;
     }).join('');
     linksEl.querySelectorAll('.mp-link-name').forEach(el=>{
       el.addEventListener('click',()=>{
@@ -877,7 +957,7 @@ function showMapInfo(id){ const n=noteById(id); if(!n)return; const tp=typeByKey
     });
   }
 }
-  function closeMapPopup(){ g('mapPopup').classList.remove('open'); }
+function closeMapPopup(){ g('mapPopup').classList.remove('open'); }
 function highlightNode(id){ g('nodesLayer').querySelectorAll('.map-node').forEach(grp=>{ grp.classList.remove('map-node-highlight'); if(parseInt(grp.dataset.id)===id) grp.classList.add('map-node-highlight'); }); }
 function startDrag(e,id){ e.preventDefault(); e.stopPropagation(); closeMapPopup(); dragNode=id; const pos=nodePos[id], rect=g('mapCanvas').getBoundingClientRect(); dragOffX=e.clientX-rect.left-(pos.x*mapScale+mapOffX); dragOffY=e.clientY-rect.top-(pos.y*mapScale+mapOffY); }
 function startDragTouch(e,id){ e.stopPropagation(); dragNode=id; const pos=nodePos[id], rect=g('mapCanvas').getBoundingClientRect(), touch=e.touches[0]; dragOffX=touch.clientX-rect.left-(pos.x*mapScale+mapOffX); dragOffY=touch.clientY-rect.top-(pos.y*mapScale+mapOffY); }
@@ -901,9 +981,9 @@ window.addEventListener('load',()=>{
   g('flashTypeFilter')?.addEventListener('change',()=>{ flashTypeFilter2=g('flashTypeFilter').value; buildFlashDeck(); renderFlashCard(); });
   g('ft')?.addEventListener('change',()=>{ toggleTemplate(g('ft').value==='case'); toggleDiaryTodo(g('ft').value==='diary'); });
   const si=g('searchInput'), sc=g('searchClear'); si.addEventListener('input',debounce(()=>{ searchQ=si.value; gridPage=1; sc.style.display=searchQ?'block':'none'; render(); },250)); sc.addEventListener('click',()=>{ si.value=''; searchQ=''; gridPage=1; sc.style.display='none'; render(); si.focus(); });
-  g('addBtn').addEventListener('click',()=>openForm(false)); g('editBtn').addEventListener('click',()=>openForm(true)); g('linkBtn').addEventListener('click',openLinkPanel);
-  g('lpSave').addEventListener('click',saveLinkPanel); g('lpClose').addEventListener('click',()=>{ g('lp').classList.remove('open'); g('dp').classList.add('open'); }); g('lpCancel').addEventListener('click',()=>{ g('lp').classList.remove('open'); g('dp').classList.add('open'); });
-  g('lp-search')?.addEventListener('input',buildLpTarget); g('lp-filter-sub')?.addEventListener('change',buildLpTarget); g('lp-filter-type')?.addEventListener('change',buildLpTarget);
+  g('addBtn').addEventListener('click',()=>openForm(false)); g('editBtn').addEventListener('click',()=>openForm(true));
+  // 移除獨立 linkBtn 事件（已整合進編輯表單），改由 dp 的按鈕打開編輯
+  g('linkBtn')?.addEventListener('click',()=>openForm(true));
   g('dpClose').addEventListener('click',closeDetail); g('fpClose').addEventListener('click',closeForm); g('fpCancel').addEventListener('click',closeForm);
   g('fpSave').addEventListener('click',saveNote); g('delBtn').addEventListener('click',deleteNote); g('exportBtn').addEventListener('click',exportData);
   g('tpClose').addEventListener('click',()=>g('tp').classList.remove('open')); g('addTypeBtn').addEventListener('click',()=>addTag('type')); g('addSubBtn').addEventListener('click',()=>addTag('sub'));
@@ -932,19 +1012,29 @@ window.addEventListener('load',()=>{
   g('mapAutoBtn')?.addEventListener('click',()=>{ const btn=g('mapAutoBtn'), orig=btn.textContent; btn.textContent='排列中...'; btn.disabled=true; setTimeout(()=>{ nodePos={}; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); g('zoomLabel').textContent='100%'; btn.textContent=orig; btn.disabled=false; showToast('已自動排列'); },30); });
   g('mapResetBtn')?.addEventListener('click',()=>{ nodePos={}; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); g('zoomLabel').textContent='100%'; showToast('已重置'); });
   const canvas=g('mapCanvas'); let panStart=null, panOffXStart=0, panOffYStart=0;
-const onDragMove=(x,y)=>{
+
+  // ---- 拖曳移動節點（修復連線同步）----
+  const onDragMove=(x,y)=>{
     if(!dragNode||!nodePos[dragNode]) return;
     const activeNodeId=dragNode;
     const rect=canvas.getBoundingClientRect();
     let cx=(x-rect.left-dragOffX-mapOffX)/mapScale, cy=(y-rect.top-dragOffY-mapOffY)/mapScale;
     nodePos[activeNodeId]={x:cx,y:cy};
     clampNodeToCanvas(activeNodeId);
+    // 取得可視連線索引
     const visIds={}; visibleNotes().forEach(n=>visIds[n.id]=true);
     pushNodeOffLinks(activeNodeId, visibleLinks(visIds), 10);
     cx=nodePos[activeNodeId].x; cy=nodePos[activeNodeId].y;
-    if(rafId)cancelAnimationFrame(rafId);
-    rafId=requestAnimationFrame(()=>{ moveNodeEl(activeNodeId,cx,cy); redrawLines(activeNodeId); rafId=null; });
+    if(rafId) cancelAnimationFrame(rafId);
+    rafId=requestAnimationFrame(()=>{
+      // 1. 更新節點 DOM 位置
+      moveNodeEl(activeNodeId,cx,cy);
+      // 2. 重新計算並更新受影響的連線
+      redrawLines(activeNodeId);
+      rafId=null;
+    });
   };
+
   const onPanMove=(x,y)=>{ if(!panStart)return; mapOffX=panOffXStart+(x-panStart.x); mapOffY=panOffYStart+(y-panStart.y); if(rafId)cancelAnimationFrame(rafId); rafId=requestAnimationFrame(()=>{ const gw=g('mapSvg').querySelector('#mapWrap'); if(gw)gw.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`); rafId=null; }); };
   canvas.addEventListener('click',e=>{ if(e.target===canvas||e.target.id==='mapSvg'||e.target.id==='linksLayer') closeMapPopup(); });
   canvas.addEventListener('mousedown',e=>{ if(!dragNode){ panStart={x:e.clientX,y:e.clientY}; panOffXStart=mapOffX; panOffYStart=mapOffY; canvas.style.cursor='grabbing'; } });
@@ -970,4 +1060,7 @@ const onDragMove=(x,y)=>{
   g('syncDownloadBtn').addEventListener('click',async()=>{ const token=g('syncTokenInput').value.trim(), gistId=g('syncGistInput').value.trim(); if(!token||!gistId){ showToast('請填寫 Token 和 Gist ID'); return; } try{ const res=await fetch(`https://api.github.com/gists/${gistId}`,{ headers:{"Authorization":`token ${token}`} }); const j=await res.json(); const content=j.files["klaws_data.json"].content; localStorage.setItem(SKEY,content); location.reload(); }catch(e){ showToast("載入失敗："+e.message); } });
 
   render();
+
+  // ★ 修改1：預設進入體系圖模式
+  setTimeout(()=>toggleMapView(true), 120);
 });

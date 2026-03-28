@@ -69,10 +69,11 @@
     <div class="dp-lbl">&#38364;&#32879;&#31558;&#35352;</div><div id="dp-links"></div>
     <div class="action-row">
       <button class="edit-btn" id="editBtn">&#9998; &#32232;&#36655;</button>
-      <button class="link-btn" id="linkBtn">&#128279; &#26032;&#22686;&#38364;&#32879;</button>
+      <button class="link-btn" id="linkBtn">&#128279; &#31649;&#29702;&#38364;&#32879;</button>
       <button class="del-btn" id="delBtn">&#128465; &#21034;&#38500;</button>
     </div>
   </div>
+  <!-- Form Panel（整合關聯功能）-->
   <div class="panel" id="fp">
     <div class="ph">
       <span class="ph-title" id="form-title">&#26032;&#22686;&#31558;&#35352;</span>
@@ -95,34 +96,19 @@
     </div>
     <label class="flbl">&#27161;&#31844;&#65288;&#36887;&#34399;&#20998;&#38548;&#65289;</label>
     <input class="fi" id="fta" placeholder="&#20363;&#65306;&#20405;&#27402;&#34892;&#28858;, &#25613;&#23475;&#36064;&#20767;">
+
+    <!-- ★ 整合關聯功能 -->
+    <div id="form-links-wrap" style="margin-top:16px;padding-top:14px;border-top:1px solid #eee;">
+      <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">&#128279; &#38364;&#32879;&#31558;&#35352;</div>
+      <div id="form-links-list" style="margin-bottom:10px;display:flex;flex-direction:column;gap:5px;"></div>
+      <div style="font-size:11px;color:#555;font-weight:600;margin-bottom:5px;">&#25628;&#23563;&#24182;&#26032;&#22686;&#38364;&#32879;</div>
+      <input class="fi" id="fl-search" placeholder="&#128269; &#36989;&#20837;&#31558;&#35352;&#27161;&#38988;&#12289;&#31185;&#30446;&#12289;&#39006;&#21029;..." style="margin-bottom:6px;">
+      <div id="fl-results" style="display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;"></div>
+    </div>
+
     <div class="frow">
       <button class="fbtn bcl" id="fpCancel">&#21462;&#28040;</button>
       <button class="fbtn bsv" id="fpSave">&#20786;&#23384;</button>
-    </div>
-  </div>
-  <!-- Link panel -->
-  <div class="panel" id="lp">
-    <div class="ph">
-      <span class="ph-title">&#128279; &#26032;&#22686;&#38364;&#32879;</span>
-      <button class="pcls" id="lpClose">&#215;</button>
-    </div>
-    <div id="lp-from-title" style="font-size:13px;color:#555;margin-bottom:10px;"></div>
-    <label class="flbl" style="margin-top:0">&#36899;&#25509;&#21040;&#21738;&#31558;&#31558;&#35352;&#65311;</label>
-    <div class="lp-search-center">
-      <input class="fi" id="lp-search" placeholder="&#128269; &#25628;&#23563;&#27161;&#38988;&#12289;&#31185;&#30446;&#12289;&#39006;&#22411;..." style="margin-bottom:0;">
-      <div class="lp-filter-row">
-        <select class="fs" id="lp-filter-sub" style="margin-bottom:0;"><option value="all">&#20840;&#37096;&#31185;&#30446;</option></select>
-        <select class="fs" id="lp-filter-type" style="margin-bottom:0;"><option value="all">&#20840;&#37096;&#39006;&#21029;</option></select>
-      </div>
-    </div>
-    <select class="fs" id="lp-target" size="6" style="height:150px;background:#f8f8f8;font-size:12px;"></select>
-    <div id="lp-count" style="font-size:11px;color:#aaa;margin:3px 0 6px;"></div>
-    <label class="flbl" style="margin-top:4px;">&#38364;&#20418;&#39006;&#22411;</label>
-    <div class="rel-btns" id="relBtns"></div>
-    <input class="fi" id="lp-rel-custom" placeholder="&#25110;&#36664;&#20837;&#33258;&#35330;&#38364;&#20418;..." style="margin-top:8px;">
-    <div class="frow">
-      <button class="fbtn bcl" id="lpCancel">&#21462;&#28040;</button>
-      <button class="fbtn bsv" id="lpSave">&#24314;&#31435;&#38364;&#32879;</button>
     </div>
   </div>
   <!-- Tag manager -->
@@ -189,18 +175,6 @@
       <defs>
         <marker id="arrowBlue" markerWidth="4" markerHeight="4" refX="3" refY="1.5" orient="auto">
           <path d="M0,0 L0,3 L4,1.5 z" fill="#378ADD"/>
-        </marker>
-        <marker id="arrowGreen" markerWidth="4" markerHeight="4" refX="3" refY="1.5" orient="auto">
-          <path d="M0,0 L0,3 L4,1.5 z" fill="#1D9E75"/>
-        </marker>
-        <marker id="arrowPurple" markerWidth="4" markerHeight="4" refX="3" refY="1.5" orient="auto">
-          <path d="M0,0 L0,3 L4,1.5 z" fill="#7F77DD"/>
-        </marker>
-        <marker id="arrowOrange" markerWidth="4" markerHeight="4" refX="3" refY="1.5" orient="auto">
-          <path d="M0,0 L0,3 L4,1.5 z" fill="#D85A30"/>
-        </marker>
-        <marker id="arrowGray" markerWidth="4" markerHeight="4" refX="3" refY="1.5" orient="auto">
-          <path d="M0,0 L0,3 L4,1.5 z" fill="#888"/>
         </marker>
       </defs>
       <g id="linksLayer"></g>

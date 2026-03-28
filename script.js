@@ -604,101 +604,118 @@ function segmentsCross(a,b,c,d){
   const d1=det(a,b,c), d2=det(a,b,d), d3=det(c,d,a), d4=det(c,d,b);
   return (d1*d2<0)&&(d3*d4<0);
 }
+// ==================== 體系圖核心排列演算法 (全新層級佈局版) ====================
+// 目標：將節點像範例圖片一樣，依照關聯方向從左到右、整齊分層排列。
 function forceLayout() {
-  const canvas=g('mapCanvas'); mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||600;
-  const layoutNotes=visibleNotes(), visIds={}; layoutNotes.forEach(n=>visIds[n.id]=true);
-  const visLinks=visibleLinks(visIds), n2=layoutNotes.length;
-  if(!n2) return;
-  const NODE_R=40, LINK_IDEAL=NODE_R*4.9, linkedPairs={};
-  visLinks.forEach(lk=>{ linkedPairs[lk.from+'_'+lk.to]=true; linkedPairs[lk.to+'_'+lk.from]=true; });
-  const isLinked=(a,b)=>!!linkedPairs[a+'_'+b];
-  const cols=Math.ceil(Math.sqrt(n2*1.2)), cellW=Math.max(mapW/(cols+1),NODE_R*3.6), cellH=Math.max(mapH/(Math.ceil(n2/cols)+1),NODE_R*3.6);
-  layoutNotes.forEach((n,i)=>{ const col=i%cols,row=Math.floor(i/cols); nodePos[n.id]={x:cellW*(col+1)+(Math.random()-0.5)*cellW*0.25,y:cellH*(row+1)+(Math.random()-0.5)*cellH*0.25}; });
-  for(let t=0;t<420;t++){ const cool=Math.pow(1-t/420,1.35), disp={}; layoutNotes.forEach(n=>disp[n.id]={x:0,y:0});
-   for(let i=0;i<n2;i++) for(let j=i+1;j<n2;j++){
-      const ai=layoutNotes[i].id,aj=layoutNotes[j].id, px=nodePos[ai],py=nodePos[aj];
-      let dx=px.x-py.x, dy=px.y-py.y, dist=Math.sqrt(dx*dx+dy*dy), linked=isLinked(ai,aj);
-      if(dist<0.001){ const ang=Math.random()*Math.PI*2; dx=Math.cos(ang); dy=Math.sin(ang); dist=1; }
-      const minDist=getNodeRadius(ai)+getNodeRadius(aj)+34;
-      let rep=((NODE_R*NODE_R*1.26)/(dist*dist))*40;
-      if(linked) rep*=0.45;
-      if(dist<minDist) rep += ((minDist-dist)/Math.max(minDist,1))*70;
-      if(rep>0){ disp[ai].x+=dx/dist*rep; disp[ai].y+=dy/dist*rep; disp[aj].x-=dx/dist*rep; disp[aj].y-=dy/dist*rep; }
+  const canvas = g('mapCanvas');
+  mapW = canvas.offsetWidth || 800;
+  mapH = canvas.offsetHeight || 600;
+
+  // 1. 取得目前畫面上的節點與連線
+  const layoutNotes = visibleNotes();
+  const visIds = {};
+  layoutNotes.forEach(n => visIds[n.id] = true);
+  const visLinks = visibleLinks(visIds);
+  const n2 = layoutNotes.length;
+
+  if (!n2) return;
+
+  // 定義間距常數 (您可以根據需要微調這些數字)
+  const LEVEL_WIDTH = 220;  // 每一層之間的水平距離
+  const NODE_MARGIN_Y = 60; // 同一層節點之間的垂直最小間距
+
+  // 2. 建立鄰接表 (用來分析誰連到誰)
+  const adj = {};
+  const inDegree = {}; // 記錄每個節點被多少人連過來 (入度)
+  
+  layoutNotes.forEach(n => {
+    adj[n.id] = [];
+    inDegree[n.id] = 0;
+  });
+
+  visLinks.forEach(lk => {
+    if (adj[lk.from] && adj[lk.to] !== undefined) {
+      adj[lk.from].push(lk.to);
+      inDegree[lk.to]++;
     }
-  visLinks.forEach(lk=>{ const fp=nodePos[lk.from],tp=nodePos[lk.to]; if(!fp||!tp)return; const dx=tp.x-fp.x, dy=tp.y-fp.y, dist=Math.sqrt(dx*dx+dy*dy)||0.01; const att=(dist-LINK_IDEAL)*0.06; disp[lk.from].x+=dx/dist*att; disp[lk.from].y+=dy/dist*att; disp[lk.to].x-=dx/dist*att; disp[lk.to].y-=dy/dist*att; });
-    const maxD=Math.max(mapW,mapH)*0.035*cool+1.4;
-    layoutNotes.forEach(n=>{ const id=n.id,d=disp[id], len=Math.sqrt(d.x*d.x+d.y*d.y)||0.01, move=Math.min(len,maxD); nodePos[id].x+=d.x/len*move; nodePos[id].y+=d.y/len*move; clampNodeToCanvas(id); });
+  });
+
+  // 3. 確定節點層級 (Level assigning)
+  const levels = {}; // 格式: { nodeId: 0, nodeId: 1, ... }
+  const levelGroups = []; // 格式: [[nodeId, nodeId], [nodeId], ...]
+
+  // 使用拓撲排序思維確定層級
+  let queue = layoutNotes.filter(n => inDegree[n.id] === 0).map(n => n.id);
+  
+  // 如果所有節點都有人連 (形成環)，就強制抓第一個當起點
+  if (queue.length === 0 && n2 > 0) {
+    queue = [layoutNotes[0].id];
   }
-  for(let pass=0;pass<80;pass++){
-    let moved=false;
-    for(let i=0;i<n2;i++) for(let j=i+1;j<n2;j++){
-      const ai=layoutNotes[i].id, aj=layoutNotes[j].id, fp=nodePos[ai], tp=nodePos[aj];
-      let dx=tp.x-fp.x, dy=tp.y-fp.y, dist=Math.sqrt(dx*dx+dy*dy);
-      if(dist<0.001){ const ang=Math.random()*Math.PI*2; dx=Math.cos(ang); dy=Math.sin(ang); dist=1; }
-      const need=getNodeRadius(ai)+getNodeRadius(aj)+26;
-      if(dist<need){
-        const push=(need-dist)/2+0.8, nx=dx/dist, ny=dy/dist;
-        nodePos[ai].x-=nx*push; nodePos[ai].y-=ny*push;
-        nodePos[aj].x+=nx*push; nodePos[aj].y+=ny*push;
-        clampNodeToCanvas(ai); clampNodeToCanvas(aj); moved=true;
+
+  // 遞迴分配層級
+  let currentLevel = 0;
+  let visited = new Set();
+
+  while (queue.length > 0) {
+    let nextQueue = [];
+    levelGroups[currentLevel] = [];
+
+    queue.forEach(nodeId => {
+      if (visited.has(nodeId)) return;
+      visited.add(nodeId);
+
+      levels[nodeId] = currentLevel;
+      levelGroups[currentLevel].push(nodeId);
+
+      if (adj[nodeId]) {
+        adj[nodeId].forEach(neighborId => {
+          if (!visited.has(neighborId)) {
+            nextQueue.push(neighborId);
+          }
+        });
       }
-    }
-    if(!moved) break;
-  }
-  for(let pass=0;pass<36;pass++){
-    let moved=false;
-    layoutNotes.forEach(n=>{
-      if(pushNodeOffLinks(n.id, visLinks, 6)) moved=true;
     });
-    if(!moved) break;
-  }
-  for(let pass=0;pass<36;pass++){
-    let changed=false;
-    for(let i=0;i<visLinks.length;i++) for(let j=i+1;j<visLinks.length;j++){
-      const a=visLinks[i], b=visLinks[j];
-      if(a.from===b.from||a.from===b.to||a.to===b.from||a.to===b.to) continue;
-      const a1=nodePos[a.from], a2=nodePos[a.to], b1=nodePos[b.from], b2=nodePos[b.to];
-      if(!a1||!a2||!b1||!b2||!segmentsCross(a1,a2,b1,b2)) continue;
-      const ax=(a2.x-a1.x), ay=(a2.y-a1.y), al=Math.sqrt(ax*ax+ay*ay)||1, apx=-ay/al, apy=ax/al;
-      const bx=(b2.x-b1.x), by=(b2.y-b1.y), bl=Math.sqrt(bx*bx+by*by)||1, bpx=-by/bl, bpy=bx/bl;
-      const push=4.4;
-      nodePos[a.from].x+=apx*push; nodePos[a.from].y+=apy*push; nodePos[a.to].x-=apx*push; nodePos[a.to].y-=apy*push;
-      nodePos[b.from].x-=bpx*push; nodePos[b.from].y-=bpy*push; nodePos[b.to].x+=bpx*push; nodePos[b.to].y+=bpy*push;
-      [a.from,a.to,b.from,b.to].forEach(clampNodeToCanvas);
-      changed=true;
+
+    // 處理未被連到的孤立節點，放在第一層
+    if (nextQueue.length === 0 && visited.size < n2) {
+        const unvisited = layoutNotes.filter(n => !visited.has(n.id));
+        if(unvisited.length > 0) {
+            nextQueue = [unvisited[0].id];
+        }
     }
-    if(!changed) break;
+
+    queue = [...new Set(nextQueue)]; // 去重
+    currentLevel++;
   }
-  const countCrossings=()=>{
-    let c=0;
-    for(let i=0;i<visLinks.length;i++) for(let j=i+1;j<visLinks.length;j++){
-      const a=visLinks[i], b=visLinks[j];
-      if(a.from===b.from||a.from===b.to||a.to===b.from||a.to===b.to) continue;
-      const a1=nodePos[a.from], a2=nodePos[a.to], b1=nodePos[b.from], b2=nodePos[b.to];
-      if(a1&&a2&&b1&&b2&&segmentsCross(a1,a2,b1,b2)) c++;
-    }
-    return c;
-  };
-  const layoutScore=()=>{
-    let overlapPenalty=0;
-    for(let i=0;i<n2;i++) for(let j=i+1;j<n2;j++){
-      const ai=layoutNotes[i].id, aj=layoutNotes[j].id, a=nodePos[ai], b=nodePos[aj];
-      const need=getNodeRadius(ai)+getNodeRadius(aj)+14, d=Math.hypot(a.x-b.x,a.y-b.y);
-      if(d<need) overlapPenalty += (need-d);
-    }
-    return countCrossings()*180 + overlapPenalty*8;
-  };
-  for(let pass=0;pass<220;pass++){
-    const a=layoutNotes[Math.floor(Math.random()*n2)], b=layoutNotes[Math.floor(Math.random()*n2)];
-    if(!a||!b||a.id===b.id) continue;
-    const aPos={...nodePos[a.id]}, bPos={...nodePos[b.id]}, before=layoutScore();
-    nodePos[a.id]=bPos; nodePos[b.id]=aPos;
-    clampNodeToCanvas(a.id); clampNodeToCanvas(b.id);
-    const after=layoutScore();
-    if(after>before){ nodePos[a.id]=aPos; nodePos[b.id]=bPos; }
-  }
-  saveData();
+
+  // 4. 計算並設定座標 (Coordinate assignment)
+  // 水平方向：根據層級 (Level) 決定 X
+  // 垂直方向：根據該層內的序號決定 Y，並居中
+  
+  levelGroups.forEach((group, levelIdx) => {
+    if(!group) return;
+    const numNodesInLevel = group.length;
+    const totalLevelHeight = numNodesInLevel * NODE_MARGIN_Y;
+    const startY = (mapH - totalLevelHeight) / 2; // 居中起點
+
+    group.forEach((nodeId, nodeIdx) => {
+      // 設定 X：層級 * 層寬 + 靠左留白
+      const x = levelIdx * LEVEL_WIDTH + 100;
+      
+      // 設定 Y：起點 + (序號 * 間距)
+      const y = startY + (nodeIdx * NODE_MARGIN_Y) + (NODE_MARGIN_Y / 2);
+
+      nodePos[nodeId] = { x, y };
+      
+      // 確保節點不會跑出畫布
+      clampNodeToCanvas(nodeId);
+    });
+  });
+
+  // 5. 儲存新的位置資料
+  saveDataDeferred();
 }
+// ==================== 演算法結束 ====================
 function pointToSegmentDistance(px,py,x1,y1,x2,y2){
   const dx=x2-x1, dy=y2-y1, len2=dx*dx+dy*dy;
   if(!len2) return {dist:Math.hypot(px-x1,py-y1), nx:0, ny:0};

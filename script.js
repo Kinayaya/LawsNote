@@ -790,132 +790,71 @@ function visibleNotes(){ const q=mapFilter.q.toLowerCase(), linkedIds={}; if(map
 function scheduleMapRedraw(delay=80){
   clearTimeout(mapRedrawTimer);
   mapRedrawTimer=setTimeout(()=>{ if(isMapOpen) drawMap(); },delay);
-function resolveOverlaps(notes) {
-  const minDistanceX = 180; // 節點寬度 + 間距
-  const minDistanceY = 100; // 節點高度 + 間距
-  let iterations = 10; // 迭代次數，越多越精準但越耗能
-
-  for (let i = 0; i < iterations; i++) {
-    for (let a = 0; a < notes.length; a++) {
-      for (let b = a + 1; b < notes.length; b++) {
-        let nodeA = notes[a];
-        let nodeB = notes[b];
-
-        let dx = nodeB.x - nodeA.x;
-        let dy = nodeB.y - nodeA.y;
-
-        // 如果距離太近，則推開
-        if (Math.abs(dx) < minDistanceX && Math.abs(dy) < minDistanceY) {
-          let forceX = (minDistanceX - Math.abs(dx)) * 0.5;
-          let forceY = (minDistanceY - Math.abs(dy)) * 0.5;
-
-          nodeB.x += dx >= 0 ? forceX : -forceX;
-          nodeB.y += dy >= 0 ? forceY : -forceY;
-          nodeA.x -= dx >= 0 ? forceX : -forceX;
-          nodeA.y -= dy >= 0 ? forceY : -forceY;
+function resolveOverlaps(notesToData) {
+  const minX = 200; 
+  const minY = 120;
+  notesToData.forEach(n => {
+    if (!nodePos[n.id]) {
+      nodePos[n.id] = { 
+        x: 100 + Math.random() * (canvas.width - 200), 
+        y: 100 + Math.random() * (canvas.height - 200) 
+      };
+    }
+  });
+  for (let i = 0; i < 15; i++) {
+    for (let a = 0; a < notesToData.length; a++) {
+      for (let b = a + 1; b < notesToData.length; b++) {
+        let nA = nodePos[notesToData[a].id];
+        let nB = nodePos[notesToData[b].id];
+        let dx = nB.x - nA.x;
+        let dy = nB.y - nA.y;
+        if (Math.abs(dx) < minX && Math.abs(dy) < minY) {
+          let fx = (minX - Math.abs(dx)) * 0.5;
+          let fy = (minY - Math.abs(dy)) * 0.5;
+          nB.x += dx >= 0 ? fx : -fx;
+          nB.y += dy >= 0 ? fy : -fy;
+          nA.x -= dx >= 0 ? fx : -fx;
+          nA.y -= dy >= 0 ? fy : -fy;
         }
       }
     }
   }
 }
-}
+
 function drawMap() {
-  initNodePos();
-  const svg=g('mapSvg'), canvas=g('mapCanvas');
-  mapW=canvas.offsetWidth||800; mapH=canvas.offsetHeight||500;
-  svg.setAttribute('width',mapW); svg.setAttribute('height',mapH);
+  if (currentView !== 'map') return;
+  const q = mapFilter.q.toLowerCase();
+  const filtered = notes.filter(n => 
+    (mapFilter.sub === 'all' || n.subject === mapFilter.sub) &&
+    (mapFilter.type === 'all' || n.type === mapFilter.type) &&
+    (!q || n.title.toLowerCase().includes(q))
+  );
 
-  const ll=g('linksLayer'), nl=g('nodesLayer');
-  let gw=svg.querySelector('#mapWrap');
-  if(!gw){
-    gw=document.createElementNS('http://www.w3.org/2000/svg','g');
-    gw.setAttribute('id','mapWrap');
-    svg.insertBefore(gw,svg.firstChild);
-  }
-  // 每次重繪確保圖層在 mapWrap 中（修復 Safari/iPad 連線消失）
-  gw.appendChild(ll);
-  gw.appendChild(nl);
-  ll.innerHTML=''; nl.innerHTML='';
-  gw.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`);
+  resolveOverlaps(filtered);
 
-  const vis=visibleNotes(), visIds={};
-  vis.forEach(v=>visIds[v.id]=true);
-  const visLinks=visibleLinks(visIds);
-  linkCurveOffsets=buildLinkCurveOffsets(visLinks);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.translate(mapX, mapY);
+  ctx.scale(mapScale, mapScale);
 
-  // 重置索引
-  linkElsMap={}; nodeLinksIndex={};
-
-  // 繪製連線
-  visLinks.forEach(lk=>{
-    const c=calcLinkPath(lk); if(!c)return;
-    const line=document.createElementNS('http://www.w3.org/2000/svg','path');
-    line.setAttribute('d',c.d);
-    line.setAttribute('stroke',LINK_COLOR);
-    line.setAttribute('stroke-width','2');
-    line.setAttribute('fill','none');
-    line.setAttribute('marker-end','url(#arrowBlue)');
-    line.setAttribute('vector-effect','non-scaling-stroke');
-    line.setAttribute('stroke-linecap','round');
-    ll.appendChild(line);
-    linkElsMap[lk.id]={p:line};
-    if(!nodeLinksIndex[lk.from]) nodeLinksIndex[lk.from]=[];
-    if(!nodeLinksIndex[lk.to]) nodeLinksIndex[lk.to]=[];
-    nodeLinksIndex[lk.from].push(lk.id);
-    nodeLinksIndex[lk.to].push(lk.id);
-  });
-
-  // 繪製節點
-  notes.forEach(n=>{
-    if(!visIds[n.id])return;
-    const pos=nodePos[n.id]; if(!pos)return;
-    const tp=typeByKey(n.type), lc=links.filter(l=>l.from===n.id||l.to===n.id).length, radius=getNodeRadius(n.id);
-    const grp=document.createElementNS('http://www.w3.org/2000/svg','g');
-    grp.setAttribute('class','map-node'); grp.setAttribute('data-id',n.id);
-    const circ=document.createElementNS('http://www.w3.org/2000/svg','circle');
-    circ.setAttribute('class','node-main'); circ.setAttribute('cx',pos.x); circ.setAttribute('cy',pos.y);
-    circ.setAttribute('r',radius); circ.setAttribute('fill',tp.color);
-    circ.setAttribute('stroke','#fff'); circ.setAttribute('stroke-width','2');
-    grp.appendChild(circ);
-    if(lc>0){
-      const bt=document.createElementNS('http://www.w3.org/2000/svg','text');
-      bt.setAttribute('class','node-count'); bt.setAttribute('x',pos.x); bt.setAttribute('y',pos.y);
-      bt.setAttribute('text-anchor','middle'); bt.setAttribute('dominant-baseline','middle');
-      bt.setAttribute('font-size',String(Math.max(9,Math.min(13,radius*0.45))));
-      bt.setAttribute('fill','#fff'); bt.setAttribute('font-weight','800'); bt.textContent=lc;
-      grp.appendChild(bt);
+  links.forEach(l => {
+    const p1 = nodePos[l.from];
+    const p2 = nodePos[l.to];
+    if (p1 && p2) {
+      const hasFrom = filtered.some(fn => fn.id === l.from);
+      const hasTo = filtered.some(fn => fn.id === l.to);
+      if (hasFrom && hasTo) {
+        drawLink(p1.x, p1.y, p2.x, p2.y, l.rel, l.color || '#378ADD');
+      }
     }
-    const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
-    txt.setAttribute('class','node-title'); txt.setAttribute('x',pos.x); txt.setAttribute('y',pos.y+radius+12);
-    txt.setAttribute('text-anchor','middle'); txt.setAttribute('font-size','10'); txt.setAttribute('fill','#444');
-    splitMapTitleLines(n.title).forEach((line,idx)=>{
-      const sp=document.createElementNS('http://www.w3.org/2000/svg','tspan');
-      sp.setAttribute('x',pos.x); sp.setAttribute('dy',idx===0?'0':'1.15em'); sp.textContent=line;
-      txt.appendChild(sp);
-    });
-    grp.appendChild(txt);
-    nl.appendChild(grp);
   });
 
-  if(visLinks.length && ll.childElementCount===0){
-    scheduleMapRedraw(120);
-  }
-
-  // 重建節點索引並綁定事件
-  nodeEls={};
-  nl.querySelectorAll('.map-node').forEach(ng=>{
-    const id=parseInt(ng.dataset.id,10);
-    if(Number.isNaN(id)) return;
-    nodeEls[id]=ng;
-    ng.addEventListener('mousedown',e=>startDrag(e,id));
-    ng.addEventListener('touchstart',e=>startDragTouch(e,id),{passive:true});
-    ng.addEventListener('click',e=>{
-      e.stopPropagation();
-      highlightNode(id);
-      showMapInfo(id);
-      openMapPopup(id);
-    });
+  filtered.forEach(n => {
+    const pos = nodePos[n.id];
+    const isSelected = (selectedNodeId === n.id);
+    drawNode(pos.x, pos.y, n.title, n.type, isSelected);
   });
+  ctx.restore();
 }
 
 function openMapPopup(id){

@@ -611,113 +611,79 @@ function forceLayout() {
   mapW = canvas.offsetWidth || 800;
   mapH = canvas.offsetHeight || 600;
 
-  // 1. 取得目前畫面上的節點與連線
   const layoutNotes = visibleNotes();
   const visIds = {};
   layoutNotes.forEach(n => visIds[n.id] = true);
   const visLinks = visibleLinks(visIds);
   const n2 = layoutNotes.length;
-
   if (!n2) return;
 
-  // 定義間距常數 (您可以根據需要微調這些數字)
-  const LEVEL_WIDTH = 100; // 每一層之間的水平距離
-  const NODE_MARGIN_Y = 70; // 同一層節點之間的垂直最小間距
+  // --- 黃金比例參數 (建議不要改動這兩個數值) ---
+  const LEVEL_WIDTH = 160;   // 左右層級距離：160 像素
+  const NODE_MARGIN_Y = 85;  // 上下節點距離：85 像素 (剛好能放下文字不重疊)
+  // ------------------------------------------
 
-  // 2. 建立鄰接表 (用來分析誰連到誰)
   const adj = {};
-  const inDegree = {}; // 記錄每個節點被多少人連過來 (入度)
-  
-  layoutNotes.forEach(n => {
-    adj[n.id] = [];
-    inDegree[n.id] = 0;
-  });
-
+  const inDegree = {};
+  layoutNotes.forEach(n => { adj[n.id] = []; inDegree[n.id] = 0; });
   visLinks.forEach(lk => {
-    if (adj[lk.from] && adj[lk.to] !== undefined) {
+    if (adj[lk.from] && inDegree[lk.to] !== undefined) {
       adj[lk.from].push(lk.to);
       inDegree[lk.to]++;
     }
   });
 
-  // 3. 確定節點層級 (Level assigning)
-  const levels = {}; // 格式: { nodeId: 0, nodeId: 1, ... }
-  const levelGroups = []; // 格式: [[nodeId, nodeId], [nodeId], ...]
-
-  // 使用拓撲排序思維確定層級
+  const levels = {};
+  const levelGroups = [];
   let queue = layoutNotes.filter(n => inDegree[n.id] === 0).map(n => n.id);
-  
-  // 如果所有節點都有人連 (形成環)，就強制抓第一個當起點
-  if (queue.length === 0 && n2 > 0) {
-    queue = [layoutNotes[0].id];
-  }
+  if (queue.length === 0 && n2 > 0) queue = [layoutNotes[0].id];
 
-  // 遞迴分配層級
   let currentLevel = 0;
   let visited = new Set();
 
   while (queue.length > 0) {
     let nextQueue = [];
     levelGroups[currentLevel] = [];
-
     queue.forEach(nodeId => {
       if (visited.has(nodeId)) return;
       visited.add(nodeId);
-
       levels[nodeId] = currentLevel;
       levelGroups[currentLevel].push(nodeId);
-
-      if (adj[nodeId]) {
-        adj[nodeId].forEach(neighborId => {
-          if (!visited.has(neighborId)) {
-            nextQueue.push(neighborId);
-          }
-        });
-      }
+      if (adj[nodeId]) adj[nodeId].forEach(neighborId => { if (!visited.has(neighborId)) nextQueue.push(neighborId); });
     });
-
-    // 處理未被連到的孤立節點，放在第一層
-    if (nextQueue.length === 0 && visited.size < n2) {
-        const unvisited = layoutNotes.filter(n => !visited.has(n.id));
-        if(unvisited.length > 0) {
-            nextQueue = [unvisited[0].id];
-        }
-    }
-
-    queue = [...new Set(nextQueue)]; // 去重
+    queue = [...new Set(nextQueue)];
     currentLevel++;
   }
 
-  // 4. 計算並設定座標 (Coordinate assignment)
-  // 水平方向：根據層級 (Level) 決定 X
-  // 垂直方向：根據該層內的序號決定 Y，並居中
-  
+  // 處理漏掉的節點 (防止它們全部疊在 0,0 位置)
+  layoutNotes.forEach(n => {
+    if (!visited.has(n.id)) {
+        levels[n.id] = 0;
+        if(!levelGroups[0]) levelGroups[0] = [];
+        levelGroups[0].push(n.id);
+    }
+  });
+
+  // 設定位置
   levelGroups.forEach((group, levelIdx) => {
     if(!group) return;
-
-    // 排序邏輯：讓子節點跟隨父節點的平均 Y 軸位置
-    if (levelIdx > 0) {
-      group.sort((a, b) => {
-        const parentsA = layoutNotes.filter(n => adj[n.id] && adj[n.id].includes(a));
-        const parentsB = layoutNotes.filter(n => adj[n.id] && adj[n.id].includes(b));
-        const avgYA = parentsA.length ? parentsA.reduce((sum, p) => sum + (nodePos[p.id]?.y || 0), 0) / parentsA.length : 0;
-        const avgYB = parentsB.length ? parentsB.reduce((sum, p) => sum + (nodePos[p.id]?.y || 0), 0) / parentsB.length : 0;
-        return avgYA - avgYB;
-      });
-    }
-
     const numNodesInLevel = group.length;
-    const totalLevelHeight = numNodesInLevel * NODE_MARGIN_Y;
+    // 如果這層節點太多，自動拉開一點距離防止重疊
+    const currentMarginY = Math.max(NODE_MARGIN_Y, mapH / (numNodesInLevel + 1));
+    const totalLevelHeight = numNodesInLevel * currentMarginY;
     const startY = (mapH - totalLevelHeight) / 2;
 
     group.forEach((nodeId, nodeIdx) => {
-      const x = levelIdx * LEVEL_WIDTH + 80; // 稍微靠左
-      const y = startY + (nodeIdx * NODE_MARGIN_Y) + (NODE_MARGIN_Y / 2);
+      // X 軸：層級 * 寬度 + 基礎留白
+      const x = levelIdx * LEVEL_WIDTH + 100;
+      // Y 軸：計算後的置中位置
+      const y = startY + (nodeIdx * currentMarginY) + (currentMarginY / 2);
+
       nodePos[nodeId] = { x, y };
       clampNodeToCanvas(nodeId);
     });
   });
-  // 5. 儲存新的位置資料
+
   saveDataDeferred();
 }
 // ==================== 演算法結束 ====================

@@ -790,6 +790,34 @@ function visibleNotes(){ const q=mapFilter.q.toLowerCase(), linkedIds={}; if(map
 function scheduleMapRedraw(delay=80){
   clearTimeout(mapRedrawTimer);
   mapRedrawTimer=setTimeout(()=>{ if(isMapOpen) drawMap(); },delay);
+function resolveOverlaps(notes) {
+  const minDistanceX = 180; // 節點寬度 + 間距
+  const minDistanceY = 100; // 節點高度 + 間距
+  let iterations = 10; // 迭代次數，越多越精準但越耗能
+
+  for (let i = 0; i < iterations; i++) {
+    for (let a = 0; a < notes.length; a++) {
+      for (let b = a + 1; b < notes.length; b++) {
+        let nodeA = notes[a];
+        let nodeB = notes[b];
+
+        let dx = nodeB.x - nodeA.x;
+        let dy = nodeB.y - nodeA.y;
+
+        // 如果距離太近，則推開
+        if (Math.abs(dx) < minDistanceX && Math.abs(dy) < minDistanceY) {
+          let forceX = (minDistanceX - Math.abs(dx)) * 0.5;
+          let forceY = (minDistanceY - Math.abs(dy)) * 0.5;
+
+          nodeB.x += dx >= 0 ? forceX : -forceX;
+          nodeB.y += dy >= 0 ? forceY : -forceY;
+          nodeA.x -= dx >= 0 ? forceX : -forceX;
+          nodeA.y -= dy >= 0 ? forceY : -forceY;
+        }
+      }
+    }
+  }
+}
 }
 function drawMap() {
   initNodePos();

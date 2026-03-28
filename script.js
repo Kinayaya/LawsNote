@@ -694,24 +694,29 @@ function forceLayout() {
   
   levelGroups.forEach((group, levelIdx) => {
     if(!group) return;
+
+    // 排序邏輯：讓子節點跟隨父節點的平均 Y 軸位置
+    if (levelIdx > 0) {
+      group.sort((a, b) => {
+        const parentsA = layoutNotes.filter(n => adj[n.id] && adj[n.id].includes(a));
+        const parentsB = layoutNotes.filter(n => adj[n.id] && adj[n.id].includes(b));
+        const avgYA = parentsA.length ? parentsA.reduce((sum, p) => sum + (nodePos[p.id]?.y || 0), 0) / parentsA.length : 0;
+        const avgYB = parentsB.length ? parentsB.reduce((sum, p) => sum + (nodePos[p.id]?.y || 0), 0) / parentsB.length : 0;
+        return avgYA - avgYB;
+      });
+    }
+
     const numNodesInLevel = group.length;
     const totalLevelHeight = numNodesInLevel * NODE_MARGIN_Y;
-    const startY = (mapH - totalLevelHeight) / 2; // 居中起點
+    const startY = (mapH - totalLevelHeight) / 2;
 
     group.forEach((nodeId, nodeIdx) => {
-      // 設定 X：層級 * 層寬 + 靠左留白
-      const x = levelIdx * LEVEL_WIDTH + 100;
-      
-      // 設定 Y：起點 + (序號 * 間距)
+      const x = levelIdx * LEVEL_WIDTH + 80; // 稍微靠左
       const y = startY + (nodeIdx * NODE_MARGIN_Y) + (NODE_MARGIN_Y / 2);
-
       nodePos[nodeId] = { x, y };
-      
-      // 確保節點不會跑出畫布
       clampNodeToCanvas(nodeId);
     });
   });
-
   // 5. 儲存新的位置資料
   saveDataDeferred();
 }

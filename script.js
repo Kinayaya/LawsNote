@@ -790,10 +790,11 @@ function visibleNotes(){ const q=mapFilter.q.toLowerCase(), linkedIds={}; if(map
 function scheduleMapRedraw(delay=80){
   clearTimeout(mapRedrawTimer);
   mapRedrawTimer=setTimeout(()=>{ if(isMapOpen) drawMap(); },delay);
-// --- 第一段：碰撞修正函式 (獨立存在) ---
+// --- 1. 獨立的碰撞修正函式 (約從 357 行開始) ---
 function resolveOverlaps(notesToData) {
   const minX = 200; 
   const minY = 120;
+  
   notesToData.forEach(n => {
     if (!nodePos[n.id]) {
       nodePos[n.id] = { 
@@ -802,13 +803,17 @@ function resolveOverlaps(notesToData) {
       };
     }
   });
+
   for (let i = 0; i < 15; i++) {
     for (let a = 0; a < notesToData.length; a++) {
       for (let b = a + 1; b < notesToData.length; b++) {
         let nA = nodePos[notesToData[a].id];
         let nB = nodePos[notesToData[b].id];
+        if (!nA || !nB) continue;
+        
         let dx = nB.x - nA.x;
         let dy = nB.y - nA.y;
+
         if (Math.abs(dx) < minX && Math.abs(dy) < minY) {
           let fx = (minX - Math.abs(dx)) * 0.5;
           let fy = (minY - Math.abs(dy)) * 0.5;
@@ -820,11 +825,12 @@ function resolveOverlaps(notesToData) {
       }
     }
   }
-} // <--- 注意：這裡必須有一個大括號結束 resolveOverlaps
+} // <-- 這裡必須結束函式
 
-// --- 第二段：繪製地圖函式 (獨立存在) ---
+// --- 2. 獨立的繪圖函式 ---
 function drawMap() {
   if (currentView !== 'map') return;
+
   const q = mapFilter.q.toLowerCase();
   const filtered = notes.filter(n => 
     (mapFilter.sub === 'all' || n.subject === mapFilter.sub) &&
@@ -832,7 +838,7 @@ function drawMap() {
     (!q || n.title.toLowerCase().includes(q))
   );
 
-  // 這裡呼叫上面的函式
+  // 呼叫碰撞檢查
   resolveOverlaps(filtered);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -858,7 +864,7 @@ function drawMap() {
     drawNode(pos.x, pos.y, n.title, n.type, isSelected);
   });
   ctx.restore();
-} // <--- 這是 drawMap 的結束
+}
 
 function openMapPopup(id){
   const popup=g('mapPopup'), pos=nodePos[id];

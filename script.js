@@ -790,6 +790,7 @@ function visibleNotes(){ const q=mapFilter.q.toLowerCase(), linkedIds={}; if(map
 function scheduleMapRedraw(delay=80){
   clearTimeout(mapRedrawTimer);
   mapRedrawTimer=setTimeout(()=>{ if(isMapOpen) drawMap(); },delay);
+// --- 第一段：碰撞修正函式 (獨立存在) ---
 function resolveOverlaps(notesToData) {
   const minX = 200; 
   const minY = 120;
@@ -819,8 +820,9 @@ function resolveOverlaps(notesToData) {
       }
     }
   }
-}
+} // <--- 注意：這裡必須有一個大括號結束 resolveOverlaps
 
+// --- 第二段：繪製地圖函式 (獨立存在) ---
 function drawMap() {
   if (currentView !== 'map') return;
   const q = mapFilter.q.toLowerCase();
@@ -830,6 +832,7 @@ function drawMap() {
     (!q || n.title.toLowerCase().includes(q))
   );
 
+  // 這裡呼叫上面的函式
   resolveOverlaps(filtered);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -855,7 +858,7 @@ function drawMap() {
     drawNode(pos.x, pos.y, n.title, n.type, isSelected);
   });
   ctx.restore();
-}
+} // <--- 這是 drawMap 的結束
 
 function openMapPopup(id){
   const popup=g('mapPopup'), pos=nodePos[id];

@@ -621,8 +621,8 @@ function forceLayout() {
   if (!n2) return;
 
   // 定義間距常數 (您可以根據需要微調這些數字)
-  const LEVEL_WIDTH = 2000; // 每一層之間的水平距離
-  const NODE_MARGIN_Y = 1200; // 同一層節點之間的垂直最小間距
+  const LEVEL_WIDTH = 300; // 每一層之間的水平距離
+  const NODE_MARGIN_Y = 150; // 同一層節點之間的垂直最小間距
 
   // 2. 建立鄰接表 (用來分析誰連到誰)
   const adj = {};

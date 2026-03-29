@@ -787,10 +787,12 @@ function redrawLines(affectedId){
 }
 
 function visibleNotes(){ const q=mapFilter.q.toLowerCase(), linkedIds={}; if(mapLinkedOnly) links.forEach(l=>{ linkedIds[l.from]=true; linkedIds[l.to]=true; }); return notes.filter(n=>(mapFilter.sub==='all'||n.subject===mapFilter.sub)&&(mapFilter.type==='all'||n.type===mapFilter.type)&&(!q||`${n.title}${n.subject}${noteTags(n).join('')}`.toLowerCase().includes(q))&&(!mapLinkedOnly||linkedIds[n.id])); }
-function scheduleMapRedraw(delay=80){
-  clearTimeout(mapRedrawTimer);
-  mapRedrawTimer=setTimeout(()=>{ if(isMapOpen) drawMap(); },delay);
-// --- 1. 獨立的碰撞修正函式 (約從 357 行開始) ---
+function scheduleMapRedraw(ms=60) {
+  if (mapTimer) clearTimeout(mapTimer);
+  mapTimer = setTimeout(() => { drawMap(); }, ms);
+}
+
+// --- 1. 獨立的碰撞修正函式 ---
 function resolveOverlaps(notesToData) {
   const minX = 200; 
   const minY = 120;
@@ -825,7 +827,7 @@ function resolveOverlaps(notesToData) {
       }
     }
   }
-} // <-- 這裡必須結束函式
+}
 
 // --- 2. 獨立的繪圖函式 ---
 function drawMap() {
@@ -838,7 +840,7 @@ function drawMap() {
     (!q || n.title.toLowerCase().includes(q))
   );
 
-  // 呼叫碰撞檢查
+  // 執行碰撞檢查
   resolveOverlaps(filtered);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -846,6 +848,7 @@ function drawMap() {
   ctx.translate(mapX, mapY);
   ctx.scale(mapScale, mapScale);
 
+  // 繪製連線
   links.forEach(l => {
     const p1 = nodePos[l.from];
     const p2 = nodePos[l.to];
@@ -858,11 +861,13 @@ function drawMap() {
     }
   });
 
+  // 繪製節點
   filtered.forEach(n => {
     const pos = nodePos[n.id];
     const isSelected = (selectedNodeId === n.id);
     drawNode(pos.x, pos.y, n.title, n.type, isSelected);
   });
+
   ctx.restore();
 }
 

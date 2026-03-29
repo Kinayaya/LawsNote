@@ -792,16 +792,21 @@ function scheduleMapRedraw(ms=60) {
   mapTimer = setTimeout(() => { drawMap(); }, ms);
 }
 
-// --- 1. 獨立的碰撞修正函式 ---
+// --- 1. 修正後的碰撞函式 (解決 NaN 問題) ---
 function resolveOverlaps(notesToData) {
   const minX = 200; 
   const minY = 120;
   
+  // 取得畫布實際寬高，若抓不到則給預設值 800x600
+  const cw = canvas.width || 800;
+  const ch = canvas.height || 600;
+
   notesToData.forEach(n => {
-    if (!nodePos[n.id]) {
+    // 檢查座標是否存在且是否為有效數字
+    if (!nodePos[n.id] || isNaN(nodePos[n.id].x) || isNaN(nodePos[n.id].y)) {
       nodePos[n.id] = { 
-        x: 100 + Math.random() * (canvas.width - 200), 
-        y: 100 + Math.random() * (canvas.height - 200) 
+        x: 100 + Math.random() * (cw - 200), 
+        y: 100 + Math.random() * (ch - 200) 
       };
     }
   });
@@ -815,6 +820,7 @@ function resolveOverlaps(notesToData) {
         
         let dx = nB.x - nA.x;
         let dy = nB.y - nA.y;
+        let dist = Math.sqrt(dx * dx + dy * dy) || 1; // 避免除以 0
 
         if (Math.abs(dx) < minX && Math.abs(dy) < minY) {
           let fx = (minX - Math.abs(dx)) * 0.5;
@@ -829,7 +835,7 @@ function resolveOverlaps(notesToData) {
   }
 }
 
-// --- 2. 獨立的繪圖函式 ---
+// --- 2. 修正後的繪圖函式 ---
 function drawMap() {
   if (currentView !== 'map') return;
 
@@ -840,7 +846,7 @@ function drawMap() {
     (!q || n.title.toLowerCase().includes(q))
   );
 
-  // 執行碰撞檢查
+  // 執行碰撞
   resolveOverlaps(filtered);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -852,7 +858,8 @@ function drawMap() {
   links.forEach(l => {
     const p1 = nodePos[l.from];
     const p2 = nodePos[l.to];
-    if (p1 && p2) {
+    // 增加 isNaN 檢查，確保座標有效才畫線
+    if (p1 && p2 && !isNaN(p1.x) && !isNaN(p2.x)) {
       const hasFrom = filtered.some(fn => fn.id === l.from);
       const hasTo = filtered.some(fn => fn.id === l.to);
       if (hasFrom && hasTo) {
@@ -864,8 +871,10 @@ function drawMap() {
   // 繪製節點
   filtered.forEach(n => {
     const pos = nodePos[n.id];
-    const isSelected = (selectedNodeId === n.id);
-    drawNode(pos.x, pos.y, n.title, n.type, isSelected);
+    if (pos && !isNaN(pos.x)) {
+      const isSelected = (selectedNodeId === n.id);
+      drawNode(pos.x, pos.y, n.title, n.type, isSelected);
+    }
   });
 
   ctx.restore();

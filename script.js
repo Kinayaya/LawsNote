@@ -796,40 +796,41 @@ function scheduleMapRedraw(ms=60) {
   mapTimer = setTimeout(() => { drawMap(); }, ms);
 }
 
-// --- 2. 修正後的碰撞函式 ---
+// 修正後的碰撞函式
 function resolveOverlaps(notesToData) {
   const minX = 220; 
   const minY = 130;
   
-  // 防禦性抓取：如果全域 canvas 失敗，直接現場抓取
-  const activeCanvas = document.getElementById('mapCanvas');
-  if (!activeCanvas) return;
-  
-  const cw = activeCanvas.width || 800;
-  const ch = activeCanvas.height || 600;
+  // 如果 nodePos 沒被定義，現場補一個
+  if (!window.nodePos) window.nodePos = {};
+  const localNodePos = window.nodePos;
+
+  // 安全抓取寬高
+  const cvs = document.getElementById('mapCanvas');
+  const cw = cvs ? cvs.width : 800;
+  const ch = cvs ? cvs.height : 600;
 
   notesToData.forEach(n => {
-    if (!window.nodePos[n.id] || isNaN(window.nodePos[n.id].x)) {
-      window.nodePos[n.id] = { 
+    if (!localNodePos[n.id] || isNaN(localNodePos[n.id].x)) {
+      localNodePos[n.id] = { 
         x: 150 + Math.random() * (cw - 300), 
         y: 150 + Math.random() * (ch - 300) 
       };
     }
   });
 
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 15; i++) {
     for (let a = 0; a < notesToData.length; a++) {
       for (let b = a + 1; b < notesToData.length; b++) {
-        let nA = window.nodePos[notesToData[a].id];
-        let nB = window.nodePos[notesToData[b].id];
+        let nA = localNodePos[notesToData[a].id];
+        let nB = localNodePos[notesToData[b].id];
         if (!nA || !nB) continue;
         
         let dx = nB.x - nA.x;
         let dy = nB.y - nA.y;
-
         if (Math.abs(dx) < minX && Math.abs(dy) < minY) {
-          let fx = (minX - Math.abs(dx)) * 0.6;
-          let fy = (minY - Math.abs(dy)) * 0.6;
+          let fx = (minX - Math.abs(dx)) * 0.5;
+          let fy = (minY - Math.abs(dy)) * 0.5;
           nB.x += dx >= 0 ? fx : -fx;
           nB.y += dy >= 0 ? fy : -fy;
           nA.x -= dx >= 0 ? fx : -fx;
@@ -840,14 +841,13 @@ function resolveOverlaps(notesToData) {
   }
 }
 
-// --- 3. 修正後的繪圖函式 ---
+// 修正後的繪圖函式
 function drawMap() {
   if (currentView !== 'map') return;
   
-  // 確保繪圖環境存在
-  const activeCanvas = document.getElementById('mapCanvas');
-  const activeCtx = activeCanvas ? activeCanvas.getContext('2d') : null;
-  if (!activeCtx) return;
+  const cvs = document.getElementById('mapCanvas');
+  const cpx = cvs ? cvs.getContext('2d') : null;
+  if (!cvs || !cpx) return; // 如果元件還沒準備好，直接跳出，不報錯
 
   const q = mapFilter.q.toLowerCase();
   const filtered = notes.filter(n => 
@@ -856,36 +856,40 @@ function drawMap() {
     (!q || n.title.toLowerCase().includes(q))
   );
 
+  // 確保座標存在
   resolveOverlaps(filtered);
+  const localNodePos = window.nodePos || {};
 
-  activeCtx.clearRect(0, 0, activeCanvas.width, activeCanvas.height);
-  activeCtx.save();
-  activeCtx.translate(mapX, mapY);
-  activeCtx.scale(mapScale, mapScale);
+  cpx.clearRect(0, 0, cvs.width, cvs.height);
+  cpx.save();
+  cpx.translate(mapX, mapY);
+  cpx.scale(mapScale, mapScale);
 
+  // 繪製連線
   links.forEach(l => {
-    const p1 = window.nodePos[l.from];
-    const p2 = window.nodePos[l.to];
+    const p1 = localNodePos[l.from];
+    const p2 = localNodePos[l.to];
     if (p1 && p2 && !isNaN(p1.x)) {
       const hasFrom = filtered.some(fn => fn.id === l.from);
       const hasTo = filtered.some(fn => fn.id === l.to);
       if (hasFrom && hasTo) {
-        // 使用原有的 drawLink
+        // 使用你的 drawLink 函式 (請確保此函式在 script.js 內)
         drawLink(p1.x, p1.y, p2.x, p2.y, l.rel, l.color || '#378ADD');
       }
     }
   });
 
+  // 繪製節點
   filtered.forEach(n => {
-    const pos = window.nodePos[n.id];
+    const pos = localNodePos[n.id];
     if (pos && !isNaN(pos.x)) {
       const isSelected = (selectedNodeId === n.id);
-      // 使用原有的 drawNode
+      // 使用你的 drawNode 函式
       drawNode(pos.x, pos.y, n.title, n.type, isSelected);
     }
   });
 
-  activeCtx.restore();
+  cpx.restore();
 }
 function openMapPopup(id){
   const popup=g('mapPopup'), pos=nodePos[id];

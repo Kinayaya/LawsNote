@@ -48,6 +48,8 @@ let flashDeck=[], flashIdx=0, flashShowing=false, flashSubFilter='all', flashTyp
 let examList=[], examTimer=null, examSec=0, examTotal=0, currentExam=null;
 let shortcuts=[], recordingBtn=null, _aiPendingAction=null, _saveTimer=null, rafId=null;
 let mapRedrawTimer=null, mapResizeObserver=null;
+// 相容舊版快取腳本（避免 iOS/Safari 出現「Can't find variable: mapTimer/currentView」）
+let mapTimer=null, currentView='notes';
 
 // ==================== 工具函數 ====================
 const g = id => document.getElementById(id);
@@ -449,6 +451,7 @@ function execShortcut(id) {
 function showShortcutHint(t){ const h=g('scHint'); h.textContent=t; h.style.display='block'; clearTimeout(h._t); h._t=setTimeout(()=>h.style.display='none',1800); }
 function toggleMapView(open) {
   isMapOpen=open;
+  currentView=open?'map':'notes';
   g('notesView').style.display=open?'none':'block';
   g('mapView').classList.toggle('open',open);
   g('subbar').style.display=open?'none':'flex';
@@ -791,7 +794,9 @@ function redrawLines(affectedId){
 function visibleNotes(){ const q=mapFilter.q.toLowerCase(), linkedIds={}; if(mapLinkedOnly) links.forEach(l=>{ linkedIds[l.from]=true; linkedIds[l.to]=true; }); return notes.filter(n=>(mapFilter.sub==='all'||n.subject===mapFilter.sub)&&(mapFilter.type==='all'||n.type===mapFilter.type)&&(!q||`${n.title}${n.subject}${noteTags(n).join('')}`.toLowerCase().includes(q))&&(!mapLinkedOnly||linkedIds[n.id])); }
 function scheduleMapRedraw(ms=60){
   if(mapRedrawTimer) clearTimeout(mapRedrawTimer);
+  if(mapTimer) clearTimeout(mapTimer);
   mapRedrawTimer=setTimeout(()=>drawMap(), ms);
+  mapTimer=mapRedrawTimer;
 }
 
 function drawMap(){

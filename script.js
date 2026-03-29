@@ -804,8 +804,8 @@ function drawMap(){
   const canvas=g('mapCanvas'), svg=g('mapSvg'), linksLayer=g('linksLayer'), nodesLayer=g('nodesLayer');
   if(!canvas||!svg||!linksLayer||!nodesLayer) return;
   
-  mapW=canvas.offsetWidth||800;
-  mapH=canvas.offsetHeight||600;
+  mapW=canvas.offsetWidth||1200;
+  mapH=canvas.offsetHeight||1000;
   svg.setAttribute('viewBox', `0 0 ${mapW} ${mapH}`);
   svg.setAttribute('width', String(mapW));
   svg.setAttribute('height', String(mapH));

@@ -787,44 +787,45 @@ function redrawLines(affectedId){
 }
 
 function visibleNotes(){ const q=mapFilter.q.toLowerCase(), linkedIds={}; if(mapLinkedOnly) links.forEach(l=>{ linkedIds[l.from]=true; linkedIds[l.to]=true; }); return notes.filter(n=>(mapFilter.sub==='all'||n.subject===mapFilter.sub)&&(mapFilter.type==='all'||n.type===mapFilter.type)&&(!q||`${n.title}${n.subject}${noteTags(n).join('')}`.toLowerCase().includes(q))&&(!mapLinkedOnly||linkedIds[n.id])); }
+// --- 1. 強制初始化座標儲存物件 (確保全域可用) ---
+if (!window.nodePos) window.nodePos = {};
+
 function scheduleMapRedraw(ms=60) {
   if (mapTimer) clearTimeout(mapTimer);
   mapTimer = setTimeout(() => { drawMap(); }, ms);
 }
 
-// --- 1. 修正後的碰撞函式 (解決 NaN 問題) ---
+// --- 2. 碰撞修正函式 ---
 function resolveOverlaps(notesToData) {
-  const minX = 200; 
-  const minY = 120;
-  
-  // 取得畫布實際寬高，若抓不到則給預設值 800x600
+  const minX = 220; 
+  const minY = 130;
   const cw = canvas.width || 800;
   const ch = canvas.height || 600;
 
   notesToData.forEach(n => {
-    // 檢查座標是否存在且是否為有效數字
-    if (!nodePos[n.id] || isNaN(nodePos[n.id].x) || isNaN(nodePos[n.id].y)) {
-      nodePos[n.id] = { 
-        x: 100 + Math.random() * (cw - 200), 
-        y: 100 + Math.random() * (ch - 200) 
+    // 如果座標不存在或無效，重新隨機分配
+    if (!window.nodePos[n.id] || isNaN(window.nodePos[n.id].x)) {
+      window.nodePos[n.id] = { 
+        x: 150 + Math.random() * (cw - 300), 
+        y: 150 + Math.random() * (ch - 300) 
       };
     }
   });
 
-  for (let i = 0; i < 15; i++) {
+  // 迭代推開邏輯
+  for (let i = 0; i < 20; i++) {
     for (let a = 0; a < notesToData.length; a++) {
       for (let b = a + 1; b < notesToData.length; b++) {
-        let nA = nodePos[notesToData[a].id];
-        let nB = nodePos[notesToData[b].id];
+        let nA = window.nodePos[notesToData[a].id];
+        let nB = window.nodePos[notesToData[b].id];
         if (!nA || !nB) continue;
         
         let dx = nB.x - nA.x;
         let dy = nB.y - nA.y;
-        let dist = Math.sqrt(dx * dx + dy * dy) || 1; // 避免除以 0
 
         if (Math.abs(dx) < minX && Math.abs(dy) < minY) {
-          let fx = (minX - Math.abs(dx)) * 0.5;
-          let fy = (minY - Math.abs(dy)) * 0.5;
+          let fx = (minX - Math.abs(dx)) * 0.6;
+          let fy = (minY - Math.abs(dy)) * 0.6;
           nB.x += dx >= 0 ? fx : -fx;
           nB.y += dy >= 0 ? fy : -fy;
           nA.x -= dx >= 0 ? fx : -fx;
@@ -835,7 +836,7 @@ function resolveOverlaps(notesToData) {
   }
 }
 
-// --- 2. 修正後的繪圖函式 ---
+// --- 3. 繪圖函式 ---
 function drawMap() {
   if (currentView !== 'map') return;
 
@@ -846,7 +847,7 @@ function drawMap() {
     (!q || n.title.toLowerCase().includes(q))
   );
 
-  // 執行碰撞
+  // 執行位置修正
   resolveOverlaps(filtered);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -856,9 +857,8 @@ function drawMap() {
 
   // 繪製連線
   links.forEach(l => {
-    const p1 = nodePos[l.from];
-    const p2 = nodePos[l.to];
-    // 增加 isNaN 檢查，確保座標有效才畫線
+    const p1 = window.nodePos[l.from];
+    const p2 = window.nodePos[l.to];
     if (p1 && p2 && !isNaN(p1.x) && !isNaN(p2.x)) {
       const hasFrom = filtered.some(fn => fn.id === l.from);
       const hasTo = filtered.some(fn => fn.id === l.to);
@@ -870,7 +870,7 @@ function drawMap() {
 
   // 繪製節點
   filtered.forEach(n => {
-    const pos = nodePos[n.id];
+    const pos = window.nodePos[n.id];
     if (pos && !isNaN(pos.x)) {
       const isSelected = (selectedNodeId === n.id);
       drawNode(pos.x, pos.y, n.title, n.type, isSelected);
@@ -879,7 +879,6 @@ function drawMap() {
 
   ctx.restore();
 }
-
 function openMapPopup(id){
   const popup=g('mapPopup'), pos=nodePos[id];
   if(!popup||!pos) return;

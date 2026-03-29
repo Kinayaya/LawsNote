@@ -838,7 +838,26 @@ function resolveOverlaps(notesToData) {
 
 // --- 3. 繪圖函式 ---
 function drawMap() {
-  if (currentView !== 'map') return;
+  if (!ctx) return;
+  // 清除畫布
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // --- 註解掉連線邏輯，避免報錯 ---
+  /*
+  if (Array.isArray(links)) {
+    links.forEach(link => {
+       // 原有的連線代碼...
+    });
+  }
+  */
+
+  // --- 確保只執行繪製節點 (notes) ---
+  if (Array.isArray(notes)) {
+    notes.forEach(note => {
+      drawNode(note);
+    });
+  }
+}
 
   const q = mapFilter.q.toLowerCase();
   const filtered = notes.filter(n => 

@@ -51,13 +51,15 @@ let mapRedrawTimer=null, mapResizeObserver=null;
 
 // ==================== 工具函數 ====================
 const g = id => document.getElementById(id);
+const on = (id, evt, handler) => { const el = g(id); if(el) el.addEventListener(evt, handler); return el; };
+const val = id => { const el = g(id); return el ? el.value : ''; };
 const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 const showToast = m => { let t=g('toast'); t.textContent=m; t.style.display='block'; setTimeout(()=>t.style.display='none',2200); };
 const saveDataDeferred = () => { clearTimeout(_saveTimer); _saveTimer = setTimeout(()=>{ if(JSON.stringify({notes,links}).length>4500000) showToast("⚠️ 資料接近儲存上限"); saveData(); },500); };
 const typeByKey = k => types.find(t=>t.key===k) || {key:k,label:k,color:'#888'};
 const subByKey = k => subjects.find(s=>s.key===k) || {key:k,label:k,color:'#888'};
 const noteById = id => notes.find(n=>n.id===id);
-const noteTags = n => Array.isArray(n?.tags) ? n.tags : [];
+const noteTags = n => Array.isArray(n && n.tags) ? n.tags : [];
 const hexRgb = hex => { if(hex.length===4) hex='#'+hex[1]+hex[1]+hex[2]+hex[2]+hex[3]+hex[3]; return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)]; };
 const lightC = hex => `rgba(${hexRgb(hex).join(',')},0.12)`;
 const darkC = hex => { let r=hexRgb(hex); return `rgb(${Math.round(r[0]*0.55)},${Math.round(r[1]*0.55)},${Math.round(r[2]*0.55)})`; };
@@ -67,7 +69,7 @@ const hl = (text, q) => {
   return !q ? src : src.replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<span class="hl">$1</span>');
 };
 const sortedNotes = arr => arr.slice().sort((a,b)=>{
-  const ad=safeStr(a?.date), bd=safeStr(b?.date), at=safeStr(a?.title), bt=safeStr(b?.title), as=safeStr(a?.subject), bs=safeStr(b?.subject), aty=safeStr(a?.type), bty=safeStr(b?.type);
+  const ad=safeStr(a && a.date), bd=safeStr(b && b.date), at=safeStr(a && a.title), bt=safeStr(b && b.title), as=safeStr(a && a.subject), bs=safeStr(b && b.subject), aty=safeStr(a && a.type), bty=safeStr(b && b.type);
   return sortMode==='date_desc'?bd.localeCompare(ad):sortMode==='date_asc'?ad.localeCompare(bd):sortMode==='title_asc'?at.localeCompare(bt,'zh'):sortMode==='title_desc'?bt.localeCompare(at,'zh'):sortMode==='subject'?as.localeCompare(bs)||at.localeCompare(bt):aty.localeCompare(bty)||at.localeCompare(bt);
 });
 const parseTodos = raw => (raw||'').split('\n').map(x=>x.trim()).filter(Boolean).map(line=>{ const done=/^\[(x|X)\]/.test(line); return {text:line.replace(/^\[(x|X| )\]\s*/,''), done}; }).filter(x=>x.text);
@@ -140,7 +142,7 @@ function buildTypeRow() {
     types.map(t => `<button class="tab ${cv===t.key?'on':''}" data-v="${t.key}" style="${cv===t.key?`background:${t.color};`:''}">${t.label}</button>`).join('') +
     `<button class="tag-mgr-btn" id="tagMgrBtn">⚙️ 管理標籤</button>`;
   row.querySelectorAll('.tab[data-v]').forEach(btn => btn.addEventListener('click', () => { cv = btn.dataset.v; gridPage=1; buildTypeRow(); render(); }));
-  g('tagMgrBtn')?.addEventListener('click', openTagMgr);
+  on('tagMgrBtn', 'click', openTagMgr);
 }
 function buildSubRow() {
   const row = g('subbar');
@@ -158,7 +160,7 @@ function render() {
   const sb = g('search-results-bar');
   if(q) { sb.style.display='block'; sb.textContent=`搜尋「${searchQ}」：找到 ${filtered.length} 筆筆記`; } else sb.style.display='none';
   const grid = g('grid');
-  g('gridPager')?.remove();
+  const pager = g('gridPager'); if(pager) pager.remove();
   if(!filtered.length) { grid.innerHTML='<div class="empty">沒有符合的筆記</div>'; return; }
   const maxPg = Math.ceil(filtered.length/PAGE_SIZE);
   if(gridPage>maxPg) gridPage=maxPg;
@@ -290,7 +292,7 @@ function renderFormLinks() {
 function renderFormLinkSearch() {
   const el = g('fl-results');
   if(!el) return;
-  const q = (g('fl-search')?.value||'').toLowerCase().trim();
+  const q = (val('fl-search')||'').toLowerCase().trim();
   // 非編輯模式（新增時）openId 可能為 null，不顯示搜尋結果
   if(!q) { el.innerHTML=''; return; }
   const existIds = links.filter(l=>openId&&(l.from===openId||l.to===openId)).map(l=>l.from===openId?l.to:l.from);
@@ -315,8 +317,8 @@ function saveNote() {
   if(!title) { g('fti').style.borderColor='#FF3B30'; showToast('請輸入標題'); return; }
   g('fti').style.borderColor='';
   const tags = (g('fta').value||'').split(',').map(t=>t.trim()).filter(Boolean);
-  const todos = parseTodos(g('f-todos')?.value||'');
-  const getField = id => (g(id)?.value||'').trim();
+  const todos = parseTodos(val('f-todos')||'');
+  const getField = id => (val(id)||'').trim();
   if(editMode && openId) {
     const idx = notes.findIndex(n=>n.id===openId);
     if(idx!==-1) Object.assign(notes[idx], {
@@ -485,8 +487,8 @@ function renderFlashCard() {
   if(flashIdx>=flashDeck.length) {
     const hc=flashHard.length;
     body.innerHTML=`<div class="flash-done"><div class="flash-done-num">${Math.round((flashDeck.length-hc)/Math.max(flashDeck.length,1)*100)}%</div><div class="flash-done-label">熟練率</div><div class="flash-done-sub">${flashDeck.length}張中，${hc}張不熟</div><div style="display:flex;gap:10px;margin-top:24px;justify-content:center;">${hc>0?'<button class="flash-btn flash-btn-hard" style="flex:0;padding:12px 20px;" id="reviewHardBtn">🔂 再練不熟</button>':''}<button class="flash-btn flash-btn-ok" style="flex:0;padding:12px 20px;" id="restartAllBtn">↺ 重新開始</button></div></div>`;
-    g('reviewHardBtn')?.addEventListener('click',()=>{ flashDeck=flashHard.slice(); flashIdx=0; flashShowing=false; flashHard=[]; renderFlashCard(); });
-    g('restartAllBtn')?.addEventListener('click',()=>{ buildFlashDeck(); renderFlashCard(); });
+    on('reviewHardBtn','click',()=>{ flashDeck=flashHard.slice(); flashIdx=0; flashShowing=false; flashHard=[]; renderFlashCard(); });
+    on('restartAllBtn','click',()=>{ buildFlashDeck(); renderFlashCard(); });
     updateFlashProgress(); return;
   }
   const n=flashDeck[flashIdx], tp=typeByKey(n.type), sb=subByKey(n.subject);
@@ -964,42 +966,42 @@ window.addEventListener('load',()=>{
   g('sortSelect').value=sortMode; g('sortSelect').addEventListener('change',()=>{ sortMode=g('sortSelect').value; gridPage=1; render(); });
   g('multiSelBtn').addEventListener('click',()=>multiSelMode?exitMultiSel():enterMultiSel());
   g('selAllBtn').addEventListener('click',selectAll); g('selDeleteBtn').addEventListener('click',deleteSelected); g('selCancelBtn').addEventListener('click',exitMultiSel);
-  g('statsBtn')?.addEventListener('click',openStats); g('flashBtn')?.addEventListener('click',openFlash); g('flashBackBtn')?.addEventListener('click',closeFlash);
-  g('flashShuffleBtn')?.addEventListener('click',()=>{ buildFlashDeck(); renderFlashCard(); }); g('flashRestartBtn')?.addEventListener('click',()=>{ buildFlashDeck(); renderFlashCard(); });
-  g('flashFilter')?.addEventListener('change',()=>{ flashSubFilter=g('flashFilter').value; buildFlashDeck(); renderFlashCard(); });
-  g('flashTypeFilter')?.addEventListener('change',()=>{ flashTypeFilter2=g('flashTypeFilter').value; buildFlashDeck(); renderFlashCard(); });
-  g('ft')?.addEventListener('change',()=>{ toggleTemplate(g('ft').value==='case'); toggleDiaryTodo(g('ft').value==='diary'); });
+  on('statsBtn','click',openStats); on('flashBtn','click',openFlash); on('flashBackBtn','click',closeFlash);
+  on('flashShuffleBtn','click',()=>{ buildFlashDeck(); renderFlashCard(); }); on('flashRestartBtn','click',()=>{ buildFlashDeck(); renderFlashCard(); });
+  on('flashFilter','change',()=>{ flashSubFilter=g('flashFilter').value; buildFlashDeck(); renderFlashCard(); });
+  on('flashTypeFilter','change',()=>{ flashTypeFilter2=g('flashTypeFilter').value; buildFlashDeck(); renderFlashCard(); });
+  on('ft','change',()=>{ toggleTemplate(g('ft').value==='case'); toggleDiaryTodo(g('ft').value==='diary'); });
   const si=g('searchInput'), sc=g('searchClear'); si.addEventListener('input',debounce(()=>{ searchQ=si.value; gridPage=1; sc.style.display=searchQ?'block':'none'; render(); },250)); sc.addEventListener('click',()=>{ si.value=''; searchQ=''; gridPage=1; sc.style.display='none'; render(); si.focus(); });
   g('addBtn').addEventListener('click',()=>openForm(false)); g('editBtn').addEventListener('click',()=>openForm(true));
   // 移除獨立 linkBtn 事件（已整合進編輯表單），改由 dp 的按鈕打開編輯
-  g('linkBtn')?.addEventListener('click',()=>openForm(true));
+  on('linkBtn','click',()=>openForm(true));
   g('dpClose').addEventListener('click',closeDetail); g('fpClose').addEventListener('click',closeForm); g('fpCancel').addEventListener('click',closeForm);
   g('fpSave').addEventListener('click',saveNote); g('delBtn').addEventListener('click',deleteNote); g('exportBtn').addEventListener('click',exportData);
   g('tpClose').addEventListener('click',()=>g('tp').classList.remove('open')); g('addTypeBtn').addEventListener('click',()=>addTag('type')); g('addSubBtn').addEventListener('click',()=>addTag('sub'));
-  loadExams(); g('examBtn')?.addEventListener('click',openExamPanel); g('examListClose')?.addEventListener('click',()=>g('examListPanel').classList.remove('open'));
-  g('examAddBtn')?.addEventListener('click',()=>{ const esel=g('examSubSel'); if(esel) esel.innerHTML=subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join(''); g('examListPanel').classList.remove('open'); g('examAddForm').classList.add('open'); setTimeout(()=>g('examAddForm').scrollIntoView({behavior:'smooth',block:'nearest'}),60); });
-  g('examFormClose')?.addEventListener('click',()=>{ g('examAddForm').classList.remove('open'); openExamPanel(); }); g('examFCancel')?.addEventListener('click',()=>{ g('examAddForm').classList.remove('open'); openExamPanel(); });
-  g('examFSave')?.addEventListener('click',()=>{ const q=(g('examQInput').value||'').trim(); if(!q){ showToast('請輸入題目'); return; } const iss=(g('examIssInput').value||'').split(',').map(x=>x.trim()).filter(Boolean); const tl=parseInt(g('examTimeInput').value)||30; const sub=g('examSubSel').value||subjects[0]?.key; examList.push({id:Date.now(),subject:sub,question:q,issues:iss,timeLimit:tl}); saveExams(); g('examQInput').value=''; g('examIssInput').value=''; g('examTimeInput').value='30'; g('examAddForm').classList.remove('open'); openExamPanel(); showToast('題目已儲存！'); });
-  g('examSubmitBtn')?.addEventListener('click',()=>doSubmit(false)); g('examCancelBtn')?.addEventListener('click',()=>{ clearInterval(examTimer); closeExamView(); });
-  g('examRetryBtn')?.addEventListener('click',()=>{ closeExamView(); setTimeout(openExamPanel,100); }); g('examBackBtn2')?.addEventListener('click',closeExamView);
-  g('examAnswerBox')?.addEventListener('input',()=>{ g('examWordCount').textContent=g('examAnswerBox').value.replace(/\s/g,'').length+' 字'; });
-  g('aiSettingsBtn')?.addEventListener('click',openAiSettings); g('aiKeySave').addEventListener('click',()=>{ const k=(g('aiKeyInput').value||'').trim(); if(!k){ showToast('請輸入 OpenRouter API Key'); return; } saveAiKey(k); const sel=g('aiModelSel'); if(sel&&sel.value) saveAiModel(sel.value); g('aiKeyModal').classList.remove('open'); if(_aiPendingAction){ _aiPendingAction(k); _aiPendingAction=null; } else showToast('AI 設定已儲存！'); }); g('aiKeyCancel').addEventListener('click',()=>{ g('aiKeyModal').classList.remove('open'); _aiPendingAction=null; });
-  g('importFile').addEventListener('change',e=>{ if(e.target.files&&e.target.files[0]) importData(e.target.files[0]); e.target.value=''; });
+  loadExams(); on('examBtn','click',openExamPanel); on('examListClose','click',()=>g('examListPanel').classList.remove('open'));
+  on('examAddBtn','click',()=>{ const esel=g('examSubSel'); if(esel) esel.innerHTML=subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join(''); g('examListPanel').classList.remove('open'); g('examAddForm').classList.add('open'); setTimeout(()=>g('examAddForm').scrollIntoView({behavior:'smooth',block:'nearest'}),60); });
+  on('examFormClose','click',()=>{ g('examAddForm').classList.remove('open'); openExamPanel(); }); on('examFCancel','click',()=>{ g('examAddForm').classList.remove('open'); openExamPanel(); });
+  on('examFSave','click',()=>{ const q=(g('examQInput').value||'').trim(); if(!q){ showToast('請輸入題目'); return; } const iss=(g('examIssInput').value||'').split(',').map(x=>x.trim()).filter(Boolean); const tl=parseInt(g('examTimeInput').value)||30; const sub=g('examSubSel').value||(subjects[0] ? subjects[0].key : 'all'); examList.push({id:Date.now(),subject:sub,question:q,issues:iss,timeLimit:tl}); saveExams(); g('examQInput').value=''; g('examIssInput').value=''; g('examTimeInput').value='30'; g('examAddForm').classList.remove('open'); openExamPanel(); showToast('題目已儲存！'); });
+  on('examSubmitBtn','click',()=>doSubmit(false)); on('examCancelBtn','click',()=>{ clearInterval(examTimer); closeExamView(); });
+  on('examRetryBtn','click',()=>{ closeExamView(); setTimeout(openExamPanel,100); }); on('examBackBtn2','click',closeExamView);
+  on('examAnswerBox','input',()=>{ g('examWordCount').textContent=g('examAnswerBox').value.replace(/\s/g,'').length+' 字'; });
+  on('aiSettingsBtn','click',openAiSettings); g('aiKeySave').addEventListener('click',()=>{ const k=(g('aiKeyInput').value||'').trim(); if(!k){ showToast('請輸入 OpenRouter API Key'); return; } saveAiKey(k); const sel=g('aiModelSel'); if(sel&&sel.value) saveAiModel(sel.value); g('aiKeyModal').classList.remove('open'); if(_aiPendingAction){ _aiPendingAction(k); _aiPendingAction=null; } else showToast('AI 設定已儲存！'); }); g('aiKeyCancel').addEventListener('click',()=>{ g('aiKeyModal').classList.remove('open'); _aiPendingAction=null; });  g('importFile').addEventListener('change',e=>{ if(e.target.files&&e.target.files[0]) importData(e.target.files[0]); e.target.value=''; });
   g('shortcutMgrBtn').addEventListener('click',openShortcutMgr); g('scpClose').addEventListener('click',closeShortcutMgr); g('scpDone').addEventListener('click',closeShortcutMgr);
   g('scpReset').addEventListener('click',()=>{ shortcuts=DEFAULT_SHORTCUTS.map(s=>({...s})); saveShortcuts(); renderShortcutList(); showToast('已恢復預設快捷鍵'); });
   loadShortcuts(); document.addEventListener('keydown',handleGlobalKey);
   g('mapToggleBtn').addEventListener('click',()=>toggleMapView(true));
   g('mapBackBtn').addEventListener('click',()=>toggleMapView(false));
   g('mapSearchInput')?.addEventListener('input',debounce(()=>{ mapFilter.q=g('mapSearchInput').value; if(isMapOpen) drawMap(); },250));
-  g('mapFilterSub')?.addEventListener('change',()=>{ mapFilter.sub=g('mapFilterSub').value; if(isMapOpen) drawMap(); });
-  g('mapFilterType')?.addEventListener('change',()=>{ mapFilter.type=g('mapFilterType').value; if(isMapOpen) drawMap(); });
-  const setZoom=z=>{ mapScale=Math.max(0.15,Math.min(3.5,z)); g('zoomLabel').textContent=Math.round(mapScale*100)+'%'; drawMap(); };
-  g('zoomIn')?.addEventListener('click',()=>setZoom(mapScale+0.15)); g('zoomOut')?.addEventListener('click',()=>setZoom(mapScale-0.15));
-  g('zoomFit')?.addEventListener('click',()=>{ if(!notes.length)return; const xs=notes.map(n=>nodePos[n.id]?nodePos[n.id].x:mapW/2), ys=notes.map(n=>nodePos[n.id]?nodePos[n.id].y:mapH/2); const minX=Math.min(...xs)-40, maxX=Math.max(...xs)+40, minY=Math.min(...ys)-40, maxY=Math.max(...ys)+40; const sc=Math.min(mapW/(maxX-minX||1),mapH/(maxY-minY||1),2.5); mapScale=sc; mapOffX=-minX*sc+(mapW-(maxX-minX)*sc)/2; mapOffY=-minY*sc+(mapH-(maxY-minY)*sc)/2; g('zoomLabel').textContent=Math.round(sc*100)+'%'; drawMap(); });
-  g('mpClose')?.addEventListener('click',closeMapPopup);
-  g('mapLinkedOnlyBtn')?.addEventListener('click',()=>{ mapLinkedOnly=!mapLinkedOnly; const btn=g('mapLinkedOnlyBtn'); if(btn){ btn.style.background=mapLinkedOnly?'#3B6D11':'#EAF3DE'; btn.style.color=mapLinkedOnly?'#fff':'#3B6D11'; btn.textContent=mapLinkedOnly?'✓ 只顯示關聯':'🔗 只顯示關聯'; } nodePos={}; forceLayout(); drawMap(); showToast(mapLinkedOnly?`顯示 ${visibleNotes().length} 個有關聯的節點`:'顯示全部節點'); });
-  g('mapAutoBtn')?.addEventListener('click',()=>{ const btn=g('mapAutoBtn'), orig=btn.textContent; btn.textContent='排列中...'; btn.disabled=true; setTimeout(()=>{ nodePos={}; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); g('zoomLabel').textContent='100%'; btn.textContent=orig; btn.disabled=false; showToast('已自動排列'); },30); });
-  g('mapResetBtn')?.addEventListener('click',()=>{ nodePos={}; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); g('zoomLabel').textContent='100%'; showToast('已重置'); });
+on('mapSearchInput','input',debounce(()=>{ mapFilter.q=g('mapSearchInput').value; if(isMapOpen) drawMap(); },250));
+  on('mapFilterSub','change',()=>{ mapFilter.sub=g('mapFilterSub').value; if(isMapOpen) drawMap(); });
+  on('mapFilterType','change',()=>{ mapFilter.type=g('mapFilterType').value; if(isMapOpen) drawMap(); });
+  const setZoom=z=>{ mapScale=Math.max(0.15,Math.min(3.5,z)); g('zoomLabel').textContent=Math.round(mapScale*100)+'%'; drawMap(); };  
+  on('zoomIn','click',()=>setZoom(mapScale+0.15)); on('zoomOut','click',()=>setZoom(mapScale-0.15));
+  on('zoomFit','click',()=>{ if(!notes.length)return; const xs=notes.map(n=>nodePos[n.id]?nodePos[n.id].x:mapW/2), ys=notes.map(n=>nodePos[n.id]?nodePos[n.id].y:mapH/2); const minX=Math.min(...xs)-40, maxX=Math.max(...xs)+40, minY=Math.min(...ys)-40, maxY=Math.max(...ys)+40; const sc=Math.min(mapW/(maxX-minX||1),mapH/(maxY-minY||1),2.5); mapScale=sc; mapOffX=-minX*sc+(mapW-(maxX-minX)*sc)/2; mapOffY=-minY*sc+(mapH-(maxY-minY)*sc)/2; g('zoomLabel').textContent=Math.round(sc*100)+'%'; drawMap(); });
+  on('mpClose','click',closeMapPopup);
+  on('mapLinkedOnlyBtn','click',()=>{ mapLinkedOnly=!mapLinkedOnly; const btn=g('mapLinkedOnlyBtn'); if(btn){ btn.style.background=mapLinkedOnly?'#3B6D11':'#EAF3DE'; btn.style.color=mapLinkedOnly?'#fff':'#3B6D11'; btn.textContent=mapLinkedOnly?'✓ 只顯示關聯':'🔗 只顯示關聯'; } nodePos={}; forceLayout(); drawMap(); showToast(mapLinkedOnly?`顯示 ${visibleNotes().length} 個有關聯的節點`:'顯示全部節點'); });
+  on('mapAutoBtn','click',()=>{ const btn=g('mapAutoBtn'), orig=btn.textContent; btn.textContent='排列中...'; btn.disabled=true; setTimeout(()=>{ nodePos={}; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); g('zoomLabel').textContent='100%'; btn.textContent=orig; btn.disabled=false; showToast('已自動排列'); },30); });
+  on('mapResetBtn','click',()=>{ nodePos={}; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); g('zoomLabel').textContent='100%'; showToast('已重置'); });  
   const canvas=g('mapCanvas'); let panStart=null, panOffXStart=0, panOffYStart=0;
 
   // ---- 拖曳移動節點（修復連線同步）----

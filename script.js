@@ -789,110 +789,129 @@ function redrawLines(affectedId){
 }
 
 function visibleNotes(){ const q=mapFilter.q.toLowerCase(), linkedIds={}; if(mapLinkedOnly) links.forEach(l=>{ linkedIds[l.from]=true; linkedIds[l.to]=true; }); return notes.filter(n=>(mapFilter.sub==='all'||n.subject===mapFilter.sub)&&(mapFilter.type==='all'||n.type===mapFilter.type)&&(!q||`${n.title}${n.subject}${noteTags(n).join('')}`.toLowerCase().includes(q))&&(!mapLinkedOnly||linkedIds[n.id])); }
-// --- 1. 強制初始化座標儲存物件 (確保全域可用) ---
-// --- 1. 確保座標物件存在 ---
-if (!window.nodePos) window.nodePos = {};
-
-function scheduleMapRedraw(ms=60) {
-  if (mapTimer) clearTimeout(mapTimer);
-  mapTimer = setTimeout(() => { drawMap(); }, ms);
+function scheduleMapRedraw(ms=60){
+  if(mapRedrawTimer) clearTimeout(mapRedrawTimer);
+  mapRedrawTimer=setTimeout(()=>drawMap(), ms);
 }
 
-// 修正後的碰撞函式
-function resolveOverlaps(notesToData) {
-  const minX = 220; 
-  const minY = 130;
+function drawMap(){
+  if(!isMapOpen) return;
+  const canvas=g('mapCanvas'), svg=g('mapSvg'), linksLayer=g('linksLayer'), nodesLayer=g('nodesLayer');
+  if(!canvas||!svg||!linksLayer||!nodesLayer) return;
   
-  // 如果 nodePos 沒被定義，現場補一個
-  if (!window.nodePos) window.nodePos = {};
-  const localNodePos = window.nodePos;
+  mapW=canvas.offsetWidth||800;
+  mapH=canvas.offsetHeight||600;
+  svg.setAttribute('viewBox', `0 0 ${mapW} ${mapH}`);
+  svg.setAttribute('width', String(mapW));
+  svg.setAttribute('height', String(mapH));
 
-  // 安全抓取寬高
-  const cvs = document.getElementById('mapCanvas');
-  const cw = cvs ? cvs.width : 800;
-  const ch = cvs ? cvs.height : 600;
-
-  notesToData.forEach(n => {
-    if (!localNodePos[n.id] || isNaN(localNodePos[n.id].x)) {
-      localNodePos[n.id] = { 
-        x: 150 + Math.random() * (cw - 300), 
-        y: 150 + Math.random() * (ch - 300) 
-      };
-    }
-  });
-
-  for (let i = 0; i < 15; i++) {
-    for (let a = 0; a < notesToData.length; a++) {
-      for (let b = a + 1; b < notesToData.length; b++) {
-        let nA = localNodePos[notesToData[a].id];
-        let nB = localNodePos[notesToData[b].id];
-        if (!nA || !nB) continue;
-        
-        let dx = nB.x - nA.x;
-        let dy = nB.y - nA.y;
-        if (Math.abs(dx) < minX && Math.abs(dy) < minY) {
-          let fx = (minX - Math.abs(dx)) * 0.5;
-          let fy = (minY - Math.abs(dy)) * 0.5;
-          nB.x += dx >= 0 ? fx : -fx;
-          nB.y += dy >= 0 ? fy : -fy;
-          nA.x -= dx >= 0 ? fx : -fx;
-          nA.y -= dy >= 0 ? fy : -fy;
-        }
-      }
-    }
+  let mapWrap=svg.querySelector('#mapWrap');
+  if(!mapWrap){
+    mapWrap=document.createElementNS('http://www.w3.org/2000/svg','g');
+    mapWrap.id='mapWrap';
+    svg.appendChild(mapWrap);
+    mapWrap.appendChild(linksLayer);
+    mapWrap.appendChild(nodesLayer);
   }
-}
-
-// 修正後的繪圖函式
-function drawMap() {
-  if (currentView !== 'map') return;
+   mapWrap.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`);
   
-  const cvs = document.getElementById('mapCanvas');
-  const cpx = cvs ? cvs.getContext('2d') : null;
-  if (!cvs || !cpx) return; // 如果元件還沒準備好，直接跳出，不報錯
+const visNotes=visibleNotes();
+const visIds={}; visNotes.forEach(n=>visIds[n.id]=true);
+if(visNotes.length===0){
+    linksLayer.innerHTML='';
+    nodesLayer.innerHTML='';
+    nodeEls={}; linkElsMap={}; nodeLinksIndex={}; linkCurveOffsets={};
+    closeMapPopup();
+    return;
+  }
 
-  const q = mapFilter.q.toLowerCase();
-  const filtered = notes.filter(n => 
-    (mapFilter.sub === 'all' || n.subject === mapFilter.sub) &&
-    (mapFilter.type === 'all' || n.type === mapFilter.type) &&
-    (!q || n.title.toLowerCase().includes(q))
-  );
+  const missingPos=visNotes.some(n=>!nodePos[n.id]||isNaN(nodePos[n.id].x)||isNaN(nodePos[n.id].y));
+  if(missingPos) forceLayout();
+  visNotes.forEach(n=>{ if(nodePos[n.id]) clampNodeToCanvas(n.id); });
 
-  // 確保座標存在
-  resolveOverlaps(filtered);
-  const localNodePos = window.nodePos || {};
+  const visLinks=visibleLinks(visIds);
+  linkCurveOffsets=buildLinkCurveOffsets(visLinks);
+  nodeEls={}; linkElsMap={}; nodeLinksIndex={};
 
-  cpx.clearRect(0, 0, cvs.width, cvs.height);
-  cpx.save();
-  cpx.translate(mapX, mapY);
-  cpx.scale(mapScale, mapScale);
+  linksLayer.innerHTML='';
+  nodesLayer.innerHTML='';
 
-  // 繪製連線
-  links.forEach(l => {
-    const p1 = localNodePos[l.from];
-    const p2 = localNodePos[l.to];
-    if (p1 && p2 && !isNaN(p1.x)) {
-      const hasFrom = filtered.some(fn => fn.id === l.from);
-      const hasTo = filtered.some(fn => fn.id === l.to);
-      if (hasFrom && hasTo) {
-        // 使用你的 drawLink 函式 (請確保此函式在 script.js 內)
-        drawLink(p1.x, p1.y, p2.x, p2.y, l.rel, l.color || '#378ADD');
-      }
-    }
+  visLinks.forEach(lk=>{
+    if(!nodeLinksIndex[lk.from]) nodeLinksIndex[lk.from]=[];
+    if(!nodeLinksIndex[lk.to]) nodeLinksIndex[lk.to]=[];
+    nodeLinksIndex[lk.from].push(lk.id);
+    nodeLinksIndex[lk.to].push(lk.id);
+
+    const pathData=calcLinkPath(lk);
+    if(!pathData) return;
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', pathData.d);
+    path.setAttribute('stroke', LINK_COLOR);
+    path.setAttribute('stroke-width', '1.8');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('marker-end', getArrowMarker(LINK_COLOR));
+    path.style.opacity='0.9';
+    linksLayer.appendChild(path);
+    linkElsMap[lk.id]={p:path};
   });
 
-  // 繪製節點
-  filtered.forEach(n => {
-    const pos = localNodePos[n.id];
-    if (pos && !isNaN(pos.x)) {
-      const isSelected = (selectedNodeId === n.id);
-      // 使用你的 drawNode 函式
-      drawNode(pos.x, pos.y, n.title, n.type, isSelected);
-    }
-  });
+visNotes.forEach(n=>{
+    const pos=nodePos[n.id];
+    if(!pos) return;
+    const type=typeByKey(n.type);
+    const radius=getNodeRadius(n.id);
+    const grp=document.createElementNS('http://www.w3.org/2000/svg','g');
+    grp.classList.add('map-node');
+    grp.dataset.id=String(n.id);
 
-  cpx.restore();
+    const circle=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.classList.add('node-main');
+    circle.setAttribute('cx',pos.x);
+    circle.setAttribute('cy',pos.y);
+    circle.setAttribute('r',radius);
+    circle.setAttribute('fill',lightC(type.color));
+    circle.setAttribute('stroke',type.color);
+    circle.setAttribute('stroke-width','2');
+
+    const countText=document.createElementNS('http://www.w3.org/2000/svg','text');
+    countText.classList.add('node-count');
+    countText.setAttribute('x',pos.x);
+    countText.setAttribute('y',pos.y+4);
+    countText.setAttribute('text-anchor','middle');
+    countText.setAttribute('font-size',String(Math.max(10, Math.min(14, radius*0.55))));
+    countText.setAttribute('font-weight','700');
+    countText.setAttribute('fill',type.color);
+    countText.textContent=String(links.filter(l=>l.from===n.id||l.to===n.id).length||0);
+
+    const titleText=document.createElementNS('http://www.w3.org/2000/svg','text');
+    titleText.classList.add('node-title');
+    titleText.setAttribute('x',pos.x);
+    titleText.setAttribute('y',pos.y+radius+14);
+    titleText.setAttribute('text-anchor','middle');
+    titleText.setAttribute('font-size','11');
+    titleText.setAttribute('fill','#2b2b2b');
+    const lines=splitMapTitleLines(n.title,8).slice(0,2);
+    lines.forEach((line,i)=>{
+      const tspan=document.createElementNS('http://www.w3.org/2000/svg','tspan');
+      tspan.setAttribute('x',pos.x);
+      tspan.setAttribute('dy', i===0 ? 0 : 13);
+      tspan.textContent=line;
+      titleText.appendChild(tspan);
+    });
+
+    grp.appendChild(circle);
+    grp.appendChild(countText);
+    grp.appendChild(titleText);
+
+    grp.addEventListener('click',e=>{ e.stopPropagation(); showMapInfo(n.id); openMapPopup(n.id); highlightNode(n.id); });
+    grp.addEventListener('mousedown',e=>startDrag(e,n.id));
+    grp.addEventListener('touchstart',e=>startDragTouch(e,n.id),{passive:true});
+
+    nodesLayer.appendChild(grp);
+    nodeEls[n.id]=grp;
+  });  
 }
+
 function openMapPopup(id){
   const popup=g('mapPopup'), pos=nodePos[id];
   if(!popup||!pos) return;

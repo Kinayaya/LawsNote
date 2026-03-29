@@ -788,6 +788,7 @@ function redrawLines(affectedId){
 
 function visibleNotes(){ const q=mapFilter.q.toLowerCase(), linkedIds={}; if(mapLinkedOnly) links.forEach(l=>{ linkedIds[l.from]=true; linkedIds[l.to]=true; }); return notes.filter(n=>(mapFilter.sub==='all'||n.subject===mapFilter.sub)&&(mapFilter.type==='all'||n.type===mapFilter.type)&&(!q||`${n.title}${n.subject}${noteTags(n).join('')}`.toLowerCase().includes(q))&&(!mapLinkedOnly||linkedIds[n.id])); }
 // --- 1. 強制初始化座標儲存物件 (確保全域可用) ---
+// --- 1. 確保座標物件存在 ---
 if (!window.nodePos) window.nodePos = {};
 
 function scheduleMapRedraw(ms=60) {
@@ -795,15 +796,19 @@ function scheduleMapRedraw(ms=60) {
   mapTimer = setTimeout(() => { drawMap(); }, ms);
 }
 
-// --- 2. 碰撞修正函式 ---
+// --- 2. 修正後的碰撞函式 ---
 function resolveOverlaps(notesToData) {
   const minX = 220; 
   const minY = 130;
-  const cw = canvas.width || 800;
-  const ch = canvas.height || 600;
+  
+  // 防禦性抓取：如果全域 canvas 失敗，直接現場抓取
+  const activeCanvas = document.getElementById('mapCanvas');
+  if (!activeCanvas) return;
+  
+  const cw = activeCanvas.width || 800;
+  const ch = activeCanvas.height || 600;
 
   notesToData.forEach(n => {
-    // 如果座標不存在或無效，重新隨機分配
     if (!window.nodePos[n.id] || isNaN(window.nodePos[n.id].x)) {
       window.nodePos[n.id] = { 
         x: 150 + Math.random() * (cw - 300), 
@@ -812,7 +817,6 @@ function resolveOverlaps(notesToData) {
     }
   });
 
-  // 迭代推開邏輯
   for (let i = 0; i < 20; i++) {
     for (let a = 0; a < notesToData.length; a++) {
       for (let b = a + 1; b < notesToData.length; b++) {
@@ -836,28 +840,14 @@ function resolveOverlaps(notesToData) {
   }
 }
 
-// --- 3. 繪圖函式 ---
+// --- 3. 修正後的繪圖函式 ---
 function drawMap() {
-  if (!ctx) return;
-  // 清除畫布
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // --- 註解掉連線邏輯，避免報錯 ---
-  /*
-  if (Array.isArray(links)) {
-    links.forEach(link => {
-       // 原有的連線代碼...
-    });
-  }
-  */
-
-  // --- 確保只執行繪製節點 (notes) ---
-  if (Array.isArray(notes)) {
-    notes.forEach(note => {
-      drawNode(note);
-    });
-  }
-}
+  if (currentView !== 'map') return;
+  
+  // 確保繪圖環境存在
+  const activeCanvas = document.getElementById('mapCanvas');
+  const activeCtx = activeCanvas ? activeCanvas.getContext('2d') : null;
+  if (!activeCtx) return;
 
   const q = mapFilter.q.toLowerCase();
   const filtered = notes.filter(n => 
@@ -866,37 +856,36 @@ function drawMap() {
     (!q || n.title.toLowerCase().includes(q))
   );
 
-  // 執行位置修正
   resolveOverlaps(filtered);
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.save();
-  ctx.translate(mapX, mapY);
-  ctx.scale(mapScale, mapScale);
+  activeCtx.clearRect(0, 0, activeCanvas.width, activeCanvas.height);
+  activeCtx.save();
+  activeCtx.translate(mapX, mapY);
+  activeCtx.scale(mapScale, mapScale);
 
-  // 繪製連線
   links.forEach(l => {
     const p1 = window.nodePos[l.from];
     const p2 = window.nodePos[l.to];
-    if (p1 && p2 && !isNaN(p1.x) && !isNaN(p2.x)) {
+    if (p1 && p2 && !isNaN(p1.x)) {
       const hasFrom = filtered.some(fn => fn.id === l.from);
       const hasTo = filtered.some(fn => fn.id === l.to);
       if (hasFrom && hasTo) {
+        // 使用原有的 drawLink
         drawLink(p1.x, p1.y, p2.x, p2.y, l.rel, l.color || '#378ADD');
       }
     }
   });
 
-  // 繪製節點
   filtered.forEach(n => {
     const pos = window.nodePos[n.id];
     if (pos && !isNaN(pos.x)) {
       const isSelected = (selectedNodeId === n.id);
+      // 使用原有的 drawNode
       drawNode(pos.x, pos.y, n.title, n.type, isSelected);
     }
   });
 
-  ctx.restore();
+  activeCtx.restore();
 }
 function openMapPopup(id){
   const popup=g('mapPopup'), pos=nodePos[id];

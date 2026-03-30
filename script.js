@@ -1,4 +1,4 @@
-// JavaScript file - 完整優化版
+// JavaScript file - 完整優化版（放射狀佈局）
 // ==================== 資料定義 ====================
 const DEFAULTS = {
   notes: [
@@ -48,6 +48,7 @@ let flashDeck=[], flashIdx=0, flashShowing=false, flashSubFilter='all', flashTyp
 let examList=[], examTimer=null, examSec=0, examTotal=0, currentExam=null;
 let shortcuts=[], recordingBtn=null, _aiPendingAction=null, _saveTimer=null, rafId=null;
 let mapRedrawTimer=null, mapResizeObserver=null;
+let mapCenterNodeId = null; // 體系圖核心節點
 // 相容舊版快取腳本（避免 iOS/Safari 出現「Can't find variable: mapTimer/currentView」）
 let mapTimer=null, currentView='notes';
 
@@ -119,6 +120,7 @@ function loadData() {
       nodePos = (d.nodePos && typeof d.nodePos==='object' && !Array.isArray(d.nodePos)) ? d.nodePos : {};
       nodeSizes = (d.nodeSizes && typeof d.nodeSizes==='object' && !Array.isArray(d.nodeSizes)) ? d.nodeSizes : {};
       if(d.sortMode) sortMode = d.sortMode;
+      mapCenterNodeId = d.mapCenterNodeId || null;
       let repaired = false;
       types.forEach(t=>{ if(/^tag_t_/.test(t.key)) { let old=t.key; t.key=t.label; notes.forEach(n=>{if(n.type===old)n.type=t.label;}); repaired=true; } });
       subjects.forEach(s=>{ if(/^tag_s_/.test(s.key)) { let old=s.key; s.key=s.label; notes.forEach(n=>{if(n.subject===old)n.subject=s.label;}); repaired=true; } });
@@ -135,7 +137,7 @@ function loadData() {
     nodeSizes = {};
   }
 }
-function saveData() { try { localStorage.setItem(SKEY, JSON.stringify({notes,links,nid,lid,types,subjects,nodePos,nodeSizes,sortMode})); } catch(e) {} }
+function saveData() { try { localStorage.setItem(SKEY, JSON.stringify({notes,links,nid,lid,types,subjects,nodePos,nodeSizes,sortMode,mapCenterNodeId})); } catch(e) {} }
 
 // ==================== UI 建構 ====================
 function buildTypeRow() {
@@ -383,7 +385,7 @@ function addTag(kind) {
 
 // ==================== 匯入/匯出 ====================
 function exportData() {
-  const json = JSON.stringify({notes,links,nid,lid,types,subjects,nodeSizes,exported:new Date().toISOString()},null,2);
+  const json = JSON.stringify({notes,links,nid,lid,types,subjects,nodeSizes,mapCenterNodeId,exported:new Date().toISOString()},null,2);
   const blob = new Blob([json],{type:'application/json'});
   const url = URL.createObjectURL(blob); const a = document.createElement('a');
   const d = new Date();
@@ -399,7 +401,7 @@ function importData(file) {
       if(d.links) d.links.forEach(l=>{ l.rel='關聯'; l.color=LINK_COLOR; });
       if(confirm('確定 = 完整覆蓋（取代所有現有筆記）\n取消 = 合併（只加入新筆記）')) {
         notes = d.notes; links = d.links||[]; types = d.types||DEFAULTS.types.slice(); subjects = d.subjects||DEFAULTS.subjects.slice();
-        nodeSizes = d.nodeSizes||{};
+        nodeSizes = d.nodeSizes||{}; mapCenterNodeId = d.mapCenterNodeId || null;
         nid = d.nid||notes.length+100; lid = d.lid||10; notes.sort((a,b)=>b.id-a.id);
         saveData(); rebuildUI(); render(); showToast(`已覆蓋，共 ${notes.length} 筆筆記`);
       } else {
@@ -409,6 +411,7 @@ function importData(file) {
         if(d.types) types = d.types;
         if(d.subjects) subjects = d.subjects;
         if(d.nodeSizes) nodeSizes = {...nodeSizes, ...d.nodeSizes};
+        if(d.mapCenterNodeId) mapCenterNodeId = d.mapCenterNodeId;
         notes.sort((a,b)=>b.id-a.id);
         saveData(); rebuildUI(); render(); showToast(`已合併，新增 ${added} 筆`);
       }
@@ -609,8 +612,8 @@ function segmentsCross(a,b,c,d){
   const d1=det(a,b,c), d2=det(a,b,d), d3=det(c,d,a), d4=det(c,d,b);
   return (d1*d2<0)&&(d3*d4<0);
 }
-// ==================== 體系圖核心排列演算法 (全新層級佈局版) ====================
-// 目標：將節點像範例圖片一樣，依照關聯方向從左到右、整齊分層排列。
+
+// ==================== 體系圖核心排列演算法 (放射狀佈局版) ====================
 function forceLayout() {
   const canvas = g('mapCanvas');
   mapW = canvas.offsetWidth || 800;
@@ -623,67 +626,83 @@ function forceLayout() {
   const n2 = layoutNotes.length;
   if (!n2) return;
 
-  // --- 黃金比例參數 (建議不要改動這兩個數值) ---
-  const LEVEL_WIDTH = 160;   // 左右層級距離：160 像素
-  const NODE_MARGIN_Y = 85;  // 上下節點距離：85 像素 (剛好能放下文字不重疊)
-  // ------------------------------------------
-
-  const adj = {};
-  const inDegree = {};
-  layoutNotes.forEach(n => { adj[n.id] = []; inDegree[n.id] = 0; });
-  visLinks.forEach(lk => {
-    if (adj[lk.from] && inDegree[lk.to] !== undefined) {
-      adj[lk.from].push(lk.to);
-      inDegree[lk.to]++;
-    }
-  });
-
-  const levels = {};
-  const levelGroups = [];
-  let queue = layoutNotes.filter(n => inDegree[n.id] === 0).map(n => n.id);
-  if (queue.length === 0 && n2 > 0) queue = [layoutNotes[0].id];
-
-  let currentLevel = 0;
-  let visited = new Set();
-
-  while (queue.length > 0) {
-    let nextQueue = [];
-    levelGroups[currentLevel] = [];
-    queue.forEach(nodeId => {
-      if (visited.has(nodeId)) return;
-      visited.add(nodeId);
-      levels[nodeId] = currentLevel;
-      levelGroups[currentLevel].push(nodeId);
-      if (adj[nodeId]) adj[nodeId].forEach(neighborId => { if (!visited.has(neighborId)) nextQueue.push(neighborId); });
+  // 如果沒有設定核心節點，或核心節點不在可見範圍內，自動選擇連結數最多的節點
+  if (!mapCenterNodeId || !visIds[mapCenterNodeId]) {
+    const linkCount = {};
+    layoutNotes.forEach(n => linkCount[n.id] = 0);
+    visLinks.forEach(lk => {
+      linkCount[lk.from] = (linkCount[lk.from] || 0) + 1;
+      linkCount[lk.to] = (linkCount[lk.to] || 0) + 1;
     });
-    queue = [...new Set(nextQueue)];
-    currentLevel++;
+    mapCenterNodeId = layoutNotes.reduce((max, n) => 
+      linkCount[n.id] > linkCount[max.id] ? n : max
+    , layoutNotes[0]).id;
   }
 
-  // 處理漏掉的節點 (防止它們全部疊在 0,0 位置)
+  // --- 放射狀佈局參數 ---
+  const LAYER_RADIUS = 160;  // 每一層的半徑增量
+  const CENTER_X = mapW / 2;
+  const CENTER_Y = mapH / 2;
+
+  // 建立鄰接表
+  const adj = {};
+  layoutNotes.forEach(n => adj[n.id] = []);
+  visLinks.forEach(lk => {
+    if (adj[lk.from]) adj[lk.from].push(lk.to);
+    if (adj[lk.to]) adj[lk.to].push(lk.from);
+  });
+
+  // BFS 分層
+  const layers = {};
+  const visited = new Set();
+  const queue = [mapCenterNodeId];
+  layers[mapCenterNodeId] = 0;
+  visited.add(mapCenterNodeId);
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const currentLayer = layers[current];
+    
+    (adj[current] || []).forEach(neighbor => {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        layers[neighbor] = currentLayer + 1;
+        queue.push(neighbor);
+      }
+    });
+  }
+
+  // 處理未連接的節點（放在最外層）
   layoutNotes.forEach(n => {
     if (!visited.has(n.id)) {
-        levels[n.id] = 0;
-        if(!levelGroups[0]) levelGroups[0] = [];
-        levelGroups[0].push(n.id);
+      layers[n.id] = 999;
     }
   });
 
-  // 設定位置
-  levelGroups.forEach((group, levelIdx) => {
-    if(!group) return;
-    const numNodesInLevel = group.length;
-    // 如果這層節點太多，自動拉開一點距離防止重疊
-    const currentMarginY = Math.max(NODE_MARGIN_Y, mapH / (numNodesInLevel + 1));
-    const totalLevelHeight = numNodesInLevel * currentMarginY;
-    const startY = (mapH - totalLevelHeight) / 2;
+  // 按層分組
+  const layerGroups = {};
+  Object.keys(layers).forEach(nodeId => {
+    const layer = layers[nodeId];
+    if (!layerGroups[layer]) layerGroups[layer] = [];
+    layerGroups[layer].push(parseInt(nodeId));
+  });
 
-    group.forEach((nodeId, nodeIdx) => {
-      // X 軸：層級 * 寬度 + 基礎留白
-      const x = levelIdx * LEVEL_WIDTH + 100;
-      // Y 軸：計算後的置中位置
-      const y = startY + (nodeIdx * currentMarginY) + (currentMarginY / 2);
+  // 核心節點放在正中央
+  nodePos[mapCenterNodeId] = { x: CENTER_X, y: CENTER_Y };
 
+  // 其他層級放射狀排列
+  Object.keys(layerGroups).sort((a, b) => a - b).forEach(layer => {
+    const layerNum = parseInt(layer);
+    if (layerNum === 0) return; // 跳過核心節點
+
+    const nodesInLayer = layerGroups[layer];
+    const radius = layerNum * LAYER_RADIUS;
+    const angleStep = (2 * Math.PI) / nodesInLayer.length;
+
+    nodesInLayer.forEach((nodeId, idx) => {
+      const angle = idx * angleStep - Math.PI / 2; // 從上方開始
+      const x = CENTER_X + radius * Math.cos(angle);
+      const y = CENTER_Y + radius * Math.sin(angle);
       nodePos[nodeId] = { x, y };
       clampNodeToCanvas(nodeId);
     });
@@ -692,6 +711,7 @@ function forceLayout() {
   saveDataDeferred();
 }
 // ==================== 演算法結束 ====================
+
 function pointToSegmentDistance(px,py,x1,y1,x2,y2){
   const dx=x2-x1, dy=y2-y1, len2=dx*dx+dy*dy;
   if(!len2) return {dist:Math.hypot(px-x1,py-y1), nx:0, ny:0};
@@ -934,8 +954,18 @@ function openMapPopup(id){
     };
   }
 }
-function showMapInfo(id){ const n=noteById(id); if(!n)return; const tp=typeByKey(n.type), sb=subByKey(n.subject), related=links.filter(l=>l.from===id||l.to===id);
-  g('mpBadge').textContent=tp.label; g('mpBadge').style.background=tp.color; g('mpTitle').textContent=n.title; g('mpSubject').textContent=sb.label; g('mpSubject').style.background=sb.color+'22'; g('mpSubject').style.color=sb.color;
+
+function showMapInfo(id){ 
+  const n=noteById(id); 
+  if(!n)return; 
+  const tp=typeByKey(n.type), sb=subByKey(n.subject), related=links.filter(l=>l.from===id||l.to===id);
+  g('mpBadge').textContent=tp.label; 
+  g('mpBadge').style.background=tp.color; 
+  g('mpTitle').textContent=n.title; 
+  g('mpSubject').textContent=sb.label; 
+  g('mpSubject').style.background=sb.color+'22'; 
+  g('mpSubject').style.color=sb.color;
+  
   const sizeNumInput=g('mpNodeSizeNum');
   if(sizeNumInput){
     const radius=getNodeRadius(id);
@@ -954,8 +984,33 @@ function showMapInfo(id){ const n=noteById(id); if(!n)return; const tp=typeByKey
       clampNodeToCanvas(id); moveNodeEl(id,nodePos[id].x,nodePos[id].y); redrawLines(id); saveDataDeferred();
     };
   }
- const linksEl=g('mpLinks');
- if(!related.length){
+
+  // 新增：設為核心按鈕
+  const setCenterBtn = document.createElement('button');
+  setCenterBtn.className = 'mp-set-center';
+  setCenterBtn.textContent = mapCenterNodeId === id ? '✓ 已是核心' : '⭐ 設為核心';
+  setCenterBtn.style.cssText = 'width:100%;padding:8px;margin:8px 0 4px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ddd;' + (mapCenterNodeId === id ? 'background:#EAF3DE;color:#3B6D11;border-color:#97C459;' : 'background:#f5f5f5;color:#555;');
+  setCenterBtn.onclick = () => {
+    mapCenterNodeId = id;
+    nodePos = {}; // 清空座標，強制重新排列
+    forceLayout();
+    drawMap();
+    saveData();
+    closeMapPopup();
+    showToast(`已將「${n.title}」設為核心節點`);
+  };
+
+  // 插入到 goto 按鈕之前
+  const goBtn = g('mpGoto');
+  if(goBtn && goBtn.parentNode) {
+    // 先移除舊的按鈕（如果存在）
+    const oldBtn = goBtn.parentNode.querySelector('.mp-set-center');
+    if(oldBtn) oldBtn.remove();
+    goBtn.parentNode.insertBefore(setCenterBtn, goBtn);
+  }
+
+  const linksEl=g('mpLinks');
+  if(!related.length){
     linksEl.innerHTML='<span class="mp-no-links">尚無關聯</span>';
   } else {
     linksEl.innerHTML=related.map(l=>{
@@ -972,6 +1027,7 @@ function showMapInfo(id){ const n=noteById(id); if(!n)return; const tp=typeByKey
     });
   }
 }
+
 function closeMapPopup(){ g('mapPopup').classList.remove('open'); }
 function highlightNode(id){ g('nodesLayer').querySelectorAll('.map-node').forEach(grp=>{ grp.classList.remove('map-node-highlight'); if(parseInt(grp.dataset.id)===id) grp.classList.add('map-node-highlight'); }); }
 function startDrag(e,id){ e.preventDefault(); e.stopPropagation(); closeMapPopup(); dragNode=id; const pos=nodePos[id], rect=g('mapCanvas').getBoundingClientRect(); dragOffX=e.clientX-rect.left-(pos.x*mapScale+mapOffX); dragOffY=e.clientY-rect.top-(pos.y*mapScale+mapOffY); }
@@ -1024,8 +1080,8 @@ on('mapSearchInput','input',debounce(()=>{ mapFilter.q=g('mapSearchInput').value
   on('zoomFit','click',()=>{ if(!notes.length)return; const xs=notes.map(n=>nodePos[n.id]?nodePos[n.id].x:mapW/2), ys=notes.map(n=>nodePos[n.id]?nodePos[n.id].y:mapH/2); const minX=Math.min(...xs)-40, maxX=Math.max(...xs)+40, minY=Math.min(...ys)-40, maxY=Math.max(...ys)+40; const sc=Math.min(mapW/(maxX-minX||1),mapH/(maxY-minY||1),2.5); mapScale=sc; mapOffX=-minX*sc+(mapW-(maxX-minX)*sc)/2; mapOffY=-minY*sc+(mapH-(maxY-minY)*sc)/2; g('zoomLabel').textContent=Math.round(sc*100)+'%'; drawMap(); });
   on('mpClose','click',closeMapPopup);
   on('mapLinkedOnlyBtn','click',()=>{ mapLinkedOnly=!mapLinkedOnly; const btn=g('mapLinkedOnlyBtn'); if(btn){ btn.style.background=mapLinkedOnly?'#3B6D11':'#EAF3DE'; btn.style.color=mapLinkedOnly?'#fff':'#3B6D11'; btn.textContent=mapLinkedOnly?'✓ 只顯示關聯':'🔗 只顯示關聯'; } nodePos={}; forceLayout(); drawMap(); showToast(mapLinkedOnly?`顯示 ${visibleNotes().length} 個有關聯的節點`:'顯示全部節點'); });
-  on('mapAutoBtn','click',()=>{ const btn=g('mapAutoBtn'), orig=btn.textContent; btn.textContent='排列中...'; btn.disabled=true; setTimeout(()=>{ nodePos={}; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); g('zoomLabel').textContent='100%'; btn.textContent=orig; btn.disabled=false; showToast('已自動排列'); },30); });
-  on('mapResetBtn','click',()=>{ nodePos={}; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); g('zoomLabel').textContent='100%'; showToast('已重置'); });  
+  on('mapAutoBtn','click',()=>{ const btn=g('mapAutoBtn'), orig=btn.textContent; btn.textContent='排列中...'; btn.disabled=true; setTimeout(()=>{ nodePos={}; mapCenterNodeId = null; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); g('zoomLabel').textContent='100%'; btn.textContent=orig; btn.disabled=false; showToast('已自動排列（已清除核心節點）'); },30); });
+  on('mapResetBtn','click',()=>{ nodePos={}; mapCenterNodeId = null; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); g('zoomLabel').textContent='100%'; showToast('已重置'); });  
   const canvas=g('mapCanvas'); let panStart=null, panOffXStart=0, panOffYStart=0;
 
   // ---- 拖曳移動節點（修復連線同步）----

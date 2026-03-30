@@ -50,6 +50,8 @@ let examList=[], examTimer=null, examSec=0, examTotal=0, currentExam=null;
 let shortcuts=[], recordingBtn=null, _aiPendingAction=null, _saveTimer=null, rafId=null;
 let mapRedrawTimer=null, mapResizeObserver=null;
 let mapCenterNodeId = null; // 體系圖核心節點
+let mapLaneConfigs={}; // 不同科目/類型的泳道設定
+let mapNodeMeta={}; // 每個節點在體系圖中的 lane/order 資訊
 // 相容舊版快取腳本（避免 iOS/Safari 出現「Can't find variable: mapTimer/currentView」）
 let mapTimer=null, currentView='notes';
 
@@ -88,7 +90,18 @@ const saveAiKey = k => localStorage.setItem('klaws_ai_key', k);
 const getAiModel = () => localStorage.getItem('klaws_ai_model') || 'openrouter/free';
 const saveAiModel = m => localStorage.setItem('klaws_ai_model', m);
 const MAP_NODE_RADIUS_MIN = 15, MAP_NODE_RADIUS_MAX = 100, MAP_NODE_RADIUS_DEFAULT = 15;
+const DEFAULT_LANE_NAMES=['構成前提','行為判斷','違法/責任','法律效果','法條落點'];
 const clampMapRadius = r => Math.max(MAP_NODE_RADIUS_MIN, Math.min(MAP_NODE_RADIUS_MAX, r));
+const laneContextKey = () => `${mapFilter.sub || 'all'}::${mapFilter.type || 'all'}`;
+const getLaneConfig = () => {
+  const key = laneContextKey();
+  if(!mapLaneConfigs[key] || !Array.isArray(mapLaneConfigs[key].names)){
+    mapLaneConfigs[key] = { names: DEFAULT_LANE_NAMES.slice() };
+  }
+  const names = mapLaneConfigs[key].names.slice(0, DEFAULT_LANE_NAMES.length);
+  while(names.length < DEFAULT_LANE_NAMES.length) names.push(DEFAULT_LANE_NAMES[names.length]);
+  return { key, names };
+};
 const splitMapTitleLines = (title, maxCharsPerLine = 8) => {
   const safe = String(title || '').trim();
   if(!safe) return ['（未命名）'];
@@ -132,6 +145,7 @@ function loadData() {
       if(typeof d.mapLinkedOnly === 'boolean') mapLinkedOnly = d.mapLinkedOnly;
       if(['all','1','2','3'].includes(d.mapDepth)) mapDepth = d.mapDepth;
       if(typeof d.mapFocusMode === 'boolean') mapFocusMode = d.mapFocusMode;
+      mapLaneConfigs = (d.mapLaneConfigs && typeof d.mapLaneConfigs==='object' && !Array.isArray(d.mapLaneConfigs)) ? d.mapLaneConfigs : {};
       let repaired = false;
       types.forEach(t=>{ if(/^tag_t_/.test(t.key)) { let old=t.key; t.key=t.label; notes.forEach(n=>{if(n.type===old)n.type=t.label;}); repaired=true; } });
       subjects.forEach(s=>{ if(/^tag_s_/.test(s.key)) { let old=s.key; s.key=s.label; notes.forEach(n=>{if(n.subject===old)n.subject=s.label;}); repaired=true; } });
@@ -148,7 +162,7 @@ function loadData() {
     nodeSizes = {};
   }
 }
-function saveData() { try { localStorage.setItem(SKEY, JSON.stringify({notes,links,nid,lid,types,subjects,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode})); } catch(e) {} }
+function saveData() { try { localStorage.setItem(SKEY, JSON.stringify({notes,links,nid,lid,types,subjects,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs})); } catch(e) {} }
 
 // ==================== UI 建構 ====================
 function buildTypeRow() {
@@ -490,6 +504,7 @@ function toggleMapView(open) {
     }
     setTimeout(()=>{ const hadNodePos=Object.keys(nodePos).length>0; initNodePos(); drawMap(); if(!hadNodePos) saveData(); },80);
   } else {
+    closeLanePanel();
     closeMapPopup();
   }
 }
@@ -632,7 +647,7 @@ function segmentsCross(a,b,c,d){
   return (d1*d2<0)&&(d3*d4<0);
 }
 
-// ==================== 體系圖核心排列演算法 (放射狀佈局版) ====================
+// ==================== 體系圖核心排列演算法（泳道 + 分層 + 重疊最小化） ====================
 function forceLayout() {
   const canvas = g('mapCanvas');
   mapW = canvas.offsetWidth || 800;
@@ -658,11 +673,14 @@ function forceLayout() {
     , layoutNotes[0]).id;
   }
 
-  // --- 分層佈局參數（左→右）---
-  const LAYER_GAP_X = 210;
-  const ROW_GAP_Y = 94;
-  const START_X = Math.max(120, mapW * 0.2);
-  const CENTER_Y = mapH / 2;
+const laneCfg = getLaneConfig();
+const laneCount = laneCfg.names.length;
+const ROW_GAP_Y = 92;
+const TOP_PAD = 72;
+const BOT_PAD = 40;
+const laneLeft = Math.max(80, mapW * 0.1);
+const laneRight = Math.min(mapW - 80, mapW * 0.9);
+const laneGapX = laneCount>1 ? (laneRight-laneLeft)/(laneCount-1) : 0;
   
   // 建立鄰接表
   const adj = {};
@@ -692,7 +710,7 @@ function forceLayout() {
     });
   }
 
-  // 處理未連接的節點（放在最外層，但避免過遠）
+// 處理未連接的節點（放在最右側泳道）
   const connectedMaxLayer = Object.values(layers).reduce((m,v)=>Math.max(m,v),0);
   layoutNotes.forEach(n => {
     if (!visited.has(n.id)) {
@@ -700,31 +718,54 @@ function forceLayout() {
     }
   });
 
-  // 按層分組
-  const layerGroups = {};
-  Object.keys(layers).forEach(nodeId => {
-    const layer = layers[nodeId];
-    if (!layerGroups[layer]) layerGroups[layer] = [];
-    layerGroups[layer].push(parseInt(nodeId));
-  });
+ const laneGroups = {};
+ Object.keys(layers).forEach(nodeId => {
+  const layer = layers[nodeId] || 0;
+  const lane = Math.max(0, Math.min(laneCount-1, layer));
+  if (!laneGroups[lane]) laneGroups[lane] = [];
+  laneGroups[lane].push(parseInt(nodeId,10));
+ });
 
-  // 分層排列：同一層垂直排列，不同層水平排列
-  Object.keys(layerGroups).sort((a, b) => a - b).forEach(layer => {
-    const layerNum = parseInt(layer);
-    const nodesInLayer = layerGroups[layer].slice().sort((a,b)=>{
+  // crossing minimization: barycenter/median 迭代
+  const laneOrder = {};
+  Object.keys(laneGroups).forEach(lane=>{
+    laneOrder[lane]=laneGroups[lane].slice().sort((a,b)=>{
       const da=(adj[a]||[]).length, db=(adj[b]||[]).length;
       return db-da || a-b;
     });
-    const x = START_X + layerNum * LAYER_GAP_X;
-    const totalHeight = Math.max(0, (nodesInLayer.length - 1) * ROW_GAP_Y);
-    const startY = CENTER_Y - totalHeight / 2;
-    nodesInLayer.forEach((nodeId, idx) => {
-     const y = startY + idx * ROW_GAP_Y;
-     nodePos[nodeId] = { x, y };
-     clampNodeToCanvas(nodeId);
-    });
   });
+  for(let pass=0; pass<6; pass++){
+    for(let lane=1; lane<laneCount; lane++){
+      const arr=laneOrder[lane]||[];
+      const prev=laneOrder[lane-1]||[];
+      const prevIdx={}; prev.forEach((id,idx)=>prevIdx[id]=idx);
+      arr.sort((a,b)=>{
+        const an=(adj[a]||[]).map(id=>prevIdx[id]).filter(v=>v!==undefined);
+        const bn=(adj[b]||[]).map(id=>prevIdx[id]).filter(v=>v!==undefined);
+        const am=an.length?an.reduce((s,v)=>s+v,0)/an.length:9999;
+        const bm=bn.length?bn.reduce((s,v)=>s+v,0)/bn.length:9999;
+        return am-bm || a-b;
+      });
+    }
+  }
 
+  mapNodeMeta={};
+  for(let lane=0; lane<laneCount; lane++){
+    const arr=laneOrder[lane]||[];
+    const x = laneLeft + lane * laneGapX;
+    const usableTop = TOP_PAD;
+    const usableHeight = Math.max(120, mapH - TOP_PAD - BOT_PAD);
+    const gap = arr.length>1 ? Math.min(ROW_GAP_Y, usableHeight/(arr.length-1)) : 0;
+    const totalHeight = Math.max(0, (arr.length - 1) * gap);
+    const startY = usableTop + (usableHeight-totalHeight)/2;
+    arr.forEach((nodeId, idx) => {
+      const y = startY + idx * gap;
+      nodePos[nodeId] = { x, y };
+      mapNodeMeta[nodeId]={lane, order:idx};
+      clampNodeToCanvas(nodeId);
+    });
+  }
+  
   saveDataDeferred();
 }
 // ==================== 演算法結束 ====================
@@ -796,12 +837,29 @@ function calcLinkPath(lk){
   const dx=tp.x-fp.x,dy=tp.y-fp.y,dist=Math.sqrt(dx*dx+dy*dy)||1, nx=dx/dist,ny=dy/dist;
   const rf=getNodeRadius(lk.from), rt=getNodeRadius(lk.to);
   const x1=fp.x+nx*rf,y1=fp.y+ny*rf,x2=tp.x-nx*(rt+8),y2=tp.y-ny*(rt+8);
-  const baseCurve=Math.max(8,Math.min(24,dist*0.08));
+  const fromMeta=mapNodeMeta[lk.from]||{lane:0,order:0};
+  const toMeta=mapNodeMeta[lk.to]||{lane:fromMeta.lane+1,order:0};
+  const laneDiff = toMeta.lane - fromMeta.lane;
   const laneOffset=linkCurveOffsets[lk.id]||0;
-  const orient = laneOffset===0 ? (lk.from<lk.to?1:-1) : Math.sign(laneOffset);
-  const curve = orient*(baseCurve+Math.abs(laneOffset));
-  const mx=(x1+x2)/2 + (-ny)*curve, my=(y1+y2)/2 + nx*curve;
-  return {d:`M${x1},${y1} Q${mx},${my} ${x2},${y2}`};
+  const bundleShift = Math.max(-24, Math.min(24, laneOffset*0.85));
+  if(Math.abs(laneDiff)<=1){
+    const mx=(x1+x2)/2;
+    const c1x=mx-20, c2x=mx+20;
+    return {d:`M${x1},${y1} C${c1x},${y1+bundleShift} ${c2x},${y2+bundleShift} ${x2},${y2}`};
+  }
+  let d=`M${x1},${y1}`;
+  const steps=Math.abs(laneDiff);
+  const dir=laneDiff>0?1:-1;
+  let sx=x1, sy=y1;
+  for(let step=1; step<=steps; step++){
+    const t=step/steps;
+    const tx=x1+(x2-x1)*t;
+    const ty=y1+(y2-y1)*t + bundleShift;
+    const c1x=sx+36*dir, c2x=tx-36*dir;
+    d += ` C${c1x},${sy} ${c2x},${ty} ${tx},${ty}`;
+    sx=tx; sy=ty;
+  }
+  return {d};
 }
 
 // 修復：拖曳時同步更新所有受影響連線的路徑
@@ -911,6 +969,31 @@ if(visNotes.length===0){
   linksLayer.innerHTML='';
   nodesLayer.innerHTML='';
 
+    // 泳道標題與引導線
+  const laneCfg=getLaneConfig();
+  const laneCount=laneCfg.names.length;
+  const laneLeft=Math.max(80,mapW*0.1), laneRight=Math.min(mapW-80,mapW*0.9);
+  const laneGapX=laneCount>1 ? (laneRight-laneLeft)/(laneCount-1) : 0;
+  for(let i=0;i<laneCount;i++){
+    const x=laneLeft+i*laneGapX;
+    const guide=document.createElementNS('http://www.w3.org/2000/svg','line');
+    guide.setAttribute('x1',x); guide.setAttribute('y1',42);
+    guide.setAttribute('x2',x); guide.setAttribute('y2',mapH-18);
+    guide.setAttribute('stroke','#d6deea');
+    guide.setAttribute('stroke-width','1');
+    guide.setAttribute('stroke-dasharray','5 6');
+    guide.style.opacity='0.8';
+    linksLayer.appendChild(guide);
+
+    const label=document.createElementNS('http://www.w3.org/2000/svg','text');
+    label.classList.add('map-lane-label');
+    label.setAttribute('x',x);
+    label.setAttribute('y',26);
+    label.setAttribute('text-anchor','middle');
+    label.textContent=laneCfg.names[i];
+    linksLayer.appendChild(label);
+  }
+ 
   visLinks.forEach(lk=>{
     if(!nodeLinksIndex[lk.from]) nodeLinksIndex[lk.from]=[];
     if(!nodeLinksIndex[lk.to]) nodeLinksIndex[lk.to]=[];
@@ -922,10 +1005,10 @@ if(visNotes.length===0){
     const path=document.createElementNS('http://www.w3.org/2000/svg','path');
     path.setAttribute('d', pathData.d);
     path.setAttribute('stroke', LINK_COLOR);
-    path.setAttribute('stroke-width', '1.8');
+    path.setAttribute('stroke-width', '1.35');
     path.setAttribute('fill', 'none');
     path.setAttribute('marker-end', getArrowMarker(LINK_COLOR));
-    path.style.opacity='0.22';
+    path.style.opacity='0.18';
     linksLayer.appendChild(path);
     linkElsMap[lk.id]={p:path};
   });
@@ -1102,8 +1185,8 @@ function applyFocusStyles(){
     const lid=parseInt(key,10), lk=links.find(l=>l.id===lid), path=linkElsMap[lid]&&linkElsMap[lid].p;
     if(!lk||!path) return;
     const active=!focusSet || (focusSet[lk.from]&&focusSet[lk.to]);
-    path.style.opacity=active?'0.58':'0.08';
-    path.setAttribute('stroke-width', active?'1.8':'1.1');
+   path.style.opacity=active?'0.72':'0.05';
+    path.setAttribute('stroke-width', active?'2.1':'0.9');
   });
 }
 function highlightNode(id){ mapFocusedNodeId=id; applyFocusStyles(); }
@@ -1119,6 +1202,37 @@ function buildMapFilters(){
   ss.value=mapFilter.sub;
   st.value=mapFilter.type;
   if(sd) sd.value=['all','1','2','3'].includes(mapDepth)?mapDepth:'all';
+}
+function laneContextLabelText(){
+  const s = mapFilter.sub==='all' ? '全部科目' : subByKey(mapFilter.sub).label;
+  const t = mapFilter.type==='all' ? '全部類型' : typeByKey(mapFilter.type).label;
+  return `目前篩選：${s} / ${t}`;
+}
+function renderLanePanel(){
+  const panel=g('lanePanel'), ctx=g('laneContextLabel'), inputs=g('laneInputs');
+  if(!panel||!ctx||!inputs) return;
+  const cfg=getLaneConfig();
+  ctx.textContent=`${laneContextLabelText()}（獨立泳道設定）`;
+  inputs.innerHTML = cfg.names.map((name,idx)=>`<div class="lane-input-row"><label>泳道 ${idx+1}</label><input data-idx="${idx}" value="${name}" maxlength="16" placeholder="泳道名稱"></div>`).join('');
+}
+function openLanePanel(){ renderLanePanel(); g('lanePanel').classList.add('open'); }
+function closeLanePanel(){ g('lanePanel').classList.remove('open'); }
+function saveLanePanel(){
+  const cfg=getLaneConfig();
+  const names=Array.from(g('laneInputs').querySelectorAll('input[data-idx]')).map((el,idx)=>(el.value||'').trim()||DEFAULT_LANE_NAMES[idx]);
+  mapLaneConfigs[cfg.key]={names};
+  saveDataDeferred();
+  closeLanePanel();
+  nodePos={};
+  forceLayout();
+  drawMap();
+  showToast('已儲存泳道設定');
+}
+function resetLanePanel(){
+  const cfg=getLaneConfig();
+  mapLaneConfigs[cfg.key]={names:DEFAULT_LANE_NAMES.slice()};
+  renderLanePanel();
+  saveDataDeferred();
 }
 
 // ==================== AI 功能 ====================
@@ -1159,8 +1273,8 @@ window.addEventListener('load',()=>{
   g('mapToggleBtn').addEventListener('click',()=>toggleMapView(true));
   g('mapBackBtn').addEventListener('click',()=>toggleMapView(false));
   on('mapSearchInput','input',debounce(()=>{ mapFilter.q=g('mapSearchInput').value; saveDataDeferred(); if(isMapOpen) drawMap(); },250));
-  on('mapFilterSub','change',()=>{ mapFilter.sub=g('mapFilterSub').value; saveDataDeferred(); if(isMapOpen) drawMap(); });
-  on('mapFilterType','change',()=>{ mapFilter.type=g('mapFilterType').value; saveDataDeferred(); if(isMapOpen) drawMap(); });
+  on('mapFilterSub','change',()=>{ mapFilter.sub=g('mapFilterSub').value; nodePos={}; saveDataDeferred(); if(g('lanePanel').classList.contains('open')) renderLanePanel(); if(isMapOpen){ forceLayout(); drawMap(); } });
+  on('mapFilterType','change',()=>{ mapFilter.type=g('mapFilterType').value; nodePos={}; saveDataDeferred(); if(g('lanePanel').classList.contains('open')) renderLanePanel(); if(isMapOpen){ forceLayout(); drawMap(); } });
   on('mapDepthSel','change',()=>{ mapDepth=g('mapDepthSel').value; nodePos={}; forceLayout(); drawMap(); saveDataDeferred(); });
   on('mapFocusBtn','click',()=>{
     mapFocusMode=!mapFocusMode;
@@ -1179,7 +1293,10 @@ window.addEventListener('load',()=>{
   on('mpClose','click',closeMapPopup);
   on('mapLinkedOnlyBtn','click',()=>{ mapLinkedOnly=!mapLinkedOnly; const btn=g('mapLinkedOnlyBtn'); if(btn){ btn.style.background=mapLinkedOnly?'#3B6D11':'#EAF3DE'; btn.style.color=mapLinkedOnly?'#fff':'#3B6D11'; btn.textContent=mapLinkedOnly?'✓ 只顯示關聯':'🔗 只顯示關聯'; } nodePos={}; forceLayout(); drawMap(); saveDataDeferred(); showToast(mapLinkedOnly?`顯示 ${visibleNotes().length} 個有關聯的節點`:'顯示全部節點'); });
   on('mapAutoBtn','click',()=>{ const btn=g('mapAutoBtn'), orig=btn.textContent; btn.textContent='排列中...'; btn.disabled=true; setTimeout(()=>{ nodePos={}; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); saveDataDeferred(); g('zoomLabel').textContent='100%'; btn.textContent=orig; btn.disabled=false; showToast('已自動排列（保留核心節點）'); },30); });
-  on('mapResetBtn','click',()=>{ nodePos={}; mapCenterNodeId = null; mapFocusedNodeId=null; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); g('zoomLabel').textContent='100%'; showToast('已重置'); });  
+  on('mapLaneBtn','click',()=>{ const panel=g('lanePanel'); if(panel.classList.contains('open')) closeLanePanel(); else openLanePanel(); });
+  on('lanePanelClose','click',closeLanePanel);
+  on('laneSaveBtn','click',saveLanePanel);
+  on('laneResetBtn','click',resetLanePanel);
   const canvas=g('mapCanvas'); let panStart=null, panOffXStart=0, panOffYStart=0;
 
   // ---- 拖曳移動節點（修復連線同步）----

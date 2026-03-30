@@ -684,6 +684,7 @@ function forceLayout() {
 
   // 處理未連接的節點（放在最外層，但避免過遠）
   const connectedMaxLayer = Object.values(layers).reduce((m,v)=>Math.max(m,v),0);
+  layoutNotes.forEach(n => {
     if (!visited.has(n.id)) {
      layers[n.id] = connectedMaxLayer + 1;
     }

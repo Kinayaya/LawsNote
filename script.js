@@ -1208,18 +1208,54 @@ function laneContextLabelText(){
   const t = mapFilter.type==='all' ? '全部類型' : typeByKey(mapFilter.type).label;
   return `目前篩選：${s} / ${t}`;
 }
+function ensureLanePanel(){
+  const existing = g('lanePanel');
+  if(existing) return existing;
+  const canvas = g('mapCanvas');
+  if(!canvas) return null;
+  const panel = document.createElement('div');
+  panel.id = 'lanePanel';
+  panel.innerHTML = `
+    <div class="lane-panel-head">
+      <span class="lane-panel-title">泳道設定</span>
+      <button class="pcls" id="lanePanelClose">×</button>
+    </div>
+    <div class="lane-panel-desc">可依「目前科目/類型篩選」分開設定泳道名稱。</div>
+    <div id="laneContextLabel"></div>
+    <div id="laneInputs"></div>
+    <div class="lane-panel-actions">
+      <button class="fbtn bcl" id="laneResetBtn">恢復預設</button>
+      <button class="fbtn bsv" id="laneSaveBtn">儲存</button>
+    </div>
+  `;
+  canvas.appendChild(panel);
+  on('lanePanelClose','click',closeLanePanel);
+  on('laneSaveBtn','click',saveLanePanel);
+  on('laneResetBtn','click',resetLanePanel);
+  return panel;
+}
 function renderLanePanel(){
-  const panel=g('lanePanel'), ctx=g('laneContextLabel'), inputs=g('laneInputs');
+  const panel=ensureLanePanel(), ctx=g('laneContextLabel'), inputs=g('laneInputs');
   if(!panel||!ctx||!inputs) return;
   const cfg=getLaneConfig();
   ctx.textContent=`${laneContextLabelText()}（獨立泳道設定）`;
   inputs.innerHTML = cfg.names.map((name,idx)=>`<div class="lane-input-row"><label>泳道 ${idx+1}</label><input data-idx="${idx}" value="${name}" maxlength="16" placeholder="泳道名稱"></div>`).join('');
 }
-function openLanePanel(){ renderLanePanel(); g('lanePanel').classList.add('open'); }
-function closeLanePanel(){ g('lanePanel').classList.remove('open'); }
+function openLanePanel(){
+  const panel = ensureLanePanel();
+  if(!panel) return;
+  renderLanePanel();
+  panel.classList.add('open');
+}
+function closeLanePanel(){
+  const panel = g('lanePanel');
+  if(panel) panel.classList.remove('open');
+}
 function saveLanePanel(){
   const cfg=getLaneConfig();
-  const names=Array.from(g('laneInputs').querySelectorAll('input[data-idx]')).map((el,idx)=>(el.value||'').trim()||DEFAULT_LANE_NAMES[idx]);
+  const inputsWrap = g('laneInputs');
+  if(!inputsWrap) return;
+  const names=Array.from(inputsWrap.querySelectorAll('input[data-idx]')).map((el,idx)=>(el.value||'').trim()||DEFAULT_LANE_NAMES[idx]);
   mapLaneConfigs[cfg.key]={names};
   saveDataDeferred();
   closeLanePanel();
@@ -1293,7 +1329,7 @@ window.addEventListener('load',()=>{
   on('mpClose','click',closeMapPopup);
   on('mapLinkedOnlyBtn','click',()=>{ mapLinkedOnly=!mapLinkedOnly; const btn=g('mapLinkedOnlyBtn'); if(btn){ btn.style.background=mapLinkedOnly?'#3B6D11':'#EAF3DE'; btn.style.color=mapLinkedOnly?'#fff':'#3B6D11'; btn.textContent=mapLinkedOnly?'✓ 只顯示關聯':'🔗 只顯示關聯'; } nodePos={}; forceLayout(); drawMap(); saveDataDeferred(); showToast(mapLinkedOnly?`顯示 ${visibleNotes().length} 個有關聯的節點`:'顯示全部節點'); });
   on('mapAutoBtn','click',()=>{ const btn=g('mapAutoBtn'), orig=btn.textContent; btn.textContent='排列中...'; btn.disabled=true; setTimeout(()=>{ nodePos={}; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); saveDataDeferred(); g('zoomLabel').textContent='100%'; btn.textContent=orig; btn.disabled=false; showToast('已自動排列（保留核心節點）'); },30); });
-  on('mapLaneBtn','click',()=>{ const panel=g('lanePanel'); if(panel.classList.contains('open')) closeLanePanel(); else openLanePanel(); });
+  on('mapLaneBtn','click',()=>{ const panel=ensureLanePanel(); if(!panel){ showToast('泳道面板載入失敗'); return; } if(panel.classList.contains('open')) closeLanePanel(); else openLanePanel(); });
   on('lanePanelClose','click',closeLanePanel);
   on('laneSaveBtn','click',saveLanePanel);
   on('laneResetBtn','click',resetLanePanel);

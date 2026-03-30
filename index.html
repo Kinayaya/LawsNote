@@ -157,7 +157,7 @@
     <button class="tool-btn" id="mapFocusBtn" style="background:#f0f7ff;color:#0C447C;border-color:#B5D4F4;">&#127919; &#28966;&#40670;&#27169;&#24335;&#65306;&#38364;</button>
     <button class="tool-btn" id="mapLinkedOnlyBtn" style="background:#3B6D11;color:#fff;border-color:#3B6D11;">&#128279; &#21482;&#39023;&#31034;&#38364;&#32879;</button>
     <button class="tool-btn" id="mapAutoBtn">&#10024; &#33258;&#21205;&#25490;&#21015;</button>
-    <button class="tool-btn" id="mapResetBtn">&#8634; &#37325;&#32622;</button>
+    <button class="tool-btn" id="mapLaneBtn">&#129521; &#27891;&#36947;</button>
     <button class="add-btn" style="font-size:12px;padding:5px 12px;" id="mapBackBtn">&#8592; &#36820;&#22238;</button>
   </div>
   <div id="mapZoomBar">
@@ -167,6 +167,19 @@
     <button class="zoom-btn" id="zoomFit">&#36969;&#21512;&#30059;&#38754;</button>
   </div>
   <div id="mapCanvas">
+  <div id="lanePanel">
+    <div class="lane-panel-head">
+      <span class="lane-panel-title">泳道設定</span>
+      <button class="pcls" id="lanePanelClose">&#215;</button>
+    </div>
+    <div class="lane-panel-desc">可依「目前科目/類型篩選」分開設定泳道名稱。</div>
+    <div id="laneContextLabel"></div>
+    <div id="laneInputs"></div>
+    <div class="lane-panel-actions">
+      <button class="fbtn bcl" id="laneResetBtn">恢復預設</button>
+      <button class="fbtn bsv" id="laneSaveBtn">儲存</button>
+    </div>
+  </div>
   <div id="mapPopup">
     <button class="mp-close" id="mpClose">&#215;</button>
     <span class="mp-badge" id="mpBadge"></span>

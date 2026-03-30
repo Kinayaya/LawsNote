@@ -121,6 +121,14 @@ function loadData() {
       nodeSizes = (d.nodeSizes && typeof d.nodeSizes==='object' && !Array.isArray(d.nodeSizes)) ? d.nodeSizes : {};
       if(d.sortMode) sortMode = d.sortMode;
       mapCenterNodeId = d.mapCenterNodeId || null;
+      if(d.mapFilter && typeof d.mapFilter === 'object'){
+        mapFilter = {
+          sub: typeof d.mapFilter.sub === 'string' ? d.mapFilter.sub : 'all',
+          type: typeof d.mapFilter.type === 'string' ? d.mapFilter.type : 'all',
+          q: typeof d.mapFilter.q === 'string' ? d.mapFilter.q : ''
+        };
+      }
+      if(typeof d.mapLinkedOnly === 'boolean') mapLinkedOnly = d.mapLinkedOnly;
       let repaired = false;
       types.forEach(t=>{ if(/^tag_t_/.test(t.key)) { let old=t.key; t.key=t.label; notes.forEach(n=>{if(n.type===old)n.type=t.label;}); repaired=true; } });
       subjects.forEach(s=>{ if(/^tag_s_/.test(s.key)) { let old=s.key; s.key=s.label; notes.forEach(n=>{if(n.subject===old)n.subject=s.label;}); repaired=true; } });
@@ -137,7 +145,7 @@ function loadData() {
     nodeSizes = {};
   }
 }
-function saveData() { try { localStorage.setItem(SKEY, JSON.stringify({notes,links,nid,lid,types,subjects,nodePos,nodeSizes,sortMode,mapCenterNodeId})); } catch(e) {} }
+function saveData() { try { localStorage.setItem(SKEY, JSON.stringify({notes,links,nid,lid,types,subjects,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapFilter,mapLinkedOnly})); } catch(e) {} }
 
 // ==================== UI 建構 ====================
 function buildTypeRow() {
@@ -462,6 +470,8 @@ function toggleMapView(open) {
   g('search-results-bar').style.display=open?'none':'';
   if(open){
     buildMapFilters();
+    const mapSearch = g('mapSearchInput');
+    if(mapSearch) mapSearch.value = mapFilter.q || '';
     g('zoomLabel').textContent=Math.round(mapScale*100)+'%';
     const mlo=g('mapLinkedOnlyBtn');
     if(mlo){
@@ -640,7 +650,7 @@ function forceLayout() {
   }
 
   // --- 放射狀佈局參數 ---
-  const LAYER_RADIUS = 160;  // 每一層的半徑增量
+  const LAYER_RADIUS = 56;  // 每一層的半徑增量（縮短節點距離）
   const CENTER_X = mapW / 2;
   const CENTER_Y = mapH / 2;
 
@@ -672,10 +682,10 @@ function forceLayout() {
     });
   }
 
-  // 處理未連接的節點（放在最外層）
-  layoutNotes.forEach(n => {
+  // 處理未連接的節點（放在最外層，但避免過遠）
+  const connectedMaxLayer = Object.values(layers).reduce((m,v)=>Math.max(m,v),0);
     if (!visited.has(n.id)) {
-      layers[n.id] = 999;
+     layers[n.id] = connectedMaxLayer + 1;
     }
   });
 
@@ -1032,7 +1042,16 @@ function closeMapPopup(){ g('mapPopup').classList.remove('open'); }
 function highlightNode(id){ g('nodesLayer').querySelectorAll('.map-node').forEach(grp=>{ grp.classList.remove('map-node-highlight'); if(parseInt(grp.dataset.id)===id) grp.classList.add('map-node-highlight'); }); }
 function startDrag(e,id){ e.preventDefault(); e.stopPropagation(); closeMapPopup(); dragNode=id; const pos=nodePos[id], rect=g('mapCanvas').getBoundingClientRect(); dragOffX=e.clientX-rect.left-(pos.x*mapScale+mapOffX); dragOffY=e.clientY-rect.top-(pos.y*mapScale+mapOffY); }
 function startDragTouch(e,id){ e.stopPropagation(); dragNode=id; const pos=nodePos[id], rect=g('mapCanvas').getBoundingClientRect(), touch=e.touches[0]; dragOffX=touch.clientX-rect.left-(pos.x*mapScale+mapOffX); dragOffY=touch.clientY-rect.top-(pos.y*mapScale+mapOffY); }
-function buildMapFilters(){ const ss=g('mapFilterSub'), st=g('mapFilterType'); if(!ss)return; ss.innerHTML='<option value="all">全部科目</option>'+subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join(''); st.innerHTML='<option value="all">全部類型</option>'+types.map(t=>`<option value="${t.key}">${t.label}</option>`).join(''); }
+function buildMapFilters(){
+  const ss=g('mapFilterSub'), st=g('mapFilterType');
+  if(!ss||!st) return;
+  ss.innerHTML='<option value="all">全部科目</option>'+subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join('');
+  st.innerHTML='<option value="all">全部類型</option>'+types.map(t=>`<option value="${t.key}">${t.label}</option>`).join('');
+  if(!subjects.some(s=>s.key===mapFilter.sub)) mapFilter.sub='all';
+  if(!types.some(t=>t.key===mapFilter.type)) mapFilter.type='all';
+  ss.value=mapFilter.sub;
+  st.value=mapFilter.type;
+}
 
 // ==================== AI 功能 ====================
 function requireAiKey(action){ const k=getAiKey(); if(k){ action(k); return; } _aiPendingAction=action; g('aiKeyInput').value=''; const sel=g('aiModelSel'); if(sel) sel.innerHTML=AI_MODELS.map(m=>`<option value="${m.id}"${m.id===getAiModel()?' selected':''}>${m.label}</option>`).join(''); g('aiKeyModal').classList.add('open'); }
@@ -1071,16 +1090,16 @@ window.addEventListener('load',()=>{
   loadShortcuts(); document.addEventListener('keydown',handleGlobalKey);
   g('mapToggleBtn').addEventListener('click',()=>toggleMapView(true));
   g('mapBackBtn').addEventListener('click',()=>toggleMapView(false));
-  g('mapSearchInput')?.addEventListener('input',debounce(()=>{ mapFilter.q=g('mapSearchInput').value; if(isMapOpen) drawMap(); },250));
-on('mapSearchInput','input',debounce(()=>{ mapFilter.q=g('mapSearchInput').value; if(isMapOpen) drawMap(); },250));
-  on('mapFilterSub','change',()=>{ mapFilter.sub=g('mapFilterSub').value; if(isMapOpen) drawMap(); });
-  on('mapFilterType','change',()=>{ mapFilter.type=g('mapFilterType').value; if(isMapOpen) drawMap(); });
+  g('mapSearchInput')?.addEventListener('input',debounce(()=>{ mapFilter.q=g('mapSearchInput').value; saveDataDeferred(); if(isMapOpen) drawMap(); },250));
+on('mapSearchInput','input',debounce(()=>{ mapFilter.q=g('mapSearchInput').value; saveDataDeferred(); if(isMapOpen) drawMap(); },250));
+  on('mapFilterSub','change',()=>{ mapFilter.sub=g('mapFilterSub').value; saveDataDeferred(); if(isMapOpen) drawMap(); });
+  on('mapFilterType','change',()=>{ mapFilter.type=g('mapFilterType').value; saveDataDeferred(); if(isMapOpen) drawMap(); });
   const setZoom=z=>{ mapScale=Math.max(0.15,Math.min(3.5,z)); g('zoomLabel').textContent=Math.round(mapScale*100)+'%'; drawMap(); };  
   on('zoomIn','click',()=>setZoom(mapScale+0.15)); on('zoomOut','click',()=>setZoom(mapScale-0.15));
   on('zoomFit','click',()=>{ if(!notes.length)return; const xs=notes.map(n=>nodePos[n.id]?nodePos[n.id].x:mapW/2), ys=notes.map(n=>nodePos[n.id]?nodePos[n.id].y:mapH/2); const minX=Math.min(...xs)-40, maxX=Math.max(...xs)+40, minY=Math.min(...ys)-40, maxY=Math.max(...ys)+40; const sc=Math.min(mapW/(maxX-minX||1),mapH/(maxY-minY||1),2.5); mapScale=sc; mapOffX=-minX*sc+(mapW-(maxX-minX)*sc)/2; mapOffY=-minY*sc+(mapH-(maxY-minY)*sc)/2; g('zoomLabel').textContent=Math.round(sc*100)+'%'; drawMap(); });
   on('mpClose','click',closeMapPopup);
-  on('mapLinkedOnlyBtn','click',()=>{ mapLinkedOnly=!mapLinkedOnly; const btn=g('mapLinkedOnlyBtn'); if(btn){ btn.style.background=mapLinkedOnly?'#3B6D11':'#EAF3DE'; btn.style.color=mapLinkedOnly?'#fff':'#3B6D11'; btn.textContent=mapLinkedOnly?'✓ 只顯示關聯':'🔗 只顯示關聯'; } nodePos={}; forceLayout(); drawMap(); showToast(mapLinkedOnly?`顯示 ${visibleNotes().length} 個有關聯的節點`:'顯示全部節點'); });
-  on('mapAutoBtn','click',()=>{ const btn=g('mapAutoBtn'), orig=btn.textContent; btn.textContent='排列中...'; btn.disabled=true; setTimeout(()=>{ nodePos={}; mapCenterNodeId = null; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); g('zoomLabel').textContent='100%'; btn.textContent=orig; btn.disabled=false; showToast('已自動排列（已清除核心節點）'); },30); });
+  on('mapLinkedOnlyBtn','click',()=>{ mapLinkedOnly=!mapLinkedOnly; const btn=g('mapLinkedOnlyBtn'); if(btn){ btn.style.background=mapLinkedOnly?'#3B6D11':'#EAF3DE'; btn.style.color=mapLinkedOnly?'#fff':'#3B6D11'; btn.textContent=mapLinkedOnly?'✓ 只顯示關聯':'🔗 只顯示關聯'; } nodePos={}; forceLayout(); drawMap(); saveDataDeferred(); showToast(mapLinkedOnly?`顯示 ${visibleNotes().length} 個有關聯的節點`:'顯示全部節點'); });
+  on('mapAutoBtn','click',()=>{ const btn=g('mapAutoBtn'), orig=btn.textContent; btn.textContent='排列中...'; btn.disabled=true; setTimeout(()=>{ nodePos={}; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); saveDataDeferred(); g('zoomLabel').textContent='100%'; btn.textContent=orig; btn.disabled=false; showToast('已自動排列（保留核心節點）'); },30); });
   on('mapResetBtn','click',()=>{ nodePos={}; mapCenterNodeId = null; mapScale=1; mapOffX=mapOffY=0; forceLayout(); drawMap(); g('zoomLabel').textContent='100%'; showToast('已重置'); });  
   const canvas=g('mapCanvas'); let panStart=null, panOffXStart=0, panOffYStart=0;
 

@@ -1091,8 +1091,7 @@ window.addEventListener('load',()=>{
   loadShortcuts(); document.addEventListener('keydown',handleGlobalKey);
   g('mapToggleBtn').addEventListener('click',()=>toggleMapView(true));
   g('mapBackBtn').addEventListener('click',()=>toggleMapView(false));
-  g('mapSearchInput')?.addEventListener('input',debounce(()=>{ mapFilter.q=g('mapSearchInput').value; saveDataDeferred(); if(isMapOpen) drawMap(); },250));
-on('mapSearchInput','input',debounce(()=>{ mapFilter.q=g('mapSearchInput').value; saveDataDeferred(); if(isMapOpen) drawMap(); },250));
+  on('mapSearchInput','input',debounce(()=>{ mapFilter.q=g('mapSearchInput').value; saveDataDeferred(); if(isMapOpen) drawMap(); },250));
   on('mapFilterSub','change',()=>{ mapFilter.sub=g('mapFilterSub').value; saveDataDeferred(); if(isMapOpen) drawMap(); });
   on('mapFilterType','change',()=>{ mapFilter.type=g('mapFilterType').value; saveDataDeferred(); if(isMapOpen) drawMap(); });
   const setZoom=z=>{ mapScale=Math.max(0.15,Math.min(3.5,z)); g('zoomLabel').textContent=Math.round(mapScale*100)+'%'; drawMap(); };  

@@ -91,6 +91,34 @@ const sortedNotes = arr => arr.slice().sort((a,b)=>{
   const ad=safeStr(a&&a.date),bd=safeStr(b&&b.date),at=safeStr(a&&a.title),bt=safeStr(b&&b.title),as=safeStr(a&&a.subject),bs=safeStr(b&&b.subject),ach=safeStr(a&&a.chapter),bch=safeStr(b&&b.chapter),aty=safeStr(a&&a.type),bty=safeStr(b&&b.type);
   return sortMode==='date_desc'?bd.localeCompare(ad):sortMode==='date_asc'?ad.localeCompare(bd):sortMode==='title_asc'?at.localeCompare(bt,'zh'):sortMode==='title_desc'?bt.localeCompare(at,'zh'):sortMode==='subject'?as.localeCompare(bs)||at.localeCompare(bt):sortMode==='chapter'?ach.localeCompare(bch)||at.localeCompare(bt):aty.localeCompare(bty)||at.localeCompare(bt);
 });
+function repairDuplicateNoteIds() {
+  const usedIds={}, idRemap={}, maxNoteId=notes.reduce((m,n)=>Math.max(m,Number.isFinite(n.id)?n.id:0),0);
+  let nextId=Math.max(maxNoteId+1,nid||1), repaired=false;
+  notes.forEach(n=>{
+    if(!Number.isFinite(n.id)) {
+      n.id=nextId++;
+      repaired=true;
+      return;
+    }
+    if(usedIds[n.id]) {
+      const oldId=n.id,newId=nextId++;
+      n.id=newId;
+      idRemap[oldId]=idRemap[oldId]||[];
+      idRemap[oldId].push(newId);
+      repaired=true;
+    } else usedIds[n.id]=true;
+  });
+  if(repaired) {
+    links.forEach(l=>{
+      if(idRemap[l.from]&&idRemap[l.from].length) l.from=idRemap[l.from].shift();
+      if(idRemap[l.to]&&idRemap[l.to].length) l.to=idRemap[l.to].shift();
+    });
+    links=links.filter(l=>l.from!==l.to);
+  }
+  nid=Math.max(nextId,notes.reduce((m,n)=>Math.max(m,n.id||0),0)+1);
+  lid=Math.max(lid||1,links.reduce((m,l)=>Math.max(m,l.id||0),0)+1);
+  return repaired;
+}
 
 // ==================== 資料儲存 ====================
 function loadData() {
@@ -110,6 +138,8 @@ function loadData() {
       });
       links=Array.isArray(d.links)?d.links:DEFAULTS.links.slice();
       links.forEach(l=>{l.rel='關聯';l.color=LINK_COLOR;});
+      nid=Number.isFinite(d.nid)?d.nid:Math.max(10,notes.reduce((m,n)=>Math.max(m,n.id||0),0)+1);
+      lid=Number.isFinite(d.lid)?d.lid:Math.max(10,links.reduce((m,l)=>Math.max(m,l.id||0),0)+1);
       types=Array.isArray(d.types)?d.types:DEFAULTS.types.slice();
       if(!types.some(t=>t.key==='diary')) types.push({key:'diary',label:'日記',color:'#D85A30'});
       subjects=Array.isArray(d.subjects)?d.subjects:DEFAULTS.subjects.slice();
@@ -126,7 +156,8 @@ function loadData() {
       let repaired=false,chapterMigrated=false;
       types.forEach(t=>{if(/^tag_t_/.test(t.key)){let old=t.key;t.key=t.label;notes.forEach(n=>{if(n.type===old)n.type=t.label;});repaired=true;}});
       subjects.forEach(s=>{if(/^tag_s_/.test(s.key)){let old=s.key;s.key=s.label;notes.forEach(n=>{if(n.subject===old)n.subject=s.label;});repaired=true;}});
-      notes.forEach(n=>{if(!n.chapter){const fromTag=noteTags(n).find(t=>chapters.some(c=>c.key===t&&(c.subject===n.subject||c.subject==='all')));n.chapter=fromTag||'';chapterMigrated=true;}});
+      notes.forEach(n=>{if(!n.chapter){const fromTag=noteTags(n).find(t=>chapters.some(c=>c.key===t&&(c.subject===n.subject||c.subject==='all')));n.chapter=fromTag||'';chapterMigrated= 
+      if(repairDuplicateNoteIds()) repaired=true;
       if(repaired||chapterMigrated) saveData();
     } else {
       notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();nodeSizes={};saveData();

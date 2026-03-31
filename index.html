@@ -53,8 +53,9 @@
 </div>
 <div id="selectBar"><span id="selectCount"></span><button class="sel-btn" id="selAllBtn">&#20840;&#36984;</button><button class="sel-btn" id="selDeleteBtn">&#128465; &#21034;&#38500;&#36984;&#21462;</button><button class="sel-btn" id="selCancelBtn">&#21462;&#28040;</button></div>
 <div id="subbar"></div>
+<div id="chapterbar"></div>
 <div id="search-results-bar"></div>
-<div id="sortBar"><label>&#25490;&#24207;&#65306;</label><select id="sortSelect"><option value="date_desc">&#26368;&#26032;&#20778;&#20808;</option><option value="date_asc">&#26368;&#33290;&#20778;&#20808;</option><option value="title_asc">&#27161;&#38988; A-Z</option><option value="title_desc">&#27161;&#38988; Z-A</option><option value="subject">&#20381;&#31185;&#30446;</option><option value="type">&#20381;&#39006;&#22411;</option></select><button class="tool-btn" id="statsBtn" style="margin-left:auto;">&#128202; &#32113;&#35336;</button><button class="tool-btn" id="flashBtn">&#127183; &#35079;&#32722;</button></div>
+<div id="sortBar"><label>&#25490;&#24207;&#65306;</label><select id="sortSelect"><option value="date_desc">&#26368;&#26032;&#20778;&#20808;</option><option value="date_asc">&#26368;&#33290;&#20778;&#20808;</option><option value="title_asc">&#27161;&#38988; A-Z</option><option value="title_desc">&#27161;&#38988; Z-A</option><option value="subject">&#20381;&#31185;&#30446;</option><option value="chapter">&#20381;&#31456;&#31680;</option><option value="type">&#20381;&#39006;&#22411;</option></select><button class="tool-btn" id="statsBtn" style="margin-left:auto;">&#128202; &#32113;&#35336;</button><button class="tool-btn" id="flashBtn">&#127183; &#35079;&#32722;</button></div>
 
 <!-- Notes view -->
 <div id="notesView">
@@ -86,6 +87,7 @@
     <div class="f2col">
       <div><label class="flbl" style="margin-top:0">&#39006;&#22411;</label><select class="fs" id="ft"></select></div>
       <div><label class="flbl" style="margin-top:0">&#31185;&#30446;</label><select class="fs" id="fs2"></select></div>
+      <div><label class="flbl" style="margin-top:0">&#31456;&#31680;</label><select class="fs" id="fc"></select></div>
     </div>
     <label class="flbl">&#27161;&#38988;</label>
     <div id="templateToggle" style="display:none;background:#E6F1FB;border-radius:10px;padding:10px 12px;margin-bottom:10px;"><div style="font-size:11px;font-weight:600;color:#0C447C;margin-bottom:8px;">&#128196; &#29229;&#40670;&#31572;&#38988;&#27169;&#26495;</div><label class="flbl" style="margin-top:0">&#29229;&#40670;</label><input class="fi" id="f-dispute" placeholder="&#20363;&#65306;&#30002;&#26159;&#21542;&#27083;&#25104;&#20405;&#27402;&#34892;&#28858;&#65311;"><label class="flbl">&#36969;&#29992;&#27861;&#26781;</label><input class="fi" id="f-article" placeholder="&#20363;&#65306;&#27665;&#27861;&#31532; 184 &#26781;&#31532; 1 &#38917;"><label class="flbl">&#27083;&#25104;&#35201;&#20214;&#20998;&#26512;</label><textarea class="ft" id="f-elements" placeholder="&#36880;&#19968;&#20998;&#26512;&#21508;&#27083;&#25104;&#35201;&#20214;..." style="min-height:72px;"></textarea><label class="flbl">&#32080;&#35542;</label><input class="fi" id="f-conclusion" placeholder="&#20363;&#65306;&#30002;&#25033;&#36000;&#25613;&#23475;&#36064;&#20767;&#36012;&#20219;&#12290;"></div>

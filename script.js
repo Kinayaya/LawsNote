@@ -118,7 +118,7 @@ function loadData() {
       nodeSizes=(d.nodeSizes&&typeof d.nodeSizes==='object'&&!Array.isArray(d.nodeSizes))?d.nodeSizes:{};
       if(d.sortMode) sortMode=d.sortMode;
       mapCenterNodeId=d.mapCenterNodeId||null;
-      if(d.mapFilter&&typeof d.mapFilter==='object') mapFilter={sub:typeof d.mapFilter.sub==='string'?d.mapFilter.sub:'all',type:typeof d.mapFilter.type==='string'?d.mapFilter.type:'all',chapter:typeof d.mapFilter.chapter==='string'?d.mapFilter.chapter:'all'};
+      if(d.mapFilter&&typeof d.mapFilter==='object') mapFilter={sub:typeof d.mapFilter.sub==='string'?d.mapFilter.sub:'all',type:typeof d.mapFilter.type==='string'?d.mapFilter.type:'all',chapter:typeof d.mapFilter.chapter==='string'?d.mapFilter.chapter:'all',q:typeof d.mapFilter.q==='string'?d.mapFilter.q:''};
       if(typeof d.mapLinkedOnly==='boolean') mapLinkedOnly=d.mapLinkedOnly;
       if(['all','1','2','3'].includes(d.mapDepth)) mapDepth=d.mapDepth;
       if(typeof d.mapFocusMode==='boolean') mapFocusMode=d.mapFocusMode;
@@ -730,7 +730,7 @@ function redrawLines(affectedId){
 }
 
 function visibleNotes(){
-  const q=mapFilter.q.toLowerCase(),linkedIds={};
+  const q=(mapFilter.q||'').toLowerCase(),linkedIds={};
   if(mapLinkedOnly)links.forEach(l=>{linkedIds[l.from]=true;linkedIds[l.to]=true;});
   const filtered=notes.filter(n=>(mapFilter.sub==='all'||n.subject===mapFilter.sub)&&(mapFilter.type==='all'||n.type===mapFilter.type)&&(mapFilter.chapter==='all'||(n.chapter||'')===mapFilter.chapter)&&(!q||`${n.title}${n.subject}${n.chapter||''}${noteTags(n).join('')}`.toLowerCase().includes(q)));
   let base=filtered.filter(n=>!mapLinkedOnly||linkedIds[n.id]);

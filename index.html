@@ -4,18 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>KLaws</title>
-  
 <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
 <script>eruda.init();</script>
-  
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MiA1MiI+PHJlY3Qgd2lkdGg9IjUyIiBoZWlnaHQ9IjUyIiByeD0iMTQiIGZpbGw9IiMwZjE3MmEiLz48cGF0aCBkPSJNMTQgMTIgTDE0IDQwIEwxOSA0MCBMMTkgMjggTDMyIDQwIEwzOCA0MCBMMjQgMjUgTDM3IDEyIEwzMSAxMiBMMTkgMjQgTDE5IDEyIFoiIGZpbGw9IiM0YTllZmYiLz48Y2lyY2xlIGN4PSI0MCIgY3k9IjEzIiByPSIzIiBmaWxsPSIjOTNjNWZkIiBvcGFjaXR5PSIwLjciLz48L3N2Zz4=">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="sync-bar">
-  <span>&#9432;</span>
-  <span>&#31558;&#35352;&#33258;&#21205;&#20786;&#23384;&#12290;&#40670; <b>&#21295;&#20986;</b> &#20633;&#20221;&#65292;&#40670; <b>&#21295;&#20837;</b> &#36328;&#35037;&#32622;&#21516;&#27493;&#12290;</span>
-</div>
+<div class="sync-bar"><span>&#9432;</span><span>&#31558;&#35352;&#33258;&#21205;&#20860;&#23384;&#12290;&#40670; <b>&#21295;&#20986;</b> &#20633;&#20221;&#65292;&#40670; <b>&#21295;&#20837;</b> &#36328;&#35037;&#32622;&#21516;&#27493;&#12290;</span></div>
 <div id="topbar">
   <div class="title-row">
     <div class="brand-wrap">
@@ -26,10 +21,7 @@
           <circle cx="40" cy="13" r="3" fill="#93c5fd" opacity="0.7"/>
         </svg>
       </div>
-      <div class="brand-text">
-        <span class="brand-name">KLaws</span>
-        <span class="brand-by">by Kina</span>
-      </div>
+      <div class="brand-text"><span class="brand-name">KLaws</span><span class="brand-by">by Kina</span></div>
     </div>
     <div class="search-wrap">
       <span class="search-icon">&#128269;</span>
@@ -57,15 +49,12 @@
 <div id="search-results-bar"></div>
 <div id="sortBar"><label>&#25490;&#24207;&#65306;</label><select id="sortSelect"><option value="date_desc">&#26368;&#26032;&#20778;&#20808;</option><option value="date_asc">&#26368;&#33290;&#20778;&#20808;</option><option value="title_asc">&#27161;&#38988; A-Z</option><option value="title_desc">&#27161;&#38988; Z-A</option><option value="subject">&#20381;&#31185;&#30446;</option><option value="chapter">&#20381;&#31456;&#31680;</option><option value="type">&#20381;&#39006;&#22411;</option></select><button class="tool-btn" id="statsBtn" style="margin-left:auto;">&#128202; &#32113;&#35336;</button><button class="tool-btn" id="flashBtn">&#127183; &#35079;&#32722;</button></div>
 
-<!-- Notes view -->
 <div id="notesView">
   <div id="statsPanel"></div>
   <div id="content"><div id="grid"></div></div>
+  <!-- Detail Panel -->
   <div class="panel" id="dp">
-    <div class="ph">
-      <span id="dp-badge" class="ctag" style="background:#007AFF"></span>
-      <button class="pcls" id="dpClose">&#215;</button>
-    </div>
+    <div class="ph"><span id="dp-badge" class="ctag" style="background:#007AFF"></span><button class="pcls" id="dpClose">&#215;</button></div>
     <div id="dp-title" class="dp-ttl"></div>
     <div class="dp-lbl">&#25688;&#35201;</div><div id="dp-body" class="dp-txt"></div>
     <div class="dp-lbl">&#35443;&#32048;&#31558;&#35352;</div><div id="dp-detail" class="dp-txt"></div>
@@ -74,23 +63,25 @@
     <div class="dp-lbl">&#38364;&#32879;&#31558;&#35352;</div><div id="dp-links"></div>
     <div class="action-row">
       <button class="edit-btn" id="editBtn">&#9998; &#32232;&#36655;</button>
-      <button class="link-btn" id="linkBtn">&#128279; &#31649;&#29702;&#38364;&#32879;</button>
       <button class="del-btn" id="delBtn">&#128465; &#21034;&#38500;</button>
     </div>
   </div>
-  <!-- Form Panel（整合關聯功能）-->
+  <!-- Form Panel -->
   <div class="panel" id="fp">
-    <div class="ph">
-      <span class="ph-title" id="form-title">&#26032;&#22686;&#31558;&#35352;</span>
-      <button class="pcls" id="fpClose">&#215;</button>
-    </div>
+    <div class="ph"><span class="ph-title" id="form-title">&#26032;&#22686;&#31558;&#35352;</span><button class="pcls" id="fpClose">&#215;</button></div>
     <div class="f2col">
       <div><label class="flbl" style="margin-top:0">&#39006;&#22411;</label><select class="fs" id="ft"></select></div>
       <div><label class="flbl" style="margin-top:0">&#31185;&#30446;</label><select class="fs" id="fs2"></select></div>
       <div><label class="flbl" style="margin-top:0">&#31456;&#31680;</label><select class="fs" id="fc"></select></div>
     </div>
     <label class="flbl">&#27161;&#38988;</label>
-    <div id="templateToggle" style="display:none;background:#E6F1FB;border-radius:10px;padding:10px 12px;margin-bottom:10px;"><div style="font-size:11px;font-weight:600;color:#0C447C;margin-bottom:8px;">&#128196; &#29229;&#40670;&#31572;&#38988;&#27169;&#26495;</div><label class="flbl" style="margin-top:0">&#29229;&#40670;</label><input class="fi" id="f-dispute" placeholder="&#20363;&#65306;&#30002;&#26159;&#21542;&#27083;&#25104;&#20405;&#27402;&#34892;&#28858;&#65311;"><label class="flbl">&#36969;&#29992;&#27861;&#26781;</label><input class="fi" id="f-article" placeholder="&#20363;&#65306;&#27665;&#27861;&#31532; 184 &#26781;&#31532; 1 &#38917;"><label class="flbl">&#27083;&#25104;&#35201;&#20214;&#20998;&#26512;</label><textarea class="ft" id="f-elements" placeholder="&#36880;&#19968;&#20998;&#26512;&#21508;&#27083;&#25104;&#35201;&#20214;..." style="min-height:72px;"></textarea><label class="flbl">&#32080;&#35542;</label><input class="fi" id="f-conclusion" placeholder="&#20363;&#65306;&#30002;&#25033;&#36000;&#25613;&#23475;&#36064;&#20767;&#36012;&#20219;&#12290;"></div>
+    <div id="templateToggle" style="display:none;background:#E6F1FB;border-radius:10px;padding:10px 12px;margin-bottom:10px;">
+      <div style="font-size:11px;font-weight:600;color:#0C447C;margin-bottom:8px;">&#128196; &#29229;&#40670;&#31572;&#38988;&#27169;&#26495;</div>
+      <label class="flbl" style="margin-top:0">&#29229;&#40670;</label><input class="fi" id="f-dispute" placeholder="&#20363;&#65306;&#30002;&#26159;&#21542;&#27083;&#25104;&#20405;&#27402;&#34892;&#28858;&#65311;">
+      <label class="flbl">&#36969;&#29992;&#27861;&#26781;</label><input class="fi" id="f-article" placeholder="&#20363;&#65306;&#27665;&#27861;&#31532; 184 &#26781;&#31532; 1 &#38917;">
+      <label class="flbl">&#27083;&#25104;&#35201;&#20214;&#20998;&#26512;</label><textarea class="ft" id="f-elements" placeholder="&#36880;&#19968;&#20998;&#26512;&#21508;&#27083;&#25104;&#35201;&#20214;..." style="min-height:72px;"></textarea>
+      <label class="flbl">&#32080;&#35542;</label><input class="fi" id="f-conclusion" placeholder="&#20363;&#65306;&#30002;&#25033;&#36000;&#25613;&#23475;&#36064;&#20767;&#36012;&#20219;&#12290;">
+    </div>
     <input class="fi" id="fti" placeholder="&#20363;&#65306;&#27665;&#27861;&#31532; 184 &#26781;">
     <label class="flbl">&#25688;&#35201;</label>
     <textarea class="ft" id="fbo" placeholder="&#26781;&#25991;&#25110;&#37325;&#40670;&#25688;&#35201;..."></textarea>
@@ -102,8 +93,6 @@
     </div>
     <label class="flbl">&#27161;&#31844;&#65288;&#36887;&#34399;&#20998;&#38548;&#65289;</label>
     <input class="fi" id="fta" placeholder="&#20363;&#65306;&#20405;&#27402;&#34892;&#28858;, &#25613;&#23475;&#36064;&#20767;">
-
-    <!-- ★ 整合關聯功能 -->
     <div id="form-links-wrap" style="margin-top:16px;padding-top:14px;border-top:1px solid #eee;">
       <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">&#128279; &#38364;&#32879;&#31558;&#35352;</div>
       <div id="form-links-list" style="margin-bottom:10px;display:flex;flex-direction:column;gap:5px;"></div>
@@ -111,18 +100,14 @@
       <input class="fi" id="fl-search" placeholder="&#128269; &#36989;&#20837;&#31558;&#35352;&#27161;&#38988;&#12289;&#31185;&#30446;&#12289;&#39006;&#21029;..." style="margin-bottom:6px;">
       <div id="fl-results" style="display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;"></div>
     </div>
-
     <div class="frow">
       <button class="fbtn bcl" id="fpCancel">&#21462;&#28040;</button>
-      <button class="fbtn bsv" id="fpSave">&#20786;&#23384;</button>
+      <button class="fbtn bsv" id="fpSave">&#20860;&#23384;</button>
     </div>
   </div>
-  <!-- Tag manager -->
+  <!-- Tag Manager -->
   <div class="panel" id="tp">
-    <div class="ph">
-      <span class="ph-title">&#9881; &#31649;&#29702;&#27161;&#31844;</span>
-      <button class="pcls" id="tpClose">&#215;</button>
-    </div>
+    <div class="ph"><span class="ph-title">&#9881; &#31649;&#29702;&#27161;&#31844;</span><button class="pcls" id="tpClose">&#215;</button></div>
     <div class="tag-section-title">&#31558;&#35352;&#39006;&#22411;&#27161;&#31844;</div>
     <div class="tag-list" id="typeTagList"></div>
     <div class="tag-add-row">
@@ -147,7 +132,7 @@
   </div>
 </div>
 
-<!-- Map view -->
+<!-- Map View -->
 <div id="mapView">
   <div id="mapToolbar">
     <span style="font-size:13px;font-weight:600;flex-shrink:0;">&#128279; &#39636;&#31995;&#22294;</span>
@@ -177,53 +162,41 @@
     <button class="zoom-btn" id="zoomFit">&#36969;&#21512;&#30059;&#38754;</button>
   </div>
   <div id="mapCanvas">
-  <div id="lanePanel">
-    <div class="lane-panel-head">
-      <span class="lane-panel-title">泳道設定</span>
-      <button class="pcls" id="lanePanelClose">&#215;</button>
+    <div id="lanePanel">
+      <div class="lane-panel-head"><span class="lane-panel-title">&#27846;&#36947;&#35373;&#23450;</span><button class="pcls" id="lanePanelClose">&#215;</button></div>
+      <div class="lane-panel-desc">&#21487;&#20381;&#12300;&#30446;&#21069;&#31185;&#30446;/&#39006;&#22411;&#31689;&#36984;&#12301;&#20998;&#38283;&#35373;&#23450;&#27846;&#36947;&#21517;&#31281;&#12290;</div>
+      <div id="laneContextLabel"></div>
+      <div id="laneInputs"></div>
+      <div class="lane-panel-actions">
+        <button class="fbtn bcl" id="laneResetBtn">&#24674;&#24489;&#39023;&#35373;</button>
+        <button class="fbtn bsv" id="laneSaveBtn">&#20648;&#23384;</button>
+      </div>
     </div>
-    <div class="lane-panel-desc">可依「目前科目/類型篩選」分開設定泳道名稱。</div>
-    <div id="laneContextLabel"></div>
-    <div id="laneInputs"></div>
-    <div class="lane-panel-actions">
-      <button class="fbtn bcl" id="laneResetBtn">恢復預設</button>
-      <button class="fbtn bsv" id="laneSaveBtn">儲存</button>
+    <div id="mapPopup">
+      <button class="mp-close" id="mpClose">&#215;</button>
+      <span class="mp-badge" id="mpBadge"></span>
+      <div class="mp-title" id="mpTitle"></div>
+      <span class="mp-subject" id="mpSubject"></span>
+      <div class="mp-size-row">
+        <span class="mp-size-label">&#31680;&#40670;&#22823;&#23567;</span>
+        <input type="number" id="mpNodeSizeNum" min="15" max="100" value="26" style="width:56px;padding:3px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;text-align:center;background:#f8f8f8;">
+        <span class="mp-size-label" style="color:#bbb;font-size:10px;">15–100</span>
+        <button class="mp-size-reset" id="mpNodeSizeReset">&#37325;&#35373;</button>
+      </div>
+      <div class="mp-links" id="mpLinks"></div>
+      <button class="mp-goto" id="mpGoto">&#128269; &#26597;&#30475;&#23436;&#25972;&#31558;&#35352; &#8594;</button>
     </div>
-  </div>
-  <div id="mapPopup">
-    <button class="mp-close" id="mpClose">&#215;</button>
-    <span class="mp-badge" id="mpBadge"></span>
-    <div class="mp-title" id="mpTitle"></div>
-    <span class="mp-subject" id="mpSubject"></span>
-    <div class="mp-size-row">
-      <span class="mp-size-label">節點大小</span>
-      <input type="number" id="mpNodeSizeNum" min="15" max="100" value="26" style="width:56px;padding:3px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;text-align:center;background:#f8f8f8;">
-      <span class="mp-size-label" style="color:#bbb;font-size:10px;">15–100</span>
-      <button class="mp-size-reset" id="mpNodeSizeReset">重設</button>
-    </div>
-    <div class="mp-links" id="mpLinks"></div>
-    <button class="mp-goto" id="mpGoto">&#128269; &#26597;&#30475;&#23436;&#25972;&#31558;&#35352; &#8594;</button>
-  </div>
-
     <svg id="mapSvg" style="will-change:transform;">
-      <defs>
-        <marker id="arrowBlue" markerWidth="4" markerHeight="4" refX="3" refY="1.5" orient="auto">
-          <path d="M0,0 L0,3 L4,1.5 z" fill="#378ADD"/>
-        </marker>
-      </defs>
+      <defs><marker id="arrowBlue" markerWidth="4" markerHeight="4" refX="3" refY="1.5" orient="auto"><path d="M0,0 L0,3 L4,1.5 z" fill="#378ADD"/></marker></defs>
       <g id="linksLayer"></g>
       <g id="nodesLayer"></g>
     </svg>
   </div>
 </div>
 
-
-<!-- Shortcut Manager Panel -->
+<!-- Shortcut Manager -->
 <div class="panel" id="scp" style="display:none;margin:12px 14px;">
-  <div class="ph">
-    <span class="ph-title">&#9000; &#24555;&#25463;&#37749;&#35373;&#23450;</span>
-    <button class="pcls" id="scpClose">&#215;</button>
-  </div>
+  <div class="ph"><span class="ph-title">&#9000; &#24555;&#25463;&#37749;&#35373;&#23450;</span><button class="pcls" id="scpClose">&#215;</button></div>
   <div style="font-size:12px;color:#888;margin-bottom:12px;">&#40670;&#25802;&#20219;&#19968;&#24555;&#25463;&#37749;&#27396;&#20301;&#24460;&#65292;&#30452;&#25509;&#25353;&#19979;&#24819;&#35373;&#23450;&#30340;&#25353;&#37749;&#32068;&#21512;&#65288;&#25903;&#25588; Ctrl/Cmd/Alt/Shift + &#25353;&#37749;&#65289;&#12290;</div>
   <div id="scpList" style="display:flex;flex-direction:column;gap:6px;"></div>
   <div style="display:flex;gap:8px;margin-top:14px;">
@@ -235,13 +208,22 @@
 <div id="toast"></div>
 <div class="shortcut-hint" id="scHint"></div>
 
+<!-- Flash View -->
 <div id="flashView">
-<div id="flashToolbar"><button class="add-btn" style="font-size:12px;padding:5px 12px;" id="flashBackBtn">&#8592; &#36820;&#22238;</button><span id="flashProgress"></span><select id="flashFilter" class="map-filter-sel"><option value="all">&#20840;&#37096;&#31185;&#30446;</option></select><select id="flashTypeFilter" class="map-filter-sel"><option value="all">&#20840;&#37096;&#39006;&#22411;</option></select><button class="tool-btn" id="flashShuffleBtn">&#127922; &#38568;&#27231;</button><button class="tool-btn" id="flashRestartBtn">&#8634; &#37325;&#26032;&#38283;&#22987;</button></div>
-<div id="flashProgressBar"><div id="flashProgressFill" style="width:0%"></div></div>
-<div id="flashBody"></div>
-<div id="swipe-hint"><span>&#8592; 左滑：不熟</span><span>右滑：熟悉 &#8594;</span></div>
+  <div id="flashToolbar">
+    <button class="add-btn" style="font-size:12px;padding:5px 12px;" id="flashBackBtn">&#8592; &#36820;&#22238;</button>
+    <span id="flashProgress"></span>
+    <select id="flashFilter" class="map-filter-sel"><option value="all">&#20840;&#37096;&#31185;&#30446;</option></select>
+    <select id="flashTypeFilter" class="map-filter-sel"><option value="all">&#20840;&#37096;&#39006;&#22411;</option></select>
+    <button class="tool-btn" id="flashShuffleBtn">&#127922; &#38568;&#27231;</button>
+    <button class="tool-btn" id="flashRestartBtn">&#8634; &#37325;&#26032;&#38283;&#22987;</button>
+  </div>
+  <div id="flashProgressBar"><div id="flashProgressFill" style="width:0%"></div></div>
+  <div id="flashBody"></div>
+  <div id="swipe-hint"><span>&#8592; &#24038;&#28369;&#65306;&#19981;&#24041;</span><span>&#21491;&#28369;&#65306;&#29087;&#24190; &#8594;</span></div>
 </div>
-<!-- EXAM -->
+
+<!-- Exam View -->
 <div id="examView">
   <div id="examHeader"><span id="examHeaderTitle">&#9997; &#30003;&#35542;&#28204;&#39511;</span><span id="examTimer">00:00</span></div>
   <div id="examBody">
@@ -258,65 +240,66 @@
     <div class="exam-action-row" style="padding:0 0 20px;"><button class="exam-btn exam-btn-end" id="examRetryBtn">&#8634; &#20877;&#20570;&#19968;&#38988;</button><button class="exam-btn exam-btn-cancel" id="examBackBtn2">&#8592; &#36820;&#22238;&#31558;&#35352;</button></div>
   </div>
 </div>
-<!-- EXAM LIST -->
+
+<!-- Exam List -->
 <div id="examListPanel">
   <div class="ph"><span class="ph-title">&#9997; &#30003;&#35542;&#38988;&#24235;</span><button class="pcls" id="examListClose">&#215;</button></div>
   <div id="examListItems"></div>
   <div style="margin-top:12px;"><button class="fbtn bsv" id="examAddBtn" style="width:100%;padding:11px;border-radius:10px;font-size:13px;font-weight:600;border:none;cursor:pointer;">+ &#26032;&#22686;&#38988;&#30446;</button></div>
 </div>
-<!-- EXAM FORM -->
+
+<!-- Exam Form -->
 <div class="panel" id="examAddForm">
   <div class="ph"><span class="ph-title">+ &#26032;&#22686;&#30003;&#35542;&#38988;</span><button class="pcls" id="examFormClose">&#215;</button></div>
   <label class="flbl" style="margin-top:0">&#31185;&#30446;</label><select class="fs" id="examSubSel"></select>
   <label class="flbl">&#38988;&#30446;</label><textarea class="ft" id="examQInput" style="min-height:100px;" placeholder="&#36664;&#20837;&#23436;&#25972;&#38988;&#30446;..."></textarea>
   <label class="flbl">&#29229;&#40670;&#65288;&#36887;&#34399;&#20998;&#38548;&#65289;</label><input class="fi" id="examIssInput" placeholder="&#20363;&#65306;&#20405;&#27402;&#34892;&#28858;&#25104;&#31435;&#35201;&#20214;, &#25613;&#23475;&#36064;&#20767;&#31684;&#22285;">
   <label class="flbl">&#20316;&#31572;&#26178;&#38291;&#65288;&#20998;&#37912;&#65289;</label><input class="fi" id="examTimeInput" type="number" value="30" min="5" max="120">
-  <div class="frow"><button class="fbtn bcl" id="examFCancel">&#21462;&#28040;</button><button class="fbtn bsv" id="examFSave">&#20786;&#23384;</button></div>
+  <div class="frow"><button class="fbtn bcl" id="examFCancel">&#21462;&#28040;</button><button class="fbtn bsv" id="examFSave">&#20860;&#23384;</button></div>
 </div>
-<!-- END EXAM -->
 
-<!-- GITHUB SYNC MODAL -->
+<!-- GitHub Sync Modal -->
 <div id="syncModal">
   <div id="syncBox">
-    <h3>☁️ GitHub Gist 同步</h3>
-    <p>使用 GitHub Gist 在裝置間同步筆記。需要 GitHub 帳號與個人 Access Token（repo/gist 權限）。</p>
+    <h3>&#9925;&#65039; GitHub Gist &#21516;&#27493;</h3>
+    <p>&#20351;&#29992; GitHub Gist &#22312;&#35013;&#32622;&#38291;&#21516;&#27493;&#31558;&#35352;&#12290;&#38656;&#35201; GitHub &#24115;&#34399;&#33287;&#20491;&#20154; Access Token&#65288;repo/gist &#27169;&#38480;&#65289;&#12290;</p>
     <div style="background:#f0f7ff;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:#0C447C;line-height:1.8;">
-      1. 前往 github.com → Settings → Developer settings → Personal access tokens<br>
-      2. 建立 token，勾選 <b>gist</b> 權限<br>
-      3. 在 gist.github.com 新建一個 Gist，複製網址中的 ID
+      1. &#21069;&#24448; github.com &#8594; Settings &#8594; Developer settings &#8594; Personal access tokens<br>
+      2. &#24314;&#31435; token&#65292;&#21320;&#36984; <b>gist</b> &#27169;&#38480;<br>
+      3. &#22312; gist.github.com &#26032;&#24314;&#19968;&#20491; Gist&#65292;&#35686;&#35036;&#32178;&#22740;&#20013;&#30340; ID
     </div>
     <label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:4px;">GitHub Token</label>
     <input id="syncTokenInput" type="password" placeholder="ghp_...">
     <label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:4px;">Gist ID</label>
-    <input id="syncGistInput" placeholder="例：abc123def456...">
+    <input id="syncGistInput" placeholder="&#20363;&#65306;abc123def456...">
     <div class="sync-modal-btns">
-      <button class="sync-modal-btn" id="syncCancelBtn" style="background:#ececec;color:#555;">取消</button>
-      <button class="sync-modal-btn" id="syncUploadBtn" style="background:#007AFF;color:#fff;">⬆ 上傳到雲端</button>
-      <button class="sync-modal-btn" id="syncDownloadBtn" style="background:#EAF3DE;color:#3B6D11;border:1px solid #97C459;">⬇ 從雲端載入</button>
+      <button class="sync-modal-btn" id="syncCancelBtn" style="background:#ececec;color:#555;">&#21462;&#28040;</button>
+      <button class="sync-modal-btn" id="syncUploadBtn" style="background:#007AFF;color:#fff;">&#11014; &#19978;&#20傳;&#21040;&#38645;&#31471;</button>
+      <button class="sync-modal-btn" id="syncDownloadBtn" style="background:#EAF3DE;color:#3B6D11;border:1px solid #97C459;">&#11015; &#24478;&#38645;&#31471;&#36617;&#20837;</button>
     </div>
-    <div style="margin-top:10px;font-size:11px;color:#bbb;text-align:center;">Token 僅存於瀏覽器本地，不會上傳至任何伺服器</div>
+    <div style="margin-top:10px;font-size:11px;color:#bbb;text-align:center;">Token &#20677;&#23384;&#26044;&#29000;&#35200;&#22343;&#26412;&#22320;&#65292;&#19981;&#26371;&#19978;&#20傳;&#33267;&#20219;&#20309;&#20284;&#26381;&#22120;</div>
   </div>
 </div>
 
-<!-- AI KEY MODAL -->
+<!-- AI Key Modal -->
 <div id="aiKeyModal">
   <div id="aiKeyBox">
-    <h3>🤖 設定 AI（OpenRouter）</h3>
-    <p>KLaws 使用 <b>OpenRouter</b> 提供的免費 AI 模型。<br>註冊免費帳號後取得 API Key 即可使用，<b>每天最多 200 次，不需信用卡</b>。</p>
+    <h3>&#129302; &#35373;&#23450; AI&#65288;OpenRouter&#65289;</h3>
+    <p>KLaws &#20351;&#29992; <b>OpenRouter</b> &#25552;&#20379;&#30340;&#20813;&#36027; AI &#27169;&#22411;&#12290;<br>&#35387;&#20659;&#20813;&#36027;&#24115;&#34399;&#24460;&#21462;&#24471; API Key &#21363;&#21487;&#20351;&#29992;&#65292;<b>&#27599;&#22825;&#26368;&#22810; 200 &#27425;&#65292;&#19981;&#38656;&#20449;&#29992;&#21345;</b>&#12290;</p>
     <div style="background:#f0f7ff;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:#0C447C;line-height:1.8;">
-      1. 前往 <b>openrouter.ai</b> 免費註冊<br>
-      2. 右上角頭像 → <b>Keys</b> → <b>Create Key</b><br>
-      3. 複製 <b>sk-or-v1-...</b> 貼到下方
+      1. &#21069;&#24448; <b>openrouter.ai</b> &#20813;&#36027;&#35387;&#20659;<br>
+      2. &#21491;&#19978;&#35282;&#39838;&#20687; &#8594; <b>Keys</b> &#8594; <b>Create Key</b><br>
+      3. &#35686;&#35036; <b>sk-or-v1-...</b> &#36108;&#21040;&#19979;&#26041;
     </div>
     <label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:4px;">API Key</label>
     <input id="aiKeyInput" type="password" placeholder="sk-or-v1-...">
-    <label style="font-size:11px;font-weight:600;color:#555;display:block;margin:10px 0 4px;">AI 模型</label>
+    <label style="font-size:11px;font-weight:600;color:#555;display:block;margin:10px 0 4px;">AI &#27169;&#22411;</label>
     <select id="aiModelSel" style="width:100%;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;background:#f8f8f8;font-family:inherit;margin-bottom:12px;"></select>
     <div class="ai-key-row">
-      <button class="fbtn bcl" id="aiKeyCancel" style="flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:600;border:none;cursor:pointer;">取消</button>
-      <button class="fbtn bsv" id="aiKeySave" style="flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:600;border:none;cursor:pointer;">儲存並繼續</button>
+      <button class="fbtn bcl" id="aiKeyCancel" style="flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:600;border:none;cursor:pointer;">&#21462;&#28040;</button>
+      <button class="fbtn bsv" id="aiKeySave" style="flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:600;border:none;cursor:pointer;">&#20648;&#23384;&#24182;&#32380;&#32396;</button>
     </div>
-    <div style="margin-top:10px;font-size:11px;color:#bbb;text-align:center;">Key 僅存於瀏覽器本地，不會上傳至任何伺服器</div>
+    <div style="margin-top:10px;font-size:11px;color:#bbb;text-align:center;">Key &#20677;&#23384;&#26044;&#29000;&#35200;&#22343;&#26412;&#22320;&#65292;&#19981;&#26371;&#19978;&#20傳;&#33267;&#20219;&#20309;&#20284;&#26381;&#22120;</div>
   </div>
 </div>
 

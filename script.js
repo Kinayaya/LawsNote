@@ -91,33 +91,47 @@ const sortedNotes = arr => arr.slice().sort((a,b)=>{
   const ad=safeStr(a&&a.date),bd=safeStr(b&&b.date),at=safeStr(a&&a.title),bt=safeStr(b&&b.title),as=safeStr(a&&a.subject),bs=safeStr(b&&b.subject),ach=safeStr(a&&a.chapter),bch=safeStr(b&&b.chapter),aty=safeStr(a&&a.type),bty=safeStr(b&&b.type);
   return sortMode==='date_desc'?bd.localeCompare(ad):sortMode==='date_asc'?ad.localeCompare(bd):sortMode==='title_asc'?at.localeCompare(bt,'zh'):sortMode==='title_desc'?bt.localeCompare(at,'zh'):sortMode==='subject'?as.localeCompare(bs)||at.localeCompare(bt):sortMode==='chapter'?ach.localeCompare(bch)||at.localeCompare(bt):aty.localeCompare(bty)||at.localeCompare(bt);
 });
-function repairDuplicateNoteIds() {
-  const usedIds={}, idRemap={}, maxNoteId=notes.reduce((m,n)=>Math.max(m,Number.isFinite(n.id)?n.id:0),0);
-  let nextId=Math.max(maxNoteId+1,nid||1), repaired=false;
+function normalizeNoteIds(forceReindexAll=false) {
+  const seen={}, duplicates=new Set();
   notes.forEach(n=>{
-    if(!Number.isFinite(n.id)) {
-      n.id=nextId++;
-      repaired=true;
-      return;
-    }
-    if(usedIds[n.id]) {
-      const oldId=n.id,newId=nextId++;
-      n.id=newId;
-      idRemap[oldId]=idRemap[oldId]||[];
-      idRemap[oldId].push(newId);
-      repaired=true;
-    } else usedIds[n.id]=true;
+  if(!Number.isFinite(n.id) || seen[n.id]) duplicates.add(n.id);
+  seen[n.id]=true;
   });
-  if(repaired) {
-    links.forEach(l=>{
-      if(idRemap[l.from]&&idRemap[l.from].length) l.from=idRemap[l.from].shift();
-      if(idRemap[l.to]&&idRemap[l.to].length) l.to=idRemap[l.to].shift();
-    });
-    links=links.filter(l=>l.from!==l.to);
+  if(!forceReindexAll && !duplicates.size) {
+    nid=Math.max(nid||1,notes.reduce((m,n)=>Math.max(m,n.id||0),0)+1);
+    lid=Math.max(lid||1,links.reduce((m,l)=>Math.max(m,l.id||0),0)+1);
+    return false;
   }
-  nid=Math.max(nextId,notes.reduce((m,n)=>Math.max(m,n.id||0),0)+1);
+
+  const fromBuckets={}, toBuckets={}, firstMap={}, remapPos={}, remapSize={}, remapSelected={};
+  let nextId=1;
+  notes.forEach(n=>{
+    const oldId=n.id, newId=nextId++;
+    n.id=newId;
+    if(!fromBuckets[oldId]) fromBuckets[oldId]=[];
+    if(!toBuckets[oldId]) toBuckets[oldId]=[];
+    fromBuckets[oldId].push(newId);
+    toBuckets[oldId].push(newId);
+    if(firstMap[oldId]===undefined) firstMap[oldId]=newId;
+  });
+
+  links=links.map(l=>{
+    const fromList=fromBuckets[l.from],toList=toBuckets[l.to];
+    const from=fromList&&fromList.length?fromList.shift():(firstMap[l.from]??null);
+    const to=toList&&toList.length?toList.shift():(firstMap[l.to]??null);
+    return {...l,from,to};
+  }).filter(l=>Number.isFinite(l.from)&&Number.isFinite(l.to)&&l.from!==l.to);
+
+  Object.keys(nodePos||{}).forEach(k=>{const nk=firstMap[Number(k)];if(nk!==undefined&&remapPos[nk]===undefined) remapPos[nk]=nodePos[k];});
+  Object.keys(nodeSizes||{}).forEach(k=>{const nk=firstMap[Number(k)];if(nk!==undefined&&remapSize[nk]===undefined) remapSize[nk]=nodeSizes[k];});
+  Object.keys(selectedIds||{}).forEach(k=>{const nk=firstMap[Number(k)];if(nk!==undefined) remapSelected[nk]=true;});
+  nodePos=remapPos; nodeSizes=remapSize; selectedIds=remapSelected;
+  mapCenterNodeId=firstMap[mapCenterNodeId]??null;
+  mapFocusedNodeId=firstMap[mapFocusedNodeId]??null;
+  openId=firstMap[openId]??null;
+  nid=nextId;
   lid=Math.max(lid||1,links.reduce((m,l)=>Math.max(m,l.id||0),0)+1);
-  return repaired;
+  return true;
 }
 
 // ==================== 資料儲存 ====================
@@ -156,8 +170,14 @@ function loadData() {
       let repaired=false,chapterMigrated=false;
       types.forEach(t=>{if(/^tag_t_/.test(t.key)){let old=t.key;t.key=t.label;notes.forEach(n=>{if(n.type===old)n.type=t.label;});repaired=true;}});
       subjects.forEach(s=>{if(/^tag_s_/.test(s.key)){let old=s.key;s.key=s.label;notes.forEach(n=>{if(n.subject===old)n.subject=s.label;});repaired=true;}});
-      notes.forEach(n=>{if(!n.chapter){const fromTag=noteTags(n).find(t=>chapters.some(c=>c.key===t&&(c.subject===n.subject||c.subject==='all')));n.chapter=fromTag||'';chapterMigrated= 
-      if(repairDuplicateNoteIds()) repaired=true;
+      notes.forEach(n=>{
+        if(!n.chapter){
+          const fromTag=noteTags(n).find(t=>chapters.some(c=>c.key===t&&(c.subject===n.subject||c.subject==='all')));
+          n.chapter=fromTag||'';
+          chapterMigrated=true;
+        }
+      });
+      if(normalizeNoteIds(true)) repaired=true;
       if(repaired||chapterMigrated) saveData();
     } else {
       notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();nodeSizes={};saveData();
@@ -454,13 +474,14 @@ function importData(file) {
         notes=d.notes;links=d.links||[];types=d.types||DEFAULTS.types.slice();subjects=d.subjects||DEFAULTS.subjects.slice();chapters=d.chapters||DEFAULTS.chapters.slice();
         nodeSizes=d.nodeSizes||{};mapCenterNodeId=d.mapCenterNodeId||null;
         nid=d.nid||notes.length+100;lid=d.lid||10;notes.sort((a,b)=>b.id-a.id);
+        normalizeNoteIds(true);
         saveData();rebuildUI();render();showToast(`已覆蓋，共 ${notes.length} 筆筆記`);
       } else {
         const existing=notes.map(n=>n.id);let added=0;
         d.notes.forEach(n=>{if(!existing.includes(n.id)){notes.push(n);added++;if(n.id>=nid)nid=n.id+1;}});
         if(d.links)links=d.links;if(d.types)types=d.types;if(d.subjects)subjects=d.subjects;if(d.chapters)chapters=d.chapters;
         if(d.nodeSizes)nodeSizes={...nodeSizes,...d.nodeSizes};if(d.mapCenterNodeId)mapCenterNodeId=d.mapCenterNodeId;
-        notes.sort((a,b)=>b.id-a.id);saveData();rebuildUI();render();showToast(`已合併，新增 ${added} 筆`);
+        notes.sort((a,b)=>b.id-a.id);normalizeNoteIds(true);saveData();rebuildUI();render();showToast(`已合併，新增 ${added} 筆`);
       }
     } catch(ex){showToast('匯入失敗，請確認檔案格式');}
   };

@@ -51,7 +51,7 @@ let notes=[], links=[], nid=10, lid=10, types=[], subjects=[], chapters=[];
 let cv='all', cs='all', cch='all', searchQ='', openId=null, editMode=false;
 let nodePos={}, dragNode=null, dragOffX=0, dragOffY=0, mapW=800, mapH=500;
 let nodeSizes={};
-let mapScale=1, mapOffX=0, mapOffY=0, mapFilter={sub:"all",type:"all",q:""}, mapLinkedOnly=true;
+let mapScale=1, mapOffX=0, mapOffY=0, mapFilter={sub:"all",type:"all",chapter:"all",q:""}, mapLinkedOnly=true;
 let mapDepth='all', mapFocusMode=false, mapFocusedNodeId=null;
 let nodeEls={}, linkElsMap={}, nodeLinksIndex={}, linkCurveOffsets={}, isMapOpen=false;
 let gridPage=1, sortMode='date_desc', multiSelMode=false, selectedIds={};
@@ -152,7 +152,7 @@ function loadData() {
         mapFilter = {
           sub: typeof d.mapFilter.sub === 'string' ? d.mapFilter.sub : 'all',
           type: typeof d.mapFilter.type === 'string' ? d.mapFilter.type : 'all',
-          q: typeof d.mapFilter.q === 'string' ? d.mapFilter.q : ''
+          chapter: typeof d.mapFilter.chapter === 'string' ? d.mapFilter.chapter : 'all',
         };
       }
       if(typeof d.mapLinkedOnly === 'boolean') mapLinkedOnly = d.mapLinkedOnly;
@@ -408,7 +408,16 @@ function toggleDiaryTodo(show) { const box=g('diaryTodoWrap'); if(box) box.style
 
 // ==================== 標籤管理 ====================
 function openTagMgr() { g('tp').classList.add('open'); ['dp','fp','lp'].forEach(p=>g(p).classList.remove('open')); renderTagLists(); setTimeout(()=>g('tp').scrollIntoView({behavior:'smooth',block:'nearest'}),60); }
-function renderTagLists() { renderTagList('typeTagList',types,'type'); renderTagList('subTagList',subjects,'sub'); }
+function renderTagLists() {
+  renderTagList('typeTagList',types,'type');
+  renderTagList('subTagList',subjects,'sub');
+  renderChapterTagList();
+  const chapterSubjectSel = g('newChapterSubject');
+  if(chapterSubjectSel){
+    chapterSubjectSel.innerHTML = '<option value="all">全部科目</option>' + subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join('');
+    if(!chapterSubjectSel.value) chapterSubjectSel.value='all';
+  }
+}
 function renderTagList(cid,arr,kind) {
   const el = g(cid);
   if(!arr.length) { el.innerHTML='<div style="color:#bbb;font-size:13px;padding:8px 0">（尚無標籤）</div>'; return; }
@@ -416,7 +425,19 @@ function renderTagList(cid,arr,kind) {
   el.querySelectorAll('.tag-edit-btn').forEach(b=>b.addEventListener('click',()=>editTag(parseInt(b.dataset.idx),b.dataset.kind)));
   el.querySelectorAll('.tag-del-btn').forEach(b=>b.addEventListener('click',()=>deleteTag(parseInt(b.dataset.idx),b.dataset.kind)));
 }
+function renderChapterTagList(){
+  const el = g('chapterTagList');
+  if(!el) return;
+  if(!chapters.length) { el.innerHTML='<div style="color:#bbb;font-size:13px;padding:8px 0">（尚無章節）</div>'; return; }
+  el.innerHTML = chapters.map((item,idx)=>{
+    const subLabel = item.subject==='all' ? '全部科目' : subByKey(item.subject).label;
+    return `<div class="tag-item" data-idx="${idx}" data-kind="chapter"><div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;"><span class="tag-item-label">${item.label}</span><span style="font-size:11px;color:#888;">${subLabel}</span></div><button class="tag-edit-btn" data-idx="${idx}" data-kind="chapter">編輯</button><button class="tag-del-btn" data-idx="${idx}" data-kind="chapter">刪除</button></div>`;
+  }).join('');
+  el.querySelectorAll('.tag-edit-btn').forEach(b=>b.addEventListener('click',()=>editTag(parseInt(b.dataset.idx),b.dataset.kind)));
+  el.querySelectorAll('.tag-del-btn').forEach(b=>b.addEventListener('click',()=>deleteTag(parseInt(b.dataset.idx),b.dataset.kind)));
+}
 function editTag(idx,kind) {
+  if(kind==='chapter'){ editChapterTag(idx); return; }
   const arr = kind==='type'?types:subjects, item=arr[idx];
   const nl2 = prompt('修改標籤名稱：',item.label); if(!nl2) return;
   const nv = nl2.trim(); if(!nv) { showToast('名稱不能為空'); return; }
@@ -426,12 +447,56 @@ function editTag(idx,kind) {
   arr[idx].label = nv; arr[idx].color = ncv;
   saveData(); renderTagLists(); buildTypeRow(); buildSubRow(); render(); showToast('標籤已更新');
 }
+function editChapterTag(idx){
+  const item=chapters[idx];
+  if(!item) return;
+  const nl2 = prompt('修改章節名稱：',item.label); if(!nl2) return;
+  const nv = nl2.trim(); if(!nv) { showToast('名稱不能為空'); return; }
+  if(chapters.some((c,i)=>i!==idx&&c.label===nv&&c.subject===item.subject)) { showToast('相同科目下章節重複'); return; }
+  const guide=['all: 全部科目'].concat(subjects.map(s=>`${s.key}: ${s.label}`)).join('\n');
+  const ns = prompt(`修改章節科目（請輸入 key）\n${guide}`, item.subject || 'all');
+  if(ns===null) return;
+  const subjectKey=(ns||'').trim()||'all';
+  if(subjectKey!=='all' && !subjects.some(s=>s.key===subjectKey)) { showToast('章節科目不存在'); return; }
+  const oldKey=item.key;
+  item.label = nv;
+  item.subject = subjectKey;
+  if(!chapters.some((c,i)=>i!==idx&&c.key===nv)){
+    item.key = nv;
+    notes.forEach(n=>{ if(n.chapter===oldKey) n.chapter=nv; });
+    if(cch===oldKey) cch='all';
+    if(mapFilter.chapter===oldKey) mapFilter.chapter='all';
+  }
+  saveData(); renderTagLists(); rebuildUI(); render(); showToast('章節已更新');
+}
 function deleteTag(idx,kind) {
-  const arr = kind==='type'?types:subjects;
+  const arr = kind==='type'?types:(kind==='sub'?subjects:chapters);
+  if(kind==='chapter'){
+    const removed=arr[idx];
+    if(!removed) return;
+    if(!confirm(`確定刪除章節「${removed.label}」？已使用此章節的筆記會改為未分類。`)) return;
+    arr.splice(idx,1);
+    notes.forEach(n=>{ if(n.chapter===removed.key) n.chapter=''; });
+    if(cch===removed.key) cch='all';
+    if(mapFilter.chapter===removed.key) mapFilter.chapter='all';
+    saveData(); renderTagLists(); rebuildUI(); render(); showToast('章節已刪除');
+    return;
+  }
   if(!confirm(`確定刪除標籤「${arr[idx].label}」？`)) return;
   arr.splice(idx,1); saveData(); renderTagLists(); rebuildUI(); render(); showToast('標籤已刪除');
 }
 function addTag(kind) {
+  if(kind==='chapter'){
+    const label = (g('newChapterLabel').value||'').trim();
+    const subject = (g('newChapterSubject').value||'all').trim() || 'all';
+    if(!label) { showToast('請輸入章節名稱'); return; }
+    if(chapters.some(ch=>ch.label===label && ch.subject===subject)) { showToast('章節已存在'); return; }
+    const key = chapters.some(ch=>ch.key===label) ? `chapter_${Date.now()}` : label;
+    chapters.push({key,label,subject});
+    g('newChapterLabel').value = '';
+    saveData(); renderTagLists(); rebuildUI(); showToast('章節已新增！');
+    return;
+  }
   const label = (g(kind==='type'?'newTypeLabel':'newSubLabel').value||'').trim();
   const color = g(kind==='type'?'newTypeColor':'newSubColor').value;
   if(!label) { showToast('請輸入標籤名稱'); return; }
@@ -925,7 +990,20 @@ function redrawLines(affectedId){
 function visibleNotes(){
   const q=mapFilter.q.toLowerCase(), linkedIds={};
   if(mapLinkedOnly) links.forEach(l=>{ linkedIds[l.from]=true; linkedIds[l.to]=true; });
-  const base = notes.filter(n=>(mapFilter.sub==='all'||n.subject===mapFilter.sub)&&(mapFilter.type==='all'||n.type===mapFilter.type)&&(!q||`${n.title}${n.subject}${noteTags(n).join('')}`.toLowerCase().includes(q))&&(!mapLinkedOnly||linkedIds[n.id]));
+  const filtered = notes.filter(n=>(mapFilter.sub==='all'||n.subject===mapFilter.sub)&&(mapFilter.type==='all'||n.type===mapFilter.type)&&(mapFilter.chapter==='all'||(n.chapter||'')===mapFilter.chapter)&&(!q||`${n.title}${n.subject}${n.chapter||''}${noteTags(n).join('')}`.toLowerCase().includes(q)));
+  let base = filtered.filter(n=>!mapLinkedOnly||linkedIds[n.id]);
+  if(mapLinkedOnly && !base.length && filtered.length){
+    mapLinkedOnly=false;
+    const btn=g('mapLinkedOnlyBtn');
+    if(btn){
+      btn.style.background='#EAF3DE';
+      btn.style.color='#3B6D11';
+      btn.textContent='🔗 只顯示關聯';
+    }
+    showToast('目前沒有關聯節點，已自動顯示全部節點');
+    saveDataDeferred();
+    base = filtered;
+  }
   if(mapDepth==='all' || !base.length) return base;
 
   const baseIds={}; base.forEach(n=>baseIds[n.id]=true);
@@ -1229,14 +1307,18 @@ function highlightNode(id){ mapFocusedNodeId=id; applyFocusStyles(); }
 function startDrag(e,id){ e.preventDefault(); e.stopPropagation(); closeMapPopup(); dragNode=id; const pos=nodePos[id], rect=g('mapCanvas').getBoundingClientRect(); dragOffX=e.clientX-rect.left-(pos.x*mapScale+mapOffX); dragOffY=e.clientY-rect.top-(pos.y*mapScale+mapOffY); }
 function startDragTouch(e,id){ e.stopPropagation(); dragNode=id; const pos=nodePos[id], rect=g('mapCanvas').getBoundingClientRect(), touch=e.touches[0]; dragOffX=touch.clientX-rect.left-(pos.x*mapScale+mapOffX); dragOffY=touch.clientY-rect.top-(pos.y*mapScale+mapOffY); }
 function buildMapFilters(){
-  const ss=g('mapFilterSub'), st=g('mapFilterType'), sd=g('mapDepthSel');
-  if(!ss||!st) return;
+  const ss=g('mapFilterSub'), st=g('mapFilterType'), sch=g('mapFilterChapter'), sd=g('mapDepthSel');
+  if(!ss||!st||!sch) return;
   ss.innerHTML='<option value="all">全部科目</option>'+subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join('');
   st.innerHTML='<option value="all">全部類型</option>'+types.map(t=>`<option value="${t.key}">${t.label}</option>`).join('');
   if(!subjects.some(s=>s.key===mapFilter.sub)) mapFilter.sub='all';
   if(!types.some(t=>t.key===mapFilter.type)) mapFilter.type='all';
+  const mapChapters=chapters.filter(ch=>mapFilter.sub==='all' || ch.subject===mapFilter.sub || ch.subject==='all');
+  sch.innerHTML='<option value="all">全部章節</option>'+mapChapters.map(ch=>`<option value="${ch.key}">${ch.label}</option>`).join('');
+  if(mapFilter.chapter!=='all' && !mapChapters.some(ch=>ch.key===mapFilter.chapter)) mapFilter.chapter='all';
   ss.value=mapFilter.sub;
   st.value=mapFilter.type;
+  sch.value=mapFilter.chapter;
   if(sd) sd.value=['all','1','2','3'].includes(mapDepth)?mapDepth:'all';
 }
 function laneContextLabelText(){
@@ -1331,7 +1413,7 @@ window.addEventListener('load',()=>{
   on('linkBtn','click',()=>openForm(true));
   g('dpClose').addEventListener('click',closeDetail); g('fpClose').addEventListener('click',closeForm); g('fpCancel').addEventListener('click',closeForm);
   g('fpSave').addEventListener('click',saveNote); g('delBtn').addEventListener('click',deleteNote); g('exportBtn').addEventListener('click',exportData);
-  g('tpClose').addEventListener('click',()=>g('tp').classList.remove('open')); g('addTypeBtn').addEventListener('click',()=>addTag('type')); g('addSubBtn').addEventListener('click',()=>addTag('sub'));
+  g('tpClose').addEventListener('click',()=>g('tp').classList.remove('open')); g('addTypeBtn').addEventListener('click',()=>addTag('type')); g('addSubBtn').addEventListener('click',()=>addTag('sub')); g('addChapterBtn').addEventListener('click',()=>addTag('chapter'));
   loadExams(); on('examBtn','click',openExamPanel); on('examListClose','click',()=>g('examListPanel').classList.remove('open'));
   on('examAddBtn','click',()=>{ const esel=g('examSubSel'); if(esel) esel.innerHTML=subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join(''); g('examListPanel').classList.remove('open'); g('examAddForm').classList.add('open'); setTimeout(()=>g('examAddForm').scrollIntoView({behavior:'smooth',block:'nearest'}),60); });
   on('examFormClose','click',()=>{ g('examAddForm').classList.remove('open'); openExamPanel(); }); on('examFCancel','click',()=>{ g('examAddForm').classList.remove('open'); openExamPanel(); });
@@ -1346,8 +1428,9 @@ window.addEventListener('load',()=>{
   g('mapToggleBtn').addEventListener('click',()=>toggleMapView(true));
   g('mapBackBtn').addEventListener('click',()=>toggleMapView(false));
   on('mapSearchInput','input',debounce(()=>{ mapFilter.q=g('mapSearchInput').value; saveDataDeferred(); if(isMapOpen) drawMap(); },250));
-  on('mapFilterSub','change',()=>{ mapFilter.sub=g('mapFilterSub').value; nodePos={}; saveDataDeferred(); if(g('lanePanel').classList.contains('open')) renderLanePanel(); if(isMapOpen){ forceLayout(); drawMap(); } });
+  on('mapFilterSub','change',()=>{ mapFilter.sub=g('mapFilterSub').value; buildMapFilters(); nodePos={}; saveDataDeferred(); if(g('lanePanel').classList.contains('open')) renderLanePanel(); if(isMapOpen){ forceLayout(); drawMap(); } });
   on('mapFilterType','change',()=>{ mapFilter.type=g('mapFilterType').value; nodePos={}; saveDataDeferred(); if(g('lanePanel').classList.contains('open')) renderLanePanel(); if(isMapOpen){ forceLayout(); drawMap(); } });
+  on('mapFilterChapter','change',()=>{ mapFilter.chapter=g('mapFilterChapter').value; nodePos={}; saveDataDeferred(); if(isMapOpen){ forceLayout(); drawMap(); } });
   on('mapDepthSel','change',()=>{ mapDepth=g('mapDepthSel').value; nodePos={}; forceLayout(); drawMap(); saveDataDeferred(); });
   on('mapFocusBtn','click',()=>{
     mapFocusMode=!mapFocusMode;

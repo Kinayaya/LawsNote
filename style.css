@@ -86,10 +86,14 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 /* Tag Manager — simplified */
 .tag-section-title{font-size:11px;font-weight:700;color:#aaa;margin-top:16px;margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:6px}
 .tag-section-title::after{content:'';flex:1;height:1px;background:#f0f0f0}
+.tag-tools-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.tag-tools-row input[type="text"],#tagSearchInput{flex:1;min-width:140px;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;background:#f8f8f8}
+.tag-tools-row label{font-size:12px;color:#666;display:flex;align-items:center;gap:5px}
 .tag-list{display:flex;flex-direction:column;gap:5px;margin-top:2px}
 .tag-item{display:flex;align-items:center;gap:7px;background:#fafafa;border-radius:8px;padding:7px 9px;border:1px solid #f0f0f0}
 .tag-color-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0;border:1.5px solid rgba(0,0,0,.08)}
 .tag-item-label{flex:1;font-size:13px;font-weight:500}
+.tag-item-meta{font-size:10px;color:#999;background:#f2f2f7;border-radius:99px;padding:2px 6px}
 .tag-edit-btn{padding:3px 8px;border-radius:5px;border:1px solid #e0e0e0;background:#fff;font-size:11px;color:#555;cursor:pointer}
 .tag-del-btn{padding:3px 6px;border-radius:5px;border:1px solid #FFCDD2;background:#FFF0F0;font-size:11px;color:#D92B2B;cursor:pointer}
 .tag-add-row{display:flex;gap:6px;margin-top:8px;align-items:center}
@@ -104,6 +108,7 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 .fl-del{padding:3px 7px;border-radius:5px;border:1px solid #FFCDD2;background:#FFF0F0;font-size:11px;color:#D92B2B;cursor:pointer}
 .fl-result-item{display:flex;align-items:center;gap:7px;padding:6px 9px;background:#f8f8f8;border:1px solid #eee;border-radius:8px;cursor:pointer;transition:background .12s}
 .fl-result-item:hover{background:#EAF3DE;border-color:#97C459}
+.fl-result-item.selected{background:#EAF3DE;border-color:#97C459}
 .fl-result-type{font-size:10px;padding:2px 7px;border-radius:99px;color:#fff;font-weight:600;flex-shrink:0}
 .fl-result-title{font-size:12px;color:#333;flex:1}
 

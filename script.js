@@ -28,7 +28,7 @@ const DEFAULT_SHORTCUTS = [
   {id:'map',label:'開啟體系圖',code:'KeyM',alt:true},{id:'back',label:'返回筆記列表',code:'Escape'},
   {id:'close',label:'關閉面板',code:'KeyW',alt:true},{id:'edit',label:'編輯當前筆記',code:'KeyE',alt:true},
   {id:'link',label:'新增關聯',code:'KeyL',alt:true},{id:'export',label:'匯出備份',code:'KeyS',alt:true},
-  {id:'shortcuts',label:'快捷鍵設定',code:'KeyK',alt:true},{id:'flash',label:'複習模式',code:'KeyR',alt:true},
+  {id:'shortcuts',label:'快捷鍵設定',code:'KeyK',alt:true},
   {id:'stats',label:'統計',code:'KeyI',alt:true}
 ];
 
@@ -41,7 +41,6 @@ let mapScale=1, mapOffX=0, mapOffY=0, mapFilter={sub:'all',type:'all',chapter:'a
 let mapDepth='all', mapFocusMode=false, mapFocusedNodeId=null;
 let nodeEls={}, linkElsMap={}, nodeLinksIndex={}, linkCurveOffsets={}, isMapOpen=false;
 let gridPage=1, sortMode='date_desc', multiSelMode=false, selectedIds={};
-let flashDeck=[], flashIdx=0, flashShowing=false, flashSubFilter='all', flashTypeFilter2='all', flashHard=[];
 let examList=[], examTimer=null, examSec=0, examTotal=0, currentExam=null;
 let shortcuts=[], recordingBtn=null, _aiPendingAction=null, _saveTimer=null, rafId=null;
 let mapRedrawTimer=null, mapResizeObserver=null, mapCenterNodeId=null, mapLaneConfigs={}, mapNodeMeta={};
@@ -87,6 +86,20 @@ const renderTodoHtml = todos => {
   if(!list.length) return '<span style="font-size:12px;color:#bbb">尚無待辦項目</span>';
   return `<div class="todo-list">${list.map(t=>`<div class="todo-item ${t.done?'done':''}"><span class="todo-item-check">${t.done?'✅':'⬜'}</span><span class="todo-item-text">${t.text}</span></div>`).join('')}</div>`;
 };
+
+// ★ 修復日期：將 ISO timestamp 格式化為 YYYY-MM-DD
+const formatDate = raw => {
+  if(!raw) return '';
+  // 如果已經是 YYYY-MM-DD 格式，直接回傳
+  if(/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  // 嘗試解析 ISO 或其他格式
+  try {
+    const d = new Date(raw);
+    if(isNaN(d.getTime())) return raw;
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  } catch(e) { return raw; }
+};
+
 const sortedNotes = arr => arr.slice().sort((a,b)=>{
   const ad=safeStr(a&&a.date),bd=safeStr(b&&b.date),at=safeStr(a&&a.title),bt=safeStr(b&&b.title),as=safeStr(a&&a.subject),bs=safeStr(b&&b.subject),ach=safeStr(a&&a.chapter),bch=safeStr(b&&b.chapter),aty=safeStr(a&&a.type),bty=safeStr(b&&b.type);
   return sortMode==='date_desc'?bd.localeCompare(ad):sortMode==='date_asc'?ad.localeCompare(bd):sortMode==='title_asc'?at.localeCompare(bt,'zh'):sortMode==='title_desc'?bt.localeCompare(at,'zh'):sortMode==='subject'?as.localeCompare(bs)||at.localeCompare(bt):sortMode==='chapter'?ach.localeCompare(bch)||at.localeCompare(bt):aty.localeCompare(bty)||at.localeCompare(bt);
@@ -102,7 +115,6 @@ function normalizeNoteIds(forceReindexAll=false) {
     lid=Math.max(lid||1,links.reduce((m,l)=>Math.max(m,l.id||0),0)+1);
     return false;
   }
-
   const fromBuckets={}, toBuckets={}, firstMap={}, remapPos={}, remapSize={}, remapSelected={};
   let nextId=1;
   notes.forEach(n=>{
@@ -114,14 +126,12 @@ function normalizeNoteIds(forceReindexAll=false) {
     toBuckets[oldId].push(newId);
     if(firstMap[oldId]===undefined) firstMap[oldId]=newId;
   });
-
   links=links.map(l=>{
     const fromList=fromBuckets[l.from],toList=toBuckets[l.to];
     const from=fromList&&fromList.length?fromList.shift():(firstMap[l.from]??null);
     const to=toList&&toList.length?toList.shift():(firstMap[l.to]??null);
     return {...l,from,to};
   }).filter(l=>Number.isFinite(l.from)&&Number.isFinite(l.to)&&l.from!==l.to);
-
   Object.keys(nodePos||{}).forEach(k=>{const nk=firstMap[Number(k)];if(nk!==undefined&&remapPos[nk]===undefined) remapPos[nk]=nodePos[k];});
   Object.keys(nodeSizes||{}).forEach(k=>{const nk=firstMap[Number(k)];if(nk!==undefined&&remapSize[nk]===undefined) remapSize[nk]=nodeSizes[k];});
   Object.keys(selectedIds||{}).forEach(k=>{const nk=firstMap[Number(k)];if(nk!==undefined) remapSelected[nk]=true;});
@@ -148,7 +158,8 @@ function loadData() {
         if(typeof n.body!=='string') n.body='';
         if(typeof n.subject!=='string') n.subject='';
         if(typeof n.chapter!=='string') n.chapter='';
-        if(typeof n.date!=='string') n.date='1970-01-01';
+        // ★ 修復日期格式
+        n.date = formatDate(n.date) || '1970-01-01';
       });
       links=Array.isArray(d.links)?d.links:DEFAULTS.links.slice();
       links.forEach(l=>{l.rel='關聯';l.color=LINK_COLOR;});
@@ -191,26 +202,27 @@ function saveData() { try { localStorage.setItem(SKEY,JSON.stringify({notes,link
 // ==================== UI 建構 ====================
 function buildTypeRow() {
   const row=g('typeRow');
-  row.innerHTML=`<button class="tab ${cv==='all'?'on':''}" data-v="all">全部</button>`+types.map(t=>`<button class="tab ${cv===t.key?'on':''}" data-v="${t.key}" style="${cv===t.key?`background:${t.color};`:''}">${t.label}</button>`).join('')+`<button class="tag-mgr-btn" id="tagMgrBtn">⚙️ 管理標籤</button>`;
+  row.innerHTML=`<button class="tab ${cv==='all'?'on':''}" data-v="all">全部</button>`+types.map(t=>`<button class="tab ${cv===t.key?'on':''}" data-v="${t.key}" style="${cv===t.key?`background:${t.color};`:''}">${t.label}</button>`).join('')+`<button class="tag-mgr-btn" id="tagMgrBtn">管理</button>`;
   row.querySelectorAll('.tab[data-v]').forEach(btn=>btn.addEventListener('click',()=>{cv=btn.dataset.v;gridPage=1;buildTypeRow();render();}));
   on('tagMgrBtn','click',openTagMgr);
 }
 function buildSubRow() {
   const row=g('subbar');
-  row.innerHTML=`<button class="sc ${cs==='all'?'on':''}" data-s="all">全部科目</button>`+subjects.map(s=>`<button class="sc ${cs===s.key?'on':''}" data-s="${s.key}" style="${cs===s.key?`background:${s.color};color:#fff;`:''}">${s.label}</button>`).join('');
+  row.innerHTML=`<button class="sc ${cs==='all'?'on':''}" data-s="all">全部</button>`+subjects.map(s=>`<button class="sc ${cs===s.key?'on':''}" data-s="${s.key}" style="${cs===s.key?`background:${s.color};color:#fff;`:''}">${s.label}</button>`).join('');
   row.querySelectorAll('.sc').forEach(btn=>btn.addEventListener('click',()=>{cs=btn.dataset.s;if(cch!=='all'&&!chapters.some(ch=>ch.key===cch&&(ch.subject===cs||ch.subject==='all')))cch='all';gridPage=1;buildSubRow();buildChapterRow();render();}));
 }
 function buildChapterRow() {
   const row=g('chapterbar'); if(!row) return;
   const available=chapters.filter(ch=>cs==='all'||ch.subject===cs||ch.subject==='all');
-  row.innerHTML=`<button class="ch ${cch==='all'?'on':''}" data-ch="all">全部章節</button>`+available.map(ch=>`<button class="ch ${cch===ch.key?'on':''}" data-ch="${ch.key}">${ch.label}</button>`).join('');
+  row.innerHTML=available.length?`<button class="ch ${cch==='all'?'on':''}" data-ch="all">全部</button>`+available.map(ch=>`<button class="ch ${cch===ch.key?'on':''}" data-ch="${ch.key}">${ch.label}</button>`).join(''):'';
+  row.style.display=available.length?'flex':'none';
   row.querySelectorAll('.ch').forEach(btn=>btn.addEventListener('click',()=>{cch=btn.dataset.ch;gridPage=1;buildChapterRow();render();}));
 }
 function chaptersBySubject(subKey){ return chapters.filter(ch=>subKey==='all'||ch.subject===subKey||ch.subject==='all'); }
 function syncChapterSelect(subjectKey, selected='') {
   const fc=g('fc'); if(!fc) return;
   const available=chaptersBySubject(subjectKey||'all');
-  fc.innerHTML=`<option value="">未分類章節</option>`+available.map(ch=>`<option value="${ch.key}">${ch.label}</option>`).join('');
+  fc.innerHTML=`<option value="">未分類</option>`+available.map(ch=>`<option value="${ch.key}">${ch.label}</option>`).join('');
   fc.value=available.some(ch=>ch.key===selected)?selected:'';
 }
 function buildFormSelects() { g('ft').innerHTML=types.map(t=>`<option value="${t.key}">${t.label}</option>`).join(''); g('fs2').innerHTML=subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join(''); syncChapterSelect(val('fs2')||(subjects[0]?subjects[0].key:'all')); }
@@ -232,7 +244,8 @@ function render() {
     const tp=typeByKey(n.type),sb2=subByKey(n.subject),ch2=chapterByKey(n.chapter||'');
     const chips=noteTags(n).slice(0,2).map(t=>`<span class="chip">${hl(t,q)}</span>`).join('');
     const lc=links.filter(l=>l.from===n.id||l.to===n.id).length;
-    return `<div class="card" data-id="${n.id}"><div class="sel-check"></div><div class="cbar" style="background:${tp.color}"></div><div class="ctop"><span class="ctag" style="background:${tp.color}">${tp.label}</span><span class="cdate">${n.date}</span></div><div class="ctitle">${hl(n.title,q)}</div><div class="cbody">${n.body}</div><div class="cfoot"><span class="chip" style="background:${lightC(sb2.color)};color:${darkC(sb2.color)}">${sb2.label}</span>${n.chapter?`<span class="chip" style="background:#E6F1FB;color:#0C447C">${ch2.label}</span>`:''}${chips}${lc?`<span class="chip" style="background:#EAF3DE">🔗 ${lc}</span>`:''}</div></div>`;
+    const displayDate=formatDate(n.date);
+    return `<div class="card" data-id="${n.id}"><div class="sel-check"></div><div class="cbar" style="background:${tp.color}"></div><div class="ctop"><span class="ctag" style="background:${tp.color}">${tp.label}</span><span class="cdate">${displayDate}</span></div><div class="ctitle">${hl(n.title,q)}</div><div class="cbody">${n.body}</div><div class="cfoot"><span class="chip" style="background:${lightC(sb2.color)};color:${darkC(sb2.color)}">${sb2.label}</span>${n.chapter?`<span class="chip" style="background:#E6F1FB;color:#0C447C">${ch2.label}</span>`:''}${chips}${lc?`<span class="chip" style="background:#EAF3DE">🔗 ${lc}</span>`:''}</div></div>`;
   }).join('');
   grid.querySelectorAll('.card').forEach(c=>{
     const id=parseInt(c.dataset.id);
@@ -309,7 +322,6 @@ function openForm(isEdit) {
 }
 function closeForm() { g('fp').classList.remove('open'); }
 
-// ---- 表單內嵌關聯面板 ----
 function buildInlineLinksPanel() {
   renderFormLinks();
   const searchEl=g('fl-search');
@@ -378,7 +390,7 @@ function renderTagLists() {
 function renderTagList(cid,arr,kind) {
   const el=g(cid);
   if(!arr.length){el.innerHTML='<div style="color:#bbb;font-size:13px;padding:8px 0">（尚無標籤）</div>';return;}
-  el.innerHTML=arr.map((item,idx)=>`<div class="tag-item"><div class="tag-color-dot" style="background:${item.color}"></div><span class="tag-item-label">${item.label}</span><button class="tag-edit-btn" data-idx="${idx}" data-kind="${kind}">編輯</button><button class="tag-del-btn" data-idx="${idx}" data-kind="${kind}">刪除</button></div>`).join('');
+  el.innerHTML=arr.map((item,idx)=>`<div class="tag-item"><div class="tag-color-dot" style="background:${item.color}"></div><span class="tag-item-label">${item.label}</span><button class="tag-edit-btn" data-idx="${idx}" data-kind="${kind}">編輯</button><button class="tag-del-btn" data-idx="${idx}" data-kind="${kind}">刪</button></div>`).join('');
   el.querySelectorAll('.tag-edit-btn').forEach(b=>b.addEventListener('click',()=>editTag(parseInt(b.dataset.idx),b.dataset.kind)));
   el.querySelectorAll('.tag-del-btn').forEach(b=>b.addEventListener('click',()=>deleteTag(parseInt(b.dataset.idx),b.dataset.kind)));
 }
@@ -386,8 +398,8 @@ function renderChapterTagList() {
   const el=g('chapterTagList'); if(!el) return;
   if(!chapters.length){el.innerHTML='<div style="color:#bbb;font-size:13px;padding:8px 0">（尚無章節）</div>';return;}
   el.innerHTML=chapters.map((item,idx)=>{
-    const subLabel=item.subject==='all'?'全部科目':subByKey(item.subject).label;
-    return `<div class="tag-item"><div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;"><span class="tag-item-label">${item.label}</span><span style="font-size:11px;color:#888;">${subLabel}</span></div><button class="tag-edit-btn" data-idx="${idx}" data-kind="chapter">編輯</button><button class="tag-del-btn" data-idx="${idx}" data-kind="chapter">刪除</button></div>`;
+    const subLabel=item.subject==='all'?'全部':subByKey(item.subject).label;
+    return `<div class="tag-item"><div style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:0;"><span class="tag-item-label">${item.label}</span><span style="font-size:10px;color:#aaa;">${subLabel}</span></div><button class="tag-edit-btn" data-idx="${idx}" data-kind="chapter">編輯</button><button class="tag-del-btn" data-idx="${idx}" data-kind="chapter">刪</button></div>`;
   }).join('');
   el.querySelectorAll('.tag-edit-btn').forEach(b=>b.addEventListener('click',()=>editTag(parseInt(b.dataset.idx),b.dataset.kind)));
   el.querySelectorAll('.tag-del-btn').forEach(b=>b.addEventListener('click',()=>deleteTag(parseInt(b.dataset.idx),b.dataset.kind)));
@@ -430,11 +442,9 @@ function deleteTag(idx,kind) {
   arr.splice(idx,1);saveData();renderTagLists();rebuildUI();render();showToast('標籤已刪除');
 }
 
-// ★ 修復：addTag 章節新增確保 subject select 值正確讀取
 function addTag(kind) {
   if(kind==='chapter'){
     const label=(g('newChapterLabel').value||'').trim();
-    // 直接從 select DOM 讀取，不依賴快取
     const subjectSel=g('newChapterSubject');
     const subject=subjectSel?(subjectSel.value||'all'):'all';
     if(!label){showToast('請輸入章節名稱');return;}
@@ -468,18 +478,25 @@ function importData(file) {
   reader.onload=e=>{
     try {
       const d=JSON.parse(e.target.result); if(!d.notes) throw new Error();
-      d.notes.forEach(n=>{if(!n.dispute)n.dispute='';if(!n.f_article)n.f_article='';if(!n.f_elements)n.f_elements='';if(!n.f_conclusion)n.f_conclusion='';if(!n.tags)n.tags=[];if(!n.detail)n.detail='';if(typeof n.chapter!=='string')n.chapter='';if(!Array.isArray(n.todos))n.todos=[];});
+      // ★ 修復匯入日期格式
+      d.notes.forEach(n=>{
+        if(!n.dispute)n.dispute='';if(!n.f_article)n.f_article='';if(!n.f_elements)n.f_elements='';if(!n.f_conclusion)n.f_conclusion='';
+        if(!n.tags)n.tags=[];if(!n.detail)n.detail='';if(typeof n.chapter!=='string')n.chapter='';if(!Array.isArray(n.todos))n.todos=[];
+        n.date=formatDate(n.date)||'1970-01-01';
+      });
       if(d.links) d.links.forEach(l=>{l.rel='關聯';l.color=LINK_COLOR;});
-      if(confirm('確定 = 完整覆蓋（取代所有現有筆記）\n取消 = 合併（只加入新筆記）')) {
-        notes=d.notes;links=d.links||[];types=d.types||DEFAULTS.types.slice();subjects=d.subjects||DEFAULTS.subjects.slice();chapters=d.chapters||DEFAULTS.chapters.slice();
+      if(confirm('確定 = 完整覆蓋（取代所有現有筆記，保留現有科目/章節設定）\n取消 = 合併（只加入新筆記）')) {
+        // ★ 覆蓋模式：不覆蓋 types/subjects/chapters
+        notes=d.notes;links=d.links||[];
         nodeSizes=d.nodeSizes||{};mapCenterNodeId=d.mapCenterNodeId||null;
         nid=d.nid||notes.length+100;lid=d.lid||10;notes.sort((a,b)=>b.id-a.id);
         normalizeNoteIds(true);
         saveData();rebuildUI();render();showToast(`已覆蓋，共 ${notes.length} 筆筆記`);
       } else {
+        // ★ 合併模式：同樣不覆蓋 types/subjects/chapters
         const existing=notes.map(n=>n.id);let added=0;
         d.notes.forEach(n=>{if(!existing.includes(n.id)){notes.push(n);added++;if(n.id>=nid)nid=n.id+1;}});
-        if(d.links)links=d.links;if(d.types)types=d.types;if(d.subjects)subjects=d.subjects;if(d.chapters)chapters=d.chapters;
+        if(d.links)links=d.links;
         if(d.nodeSizes)nodeSizes={...nodeSizes,...d.nodeSizes};if(d.mapCenterNodeId)mapCenterNodeId=d.mapCenterNodeId;
         notes.sort((a,b)=>b.id-a.id);normalizeNoteIds(true);saveData();rebuildUI();render();showToast(`已合併，新增 ${added} 筆`);
       }
@@ -518,10 +535,10 @@ function execShortcut(id) {
     map:()=>{if(!isMapOpen)toggleMapView(true);},back:()=>{if(isMapOpen)toggleMapView(false);},
     close:()=>{if(g('scp').style.display==='block')closeShortcutMgr();else if(g('tp').classList.contains('open'))g('tp').classList.remove('open');else if(g('fp').classList.contains('open'))closeForm();else if(g('dp').classList.contains('open'))closeDetail();},
     edit:()=>{if(openId&&g('dp').classList.contains('open'))openForm(true);},link:()=>{if(openId&&g('dp').classList.contains('open'))openForm(true);},
-    export:()=>exportData(),flash:()=>{if(!isMapOpen)openFlash();},stats:()=>{if(!isMapOpen)openStats();},shortcuts:()=>openShortcutMgr()
+    export:()=>exportData(),stats:()=>{if(!isMapOpen)openStats();},shortcuts:()=>openShortcutMgr()
   };
   if(map[id]) map[id]();
-  showShortcutHint({new:'新增筆記',search:'搜尋',map:'開啟體系圖',back:'返回筆記列表',close:'關閉',edit:'編輯筆記',link:'新增關聯',export:'匯出備份',flash:'複習模式',stats:'統計',shortcuts:'快捷鍵設定'}[id]);
+  showShortcutHint({new:'新增筆記',search:'搜尋',map:'開啟體系圖',back:'返回筆記列表',close:'關閉',edit:'編輯筆記',link:'新增關聯',export:'匯出備份',stats:'統計',shortcuts:'快捷鍵設定'}[id]);
 }
 function showShortcutHint(t){ const h=g('scHint');h.textContent=t;h.style.display='block';clearTimeout(h._t);h._t=setTimeout(()=>h.style.display='none',1800); }
 
@@ -530,7 +547,7 @@ function toggleMapView(open) {
   g('notesView').style.display=open?'none':'block';
   g('mapView').classList.toggle('open',open);
   g('subbar').style.display=open?'none':'flex';
-  g('chapterbar').style.display=open?'none':'flex';
+  g('chapterbar').style.display=open?'none':'';
   g('sortBar').style.display=open?'none':'';
   g('search-results-bar').style.display=open?'none':'';
   if(open){
@@ -559,63 +576,6 @@ function openStats() {
   sp.innerHTML=html;sp.classList.add('open');setTimeout(()=>sp.scrollIntoView({behavior:'smooth',block:'nearest'}),60);
 }
 
-// ==================== 複習模式 ====================
-function buildFlashDeck() {
-  let pool=notes.filter(n=>(flashSubFilter==='all'||n.subject===flashSubFilter)&&(flashTypeFilter2==='all'||n.type===flashTypeFilter2));
-  for(let i=pool.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
-  flashDeck=pool;flashIdx=0;flashShowing=false;flashHard=[];
-}
-function openFlash() {
-  const fs=g('flashFilter');fs.innerHTML='<option value="all">全部科目</option>'+subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join('');fs.value=flashSubFilter;
-  const ftf=g('flashTypeFilter');if(ftf){ftf.innerHTML='<option value="all">全部類型</option>'+types.map(t=>`<option value="${t.key}">${t.label}</option>`).join('');ftf.value=flashTypeFilter2;}
-  buildFlashDeck();if(flashDeck.length===0){showToast('此科目沒有筆記');return;}
-  g('notesView').style.display='none';g('flashView').classList.add('open');renderFlashCard();
-}
-function closeFlash() { g('flashView').classList.remove('open');g('notesView').style.display='block'; }
-function updateFlashProgress() { const total=flashDeck.length,pct=total>0?Math.round(flashIdx/total*100):0;g('flashProgress').textContent=`第 ${flashIdx} / ${total} 張，${flashHard.length}張不熟`;g('flashProgressFill').style.width=`${pct}%`; }
-function renderFlashCard() {
-  const body=g('flashBody');
-  if(flashIdx>=flashDeck.length){
-    const hc=flashHard.length;
-    body.innerHTML=`<div class="flash-done"><div class="flash-done-num">${Math.round((flashDeck.length-hc)/Math.max(flashDeck.length,1)*100)}%</div><div class="flash-done-label">熟練率</div><div class="flash-done-sub">${flashDeck.length}張中，${hc}張不熟</div><div style="display:flex;gap:10px;margin-top:24px;justify-content:center;">${hc>0?'<button class="flash-btn flash-btn-hard" style="flex:0;padding:12px 20px;" id="reviewHardBtn">🔂 再練不熟</button>':''}<button class="flash-btn flash-btn-ok" style="flex:0;padding:12px 20px;" id="restartAllBtn">↺ 重新開始</button></div></div>`;
-    on('reviewHardBtn','click',()=>{flashDeck=flashHard.slice();flashIdx=0;flashShowing=false;flashHard=[];renderFlashCard();});
-    on('restartAllBtn','click',()=>{buildFlashDeck();renderFlashCard();});
-    updateFlashProgress();return;
-  }
-  const n=flashDeck[flashIdx],tp=typeByKey(n.type),sb=subByKey(n.subject);
-  if(!flashShowing){
-    body.innerHTML=`<div class="flash-card" id="flashCard"><div><div class="flash-front-label">請回想此筆記的內容</div><div class="flash-front-title">${n.title}</div><div class="flash-front-sub"><span class="chip" style="background:${tp.color}22;color:${tp.color}">${tp.label}</span><span class="chip" style="background:${sb.color}22;color:${sb.color}">${sb.label}</span></div></div><div class="flash-hint">點擊或向右滑動翻面</div></div>`;
-    const fc=g('flashCard');
-    fc.addEventListener('click',()=>{flashShowing=true;fc.classList.add('flipping');setTimeout(()=>renderFlashCard(),180);});
-    const swipeFn=dir=>{if(dir==='right'){flashShowing=true;fc.classList.add('flipping');setTimeout(()=>renderFlashCard(),180);}};
-    let tx=0,ty=0,startX=0,startY=0,tracking=false;
-    fc.addEventListener('touchstart',e=>{startX=e.touches[0].clientX;startY=e.touches[0].clientY;tracking=true;tx=0;ty=0;},{passive:true});
-    fc.addEventListener('touchmove',e=>{if(!tracking)return;tx=e.touches[0].clientX-startX;ty=e.touches[0].clientY-startY;if(Math.abs(tx)>8&&Math.abs(tx)>Math.abs(ty)*1.2){fc.style.transform=`translateX(${tx*.4}px) rotate(${tx*.03}deg)`;fc.style.opacity=1-Math.abs(tx)/500;}},{passive:true});
-    fc.addEventListener('touchend',()=>{fc.style.transform='';fc.style.opacity='';if(Math.abs(tx)>60&&Math.abs(tx)>Math.abs(ty)*1.2)swipeFn(tx>0?'right':'left');tracking=false;tx=0;ty=0;});
-  } else {
-    const hasT=n.dispute||n.f_article||n.f_elements||n.f_conclusion;
-    let bc='';
-    if(hasT){
-      if(n.dispute)bc+=`<div class="dispute-section"><div class="dispute-section-title">爭點</div><div class="dispute-section-body">${n.dispute}</div></div>`;
-      if(n.f_article)bc+=`<div class="dispute-section" style="border-color:#1D9E75"><div class="dispute-section-title" style="color:#1D9E75">適用法條</div><div class="dispute-section-body">${n.f_article}</div></div>`;
-      if(n.f_elements)bc+=`<div class="dispute-section" style="border-color:#7F77DD"><div class="dispute-section-title" style="color:#7F77DD">構成要件</div><div class="dispute-section-body">${n.f_elements}</div></div>`;
-      if(n.f_conclusion)bc+=`<div class="dispute-section" style="border-color:#D85A30"><div class="dispute-section-title" style="color:#D85A30">結論</div><div class="dispute-section-body">${n.f_conclusion}</div></div>`;
-    }else{bc=`<div class="flash-back-body">${n.body}</div>`+(n.detail?`<div class="flash-back-detail">${n.detail}</div>`:'');}
-    body.innerHTML=`<div class="flash-card" id="flashCardBack"><div><div class="flash-back-label">答案</div>${bc}</div></div><div class="flash-btns"><button class="flash-btn flash-btn-hard" id="fbHard">😠 不熟</button><button class="flash-btn flash-btn-ok" id="fbOk">✅ 記住了</button></div>`;
-    const doHard=()=>{const card=g('flashCardBack');if(card){card.classList.add('swipe-left');setTimeout(()=>{flashHard.push(flashDeck[flashIdx]);flashIdx++;flashShowing=false;renderFlashCard();updateFlashProgress();},300);}else{flashHard.push(flashDeck[flashIdx]);flashIdx++;flashShowing=false;renderFlashCard();updateFlashProgress();}};
-    const doOk=()=>{const card=g('flashCardBack');if(card){card.classList.add('swipe-right');setTimeout(()=>{flashIdx++;flashShowing=false;renderFlashCard();updateFlashProgress();},300);}else{flashIdx++;flashShowing=false;renderFlashCard();updateFlashProgress();}};
-    g('fbHard').addEventListener('click',doHard);g('fbOk').addEventListener('click',doOk);
-    const fcb=g('flashCardBack');
-    if(fcb){
-      let tx=0,ty=0,startX=0,startY=0,tracking=false;
-      fcb.addEventListener('touchstart',e=>{startX=e.touches[0].clientX;startY=e.touches[0].clientY;tracking=true;tx=0;ty=0;},{passive:true});
-      fcb.addEventListener('touchmove',e=>{if(!tracking)return;tx=e.touches[0].clientX-startX;ty=e.touches[0].clientY-startY;if(Math.abs(tx)>8&&Math.abs(tx)>Math.abs(ty)*1.2){fcb.style.transform=`translateX(${tx*.4}px) rotate(${tx*.03}deg)`;fcb.style.opacity=1-Math.abs(tx)/500;}},{passive:true});
-      fcb.addEventListener('touchend',()=>{fcb.style.transform='';fcb.style.opacity='';if(Math.abs(tx)>60&&Math.abs(tx)>Math.abs(ty)*1.2)tx>0?doOk():doHard();tracking=false;tx=0;ty=0;});
-    }
-  }
-  updateFlashProgress();
-}
-
 // ==================== 多選 ====================
 function enterMultiSel() { multiSelMode=true;selectedIds={};g('selectBar').classList.add('open');g('multiSelBtn').style.background='#1a1a2e';g('multiSelBtn').style.color='#fff';['dp','fp'].forEach(p=>g(p).classList.remove('open'));updateSelBar();render(); }
 function exitMultiSel() { multiSelMode=false;selectedIds={};g('selectBar').classList.remove('open');g('multiSelBtn').style.background='#f0f0f0';g('multiSelBtn').style.color='';render(); }
@@ -641,7 +601,7 @@ function renderExamList() {
   el.querySelectorAll('[data-del]').forEach(btn=>btn.addEventListener('click',ev=>{ev.stopPropagation();examList.splice(parseInt(btn.dataset.del),1);saveExams();renderExamList();}));
 }
 function startExam(exam) {
-  currentExam=exam;g('examListPanel').classList.remove('open');g('notesView').style.display='none';g('flashView').classList.remove('open');g('examView').classList.add('open');
+  currentExam=exam;g('examListPanel').classList.remove('open');g('notesView').style.display='none';g('examView').classList.add('open');
   g('examBody').style.display='flex';g('examResult').style.display='none';
   g('examQuestionDisplay').textContent=exam.question;g('examIssueChips').innerHTML=(exam.issues||[]).map(iss=>`<span class="exam-issue-chip">${iss}</span>`).join('');
   g('examAnswerBox').value='';g('examWordCount').textContent='0 字';g('examHeaderTitle').textContent=`✒️ ${subByKey(exam.subject).label}`;
@@ -696,7 +656,6 @@ function pushNodeOffLinks(nodeId,visLinks,pad=0){
   visLinks.forEach(lk=>{if(lk.from===nodeId||lk.to===nodeId)return;const a=nodePos[lk.from],b=nodePos[lk.to];if(!a||!b)return;const hit=pointToSegmentDistance(pos.x,pos.y,a.x,a.y,b.x,b.y);if(hit.dist<need){const push=need-hit.dist+.8;pos.x+=hit.nx*push;pos.y+=hit.ny*push;clampNodeToCanvas(nodeId);moved=true;}});
   return moved;
 }
-
 function forceLayout() {
   const canvas=g('mapCanvas');mapW=canvas.offsetWidth||800;mapH=canvas.offsetHeight||600;
   const layoutNotes=visibleNotes(),visIds={};layoutNotes.forEach(n=>visIds[n.id]=true);
@@ -737,7 +696,6 @@ function forceLayout() {
   }
   saveDataDeferred();
 }
-
 function visibleLinks(visIds){ return links.filter(lk=>visIds[lk.from]&&visIds[lk.to]); }
 function buildLinkCurveOffsets(visLinks){
   const groups={},spacing=12,laneOrder2=idx=>idx===0?0:(idx%2===1?(idx+1)/2:-(idx/2));
@@ -763,7 +721,6 @@ function calcLinkPath(lk){
   for(let step=1;step<=steps;step++){const t=step/steps,tx=x1+(x2-x1)*t,ty=y1+(y2-y1)*t+bundleShift,c1x=sx+36*dir,c2x=tx-36*dir;d+=` C${c1x},${sy} ${c2x},${ty} ${tx},${ty}`;sx=tx;sy=ty;}
   return{d};
 }
-
 function moveNodeEl(id,x,y){
   const grp=nodeEls[id];if(!grp)return;
   const mainCircle=grp.querySelector('circle.node-main'),r=parseFloat(mainCircle?mainCircle.getAttribute('r'):24)||24;
@@ -780,7 +737,6 @@ function redrawLines(affectedId){
     if(!visIds[lk.from]||!visIds[lk.to])return;const c=calcLinkPath(lk);if(!c)return;els.p.setAttribute('d',c.d);
   });
 }
-
 function visibleNotes(){
   const q=(mapFilter.q||'').toLowerCase(),linkedIds={};
   if(mapLinkedOnly)links.forEach(l=>{linkedIds[l.from]=true;linkedIds[l.to]=true;});
@@ -801,7 +757,6 @@ function visibleNotes(){
   return base.filter(n=>seen[n.id]!==undefined);
 }
 function scheduleMapRedraw(ms=60){ if(mapRedrawTimer)clearTimeout(mapRedrawTimer);if(mapTimer)clearTimeout(mapTimer);mapRedrawTimer=setTimeout(()=>drawMap(),ms);mapTimer=mapRedrawTimer; }
-
 function drawMap(){
   if(!isMapOpen)return;
   const canvas=g('mapCanvas'),svg=g('mapSvg'),linksLayer=g('linksLayer'),nodesLayer=g('nodesLayer');
@@ -851,7 +806,6 @@ function drawMap(){
   });
   applyFocusStyles();
 }
-
 function openMapPopup(id){
   const popup=g('mapPopup'),pos=nodePos[id];if(!popup||!pos)return;
   const maxLeft=Math.max(8,mapW-320),maxTop=Math.max(8,mapH-250);
@@ -933,13 +887,10 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
 // ==================== 初始化 ====================
 window.addEventListener('load',()=>{
   loadData();rebuildUI();
-  g('sortSelect').value=sortMode;g('sortSelect').addEventListener('change',()=>{sortMode=g('sortSelect').value;gridPage=1;render();});
+  g('sortSelect').value=sortMode;g('sortSelect').addEventListener('change',()=>{sortMode=g('sortSelect').value;gridPage=1;render();saveData();});
   g('multiSelBtn').addEventListener('click',()=>multiSelMode?exitMultiSel():enterMultiSel());
   g('selAllBtn').addEventListener('click',selectAll);g('selDeleteBtn').addEventListener('click',deleteSelected);g('selCancelBtn').addEventListener('click',exitMultiSel);
-  on('statsBtn','click',openStats);on('flashBtn','click',openFlash);on('flashBackBtn','click',closeFlash);
-  on('flashShuffleBtn','click',()=>{buildFlashDeck();renderFlashCard();});on('flashRestartBtn','click',()=>{buildFlashDeck();renderFlashCard();});
-  on('flashFilter','change',()=>{flashSubFilter=g('flashFilter').value;buildFlashDeck();renderFlashCard();});
-  on('flashTypeFilter','change',()=>{flashTypeFilter2=g('flashTypeFilter').value;buildFlashDeck();renderFlashCard();});
+  on('statsBtn','click',openStats);
   on('ft','change',()=>{toggleTemplate(g('ft').value==='case');toggleDiaryTodo(g('ft').value==='diary');});
   on('fs2','change',()=>syncChapterSelect(g('fs2').value,''));
   const si=g('searchInput'),sc=g('searchClear');

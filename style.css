@@ -137,6 +137,9 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 .lane-panel-title{font-size:14px;font-weight:700;color:#1f2937}
 .lane-panel-desc{font-size:11px;color:#777;margin-bottom:8px;line-height:1.5}
 #laneContextLabel{font-size:11px;color:#0C447C;background:#E6F1FB;border:1px solid #B5D4F4;border-radius:8px;padding:6px 8px;margin-bottom:10px}
+.lane-count-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}
+.lane-count-row label{font-size:11px;color:#666;font-weight:600}
+.lane-count-row input{width:82px;padding:5px 7px;border:1px solid #ddd;background:#f8f8f8;border-radius:8px;font-size:12px;text-align:center}
 #laneInputs{display:flex;flex-direction:column;gap:7px;max-height:270px;overflow:auto}
 .lane-input-row{display:flex;align-items:center;gap:8px}
 .lane-input-row label{width:60px;font-size:11px;color:#666;flex-shrink:0}

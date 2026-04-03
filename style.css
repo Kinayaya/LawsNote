@@ -65,8 +65,9 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 .dp-txt{font-size:13px;color:#444;line-height:1.8;white-space:pre-wrap;word-break:break-word}
 .dp-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
 .action-row{display:flex;gap:8px;margin-top:16px}
-.edit-btn,.del-btn{flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+.edit-btn,.dup-btn,.del-btn{flex:1;padding:9px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
 .edit-btn{background:#E6F1FB;color:#0C447C;border:1px solid #B5D4F4}
+.dup-btn{background:#EEF7FF;color:#1E5AA5;border:1px solid #C8DEFA}
 .del-btn{background:#FFF0F0;color:#D92B2B;border:1px solid #FFCDD2}
 
 /* Form */

@@ -428,6 +428,41 @@ function duplicateNote() {
   showToast('已複製筆記');
   setTimeout(()=>{window.scrollTo(0,0);setTimeout(()=>openNote(newNote.id),220);},80);
 }
+async function copyNoteToClipboard() {
+  if(!openId){showToast('請先開啟要複製的筆記');return;}
+  const n=noteById(openId);
+  if(!n){showToast('找不到要複製的筆記');return;}
+  const tagText=noteTags(n).join('、')||'無';
+  const text=[
+    n.title||'（未命名）',
+    '',
+    '摘要',
+    n.body||'',
+    '',
+    '詳細筆記',
+    n.detail||'',
+    '',
+    `標籤：${tagText}`
+  ].join('\n');
+  try{
+    if(navigator.clipboard?.writeText){
+      await navigator.clipboard.writeText(text);
+    }else{
+      const ta=document.createElement('textarea');
+      ta.value=text;
+      ta.setAttribute('readonly','');
+      ta.style.position='fixed';
+      ta.style.opacity='0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    showToast('已複製筆記內容');
+  }catch(_err){
+    showToast('複製失敗，請稍後再試');
+  }
+}
 function deleteNote() { if(!openId||!confirm('確定刪除這筆筆記？相關關聯也會一起刪除。')) return; links=links.filter(l=>l.from!==openId&&l.to!==openId);notes=notes.filter(n=>n.id!==openId);saveData();closeDetail();render();showToast('已刪除'); }
 function toggleDiaryTodo(show) { const box=g('diaryTodoWrap'); if(box) box.style.display=show?'block':'none'; }
 
@@ -968,6 +1003,7 @@ function resetLanePanel(){ const cfg=getLaneConfig();mapLaneConfigs[cfg.key]={co
 function bindCoreButtons(){
   const bind=(id,fn)=>{const el=g(id);if(el)el.onclick=fn;};
   bind('addBtn',()=>openForm(false));bind('editBtn',()=>openForm(true));
+  bind('copyBtn',copyNoteToClipboard);
   bind('dupBtn',duplicateNote);
   bind('dpClose',closeDetail);bind('fpClose',closeForm);bind('fpCancel',closeForm);
   bind('fpSave',saveNote);bind('delBtn',deleteNote);

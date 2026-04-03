@@ -78,13 +78,6 @@
       <div><label class="flbl" style="margin-top:0">章節</label><select class="fs" id="fc"></select></div>
     </div>
     <label class="flbl">標題</label>
-    <div id="templateToggle" style="display:none;background:#E6F1FB;border-radius:10px;padding:10px 12px;margin-bottom:10px;">
-      <div style="font-size:11px;font-weight:600;color:#0C447C;margin-bottom:8px;">&#128196; 爭點答題模板</div>
-      <label class="flbl" style="margin-top:0">爭點</label><input class="fi" id="f-dispute" placeholder="例：甲是否構成侵權行為？">
-      <label class="flbl">適用法條</label><input class="fi" id="f-article" placeholder="例：民法第 184 條第 1 項">
-      <label class="flbl">構成要件分析</label><textarea class="ft" id="f-elements" placeholder="逐一分析各構成要件..." style="min-height:72px;"></textarea>
-      <label class="flbl">結論</label><input class="fi" id="f-conclusion" placeholder="例：甲應負損害賠償責任。">
-    </div>
     <input class="fi" id="fti" placeholder="例：民法第 184 條">
     <label class="flbl">摘要</label>
     <textarea class="ft" id="fbo" placeholder="條文或重點摘要..."></textarea>
@@ -181,6 +174,7 @@
       <div class="lane-panel-head"><span class="lane-panel-title">泳道設定</span><button class="pcls" id="lanePanelClose">&#215;</button></div>
       <div class="lane-panel-desc">可依「目前科目/類型篩選」分開設定泳道名稱。</div>
       <div id="laneContextLabel"></div>
+      <div class="lane-count-row"><label for="laneCountInput">泳道數量</label><input id="laneCountInput" type="number" min="2" max="10" value="5"></div>
       <div id="laneInputs"></div>
       <div class="lane-panel-actions">
         <button class="fbtn bcl" id="laneResetBtn">恢復預設</button>

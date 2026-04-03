@@ -74,15 +74,19 @@ const saveAiKey = k => localStorage.setItem('klaws_ai_key',k);
 const getAiModel = () => localStorage.getItem('klaws_ai_model')||'openrouter/free';
 const saveAiModel = m => localStorage.setItem('klaws_ai_model',m);
 const MAP_NODE_RADIUS_MIN=15, MAP_NODE_RADIUS_MAX=100, MAP_NODE_RADIUS_DEFAULT=15;
-const DEFAULT_LANE_NAMES=['構成前提','行為判斷','違法/責任','法律效果','法條落點'];
+const DEFAULT_LANE_NAMES=['法條','構成要件','違法性','罪責','其它'];
+const MIN_LANE_COUNT=2, MAX_LANE_COUNT=10;
 const clampMapRadius = r => Math.max(MAP_NODE_RADIUS_MIN,Math.min(MAP_NODE_RADIUS_MAX,r));
 const laneContextKey = () => `${mapFilter.sub||'all'}::${mapFilter.type||'all'}`;
+const defaultLaneNameAt = idx => DEFAULT_LANE_NAMES[idx]||`泳道 ${idx+1}`;
+const normalizeLaneCount = v => Math.max(MIN_LANE_COUNT,Math.min(MAX_LANE_COUNT,parseInt(v,10)||DEFAULT_LANE_NAMES.length));
 const getLaneConfig = () => {
   const key=laneContextKey();
-  if(!mapLaneConfigs[key]||!Array.isArray(mapLaneConfigs[key].names)) mapLaneConfigs[key]={names:DEFAULT_LANE_NAMES.slice()};
-  const names=mapLaneConfigs[key].names.slice(0,DEFAULT_LANE_NAMES.length);
-  while(names.length<DEFAULT_LANE_NAMES.length) names.push(DEFAULT_LANE_NAMES[names.length]);
-  return {key,names};
+const raw=mapLaneConfigs[key]||{};
+  const count=normalizeLaneCount(raw.count||((Array.isArray(raw.names)&&raw.names.length)||DEFAULT_LANE_NAMES.length));
+  const names=Array.from({length:count},(_,idx)=>((raw.names&&raw.names[idx])||'').trim()||defaultLaneNameAt(idx));
+  mapLaneConfigs[key]={count,names};
+  return {key,count,names};
 };
 const splitMapTitleLines = (title,max=8) => { const s=String(title||'').trim(); if(!s) return ['（未命名）']; const r=[]; for(let i=0;i<s.length;i+=max) r.push(s.slice(i,i+max)); return r; };
 const parseTodos = raw => (raw||'').split('\n').map(x=>x.trim()).filter(Boolean).map(line=>({text:line.replace(/^\[(x|X| )\]\s*/,''),done:/^\[(x|X)\]/.test(line)})).filter(x=>x.text);
@@ -275,12 +279,7 @@ function openNote(id) {
   const tp=typeByKey(n.type),sb=subByKey(n.subject);
   g('dp-badge').textContent=tp.label; g('dp-badge').style.background=tp.color;
   g('dp-title').textContent=n.title; g('dp-body').textContent=n.body;
-  const dh=[];
-  if(n.dispute) dh.push(`<div class="dispute-section"><div class="dispute-section-title">爭點</div><div class="dispute-section-body">${n.dispute}</div></div>`);
-  if(n.f_article) dh.push(`<div class="dispute-section" style="border-color:#1D9E75"><div class="dispute-section-title" style="color:#1D9E75">適用法條</div><div class="dispute-section-body">${n.f_article}</div></div>`);
-  if(n.f_elements) dh.push(`<div class="dispute-section" style="border-color:#7F77DD"><div class="dispute-section-title" style="color:#7F77DD">構成要件</div><div class="dispute-section-body">${n.f_elements}</div></div>`);
-  if(n.f_conclusion) dh.push(`<div class="dispute-section" style="border-color:#D85A30"><div class="dispute-section-title" style="color:#D85A30">結論</div><div class="dispute-section-body">${n.f_conclusion}</div></div>`);
-  g('dp-detail').innerHTML=dh.length?dh.join('')+(n.detail?`<div class="dp-lbl" style="margin-top:14px;">補充筆記</div><div class="dp-txt">${n.detail}</div>`:''):(n.detail||'（尚無詳細筆記）');
+  g('dp-detail').innerHTML=n.detail||'（尚無詳細筆記）';
   const todoWrap=g('dp-todo'),todoLabel=g('dp-todo-label');
   if(n.type==='diary'){todoLabel.style.display='block';todoWrap.style.display='block';todoWrap.innerHTML=renderTodoHtml(n.todos);}
   else{todoLabel.style.display='none';todoWrap.style.display='none';todoWrap.innerHTML='';}
@@ -313,13 +312,10 @@ function openForm(isEdit) {
     g('ft').value=n.type;g('fs2').value=n.subject;syncChapterSelect(n.subject,n.chapter||'');g('fti').value=n.title;g('fbo').value=n.body;
     g('fde').value=n.detail||'';g('fta').value=noteTags(n).join(', ');
     if(g('f-todos')) g('f-todos').value=formatTodosForEdit(n.todos);
-    ['f-dispute','f-article','f-elements','f-conclusion'].forEach((id,i)=>{const el=g(id);if(el)el.value=[n.dispute,n.f_article,n.f_elements,n.f_conclusion][i]||'';});
-    toggleTemplate(n.type==='case'||(n.dispute||n.f_article));
     toggleDiaryTodo(n.type==='diary');
   } else {
     g('form-title').textContent='新增筆記';
-    ['fti','fbo','fde','fta','f-dispute','f-article','f-elements','f-conclusion','f-todos'].forEach(id=>{const el=g(id);if(el)el.value='';});
-    toggleTemplate(g('ft').value==='case');
+  ['fti','fbo','fde','fta','f-todos'].forEach(id=>{const el=g(id);if(el)el.value='';});
     toggleDiaryTodo(g('ft').value==='diary');
   }
   buildInlineLinksPanel();
@@ -395,21 +391,19 @@ function saveNote() {
   g('fti').style.borderColor='';
   const tags=(g('fta').value||'').split(',').map(t=>t.trim()).filter(Boolean);
   const todos=parseTodos(val('f-todos')||'');
-  const getField=id=>(val(id)||'').trim();
   if(editMode&&openId) {
     const idx=notes.findIndex(n=>n.id===openId);
-    if(idx!==-1) Object.assign(notes[idx],{type:g('ft').value,subject:g('fs2').value,chapter:g('fc').value||'',title,body:(g('fbo').value||'').trim(),detail:(g('fde').value||'').trim(),tags,dispute:getField('f-dispute'),f_article:getField('f-article'),f_elements:getField('f-elements'),f_conclusion:getField('f-conclusion'),todos});
+  if(idx!==-1) Object.assign(notes[idx],{type:g('ft').value,subject:g('fs2').value,chapter:g('fc').value||'',title,body:(g('fbo').value||'').trim(),detail:(g('fde').value||'').trim(),tags,todos});
     saveData();closeForm();render();showToast('筆記已更新！');setTimeout(()=>openNote(openId),150);
   } else {
     const d=new Date(),dt=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    const newNote={id:nid++,type:g('ft').value,subject:g('fs2').value,chapter:g('fc').value||'',title,body:(g('fbo').value||'').trim(),detail:(g('fde').value||'').trim(),tags,date:dt,dispute:getField('f-dispute'),f_article:getField('f-article'),f_elements:getField('f-elements'),f_conclusion:getField('f-conclusion'),todos};
+    const newNote={id:nid++,type:g('ft').value,subject:g('fs2').value,chapter:g('fc').value||'',title,body:(g('fbo').value||'').trim(),detail:(g('fde').value||'').trim(),tags,date:dt,todos};
     notes.unshift(newNote);openId=newNote.id;
     saveData();closeForm();render();showToast('筆記已儲存！');
     setTimeout(()=>{window.scrollTo(0,0);setTimeout(()=>openNote(notes[0].id),300);},100);
   }
 }
 function deleteNote() { if(!openId||!confirm('確定刪除這筆筆記？相關關聯也會一起刪除。')) return; links=links.filter(l=>l.from!==openId&&l.to!==openId);notes=notes.filter(n=>n.id!==openId);saveData();closeDetail();render();showToast('已刪除'); }
-function toggleTemplate(show) { const tt=g('templateToggle'); if(tt) tt.style.display=show?'block':'none'; }
 function toggleDiaryTodo(show) { const box=g('diaryTodoWrap'); if(box) box.style.display=show?'block':'none'; }
 
 // ==================== 標籤管理 ====================
@@ -914,22 +908,44 @@ function ensureLanePanel(){
   const existing=g('lanePanel');if(existing)return existing;
   const canvas=g('mapCanvas');if(!canvas)return null;
   const panel=document.createElement('div');panel.id='lanePanel';
-  panel.innerHTML=`<div class="lane-panel-head"><span class="lane-panel-title">泳道設定</span><button class="pcls" id="lanePanelClose">×</button></div><div class="lane-panel-desc">可依「目前科目/類型篩選」分開設定泳道名稱。</div><div id="laneContextLabel"></div><div id="laneInputs"></div><div class="lane-panel-actions"><button class="fbtn bcl" id="laneResetBtn">恢復預設</button><button class="fbtn bsv" id="laneSaveBtn">儲存</button></div>`;
+  panel.innerHTML=`<div class="lane-panel-head"><span class="lane-panel-title">泳道設定</span><button class="pcls" id="lanePanelClose">×</button></div><div class="lane-panel-desc">可依「目前科目/類型篩選」分開設定泳道名稱。</div><div id="laneContextLabel"></div><div class="lane-count-row"><label for="laneCountInput">泳道數量</label><input id="laneCountInput" type="number" min="${MIN_LANE_COUNT}" max="${MAX_LANE_COUNT}" value="${DEFAULT_LANE_NAMES.length}"></div><div id="laneInputs"></div><div class="lane-panel-actions"><button class="fbtn bcl" id="laneResetBtn">恢復預設</button><button class="fbtn bsv" id="laneSaveBtn">儲存</button></div>`;
   canvas.appendChild(panel);on('lanePanelClose','click',closeLanePanel);on('laneSaveBtn','click',saveLanePanel);on('laneResetBtn','click',resetLanePanel);return panel;
 }
 function renderLanePanel(){
   const panel=ensureLanePanel(),ctx=g('laneContextLabel'),inputs=g('laneInputs');if(!panel||!ctx||!inputs)return;
   const cfg=getLaneConfig();ctx.textContent=`${laneContextLabelText()}（獨立泳道設定）`;
+  const laneCountInput=g('laneCountInput');
+  if(laneCountInput){
+    laneCountInput.value=String(cfg.count);
+    laneCountInput.onchange=()=>{
+      const nextCount=normalizeLaneCount(laneCountInput.value);
+      const currNames=Array.from(inputs.querySelectorAll('input[data-idx]')).map((el,idx)=>(el.value||'').trim()||defaultLaneNameAt(idx));
+      const nextNames=Array.from({length:nextCount},(_,idx)=>currNames[idx]||defaultLaneNameAt(idx));
+      mapLaneConfigs[cfg.key]={count:nextCount,names:nextNames};
+      renderLanePanel();
+    };
+  }
   inputs.innerHTML=cfg.names.map((name,idx)=>`<div class="lane-input-row"><label>泳道 ${idx+1}</label><input data-idx="${idx}" value="${name}" maxlength="16" placeholder="泳道名稱"></div>`).join('');
 }
 function openLanePanel(){ const panel=ensureLanePanel();if(!panel)return;renderLanePanel();panel.classList.add('open'); }
 function closeLanePanel(){ const panel=g('lanePanel');if(panel)panel.classList.remove('open'); }
 function saveLanePanel(){
   const cfg=getLaneConfig(),inputsWrap=g('laneInputs');if(!inputsWrap)return;
-  const names=Array.from(inputsWrap.querySelectorAll('input[data-idx]')).map((el,idx)=>(el.value||'').trim()||DEFAULT_LANE_NAMES[idx]);
-  mapLaneConfigs[cfg.key]={names};saveDataDeferred();closeLanePanel();nodePos={};forceLayout();drawMap();showToast('已儲存泳道設定');
+const count=normalizeLaneCount(g('laneCountInput')?.value||cfg.count);
+  const names=Array.from({length:count},(_,idx)=>{
+    const el=inputsWrap.querySelector(`input[data-idx="${idx}"]`);
+    return ((el&&el.value)||'').trim()||defaultLaneNameAt(idx);
+  });
+  mapLaneConfigs[cfg.key]={count,names};saveDataDeferred();closeLanePanel();nodePos={};forceLayout();drawMap();showToast('已儲存泳道設定');
 }
-function resetLanePanel(){ const cfg=getLaneConfig();mapLaneConfigs[cfg.key]={names:DEFAULT_LANE_NAMES.slice()};renderLanePanel();saveDataDeferred(); }
+function resetLanePanel(){ const cfg=getLaneConfig();mapLaneConfigs[cfg.key]={count:DEFAULT_LANE_NAMES.length,names:DEFAULT_LANE_NAMES.slice()};renderLanePanel();saveDataDeferred(); }
+
+function bindCoreButtons(){
+  const bind=(id,fn)=>{const el=g(id);if(el)el.onclick=fn;};
+  bind('addBtn',()=>openForm(false));bind('editBtn',()=>openForm(true));
+  bind('dpClose',closeDetail);bind('fpClose',closeForm);bind('fpCancel',closeForm);
+  bind('fpSave',saveNote);bind('delBtn',deleteNote);
+}
 
 // ==================== AI 功能 ====================
 function requireAiKey(action){ const k=getAiKey();if(k){action(k);return;}_aiPendingAction=action;g('aiKeyInput').value='';const sel=g('aiModelSel');if(sel)sel.innerHTML=AI_MODELS.map(m=>`<option value="${m.id}"${m.id===getAiModel()?' selected':''}>${m.label}</option>`).join('');g('aiKeyModal').classList.add('open'); }
@@ -942,14 +958,13 @@ window.addEventListener('load',()=>{
   g('multiSelBtn').addEventListener('click',()=>multiSelMode?exitMultiSel():enterMultiSel());
   g('selAllBtn').addEventListener('click',selectAll);g('selDeleteBtn').addEventListener('click',deleteSelected);g('selCancelBtn').addEventListener('click',exitMultiSel);
   on('statsBtn','click',openStats);
-  on('ft','change',()=>{toggleTemplate(g('ft').value==='case');toggleDiaryTodo(g('ft').value==='diary');});
+  on('ft','change',()=>{toggleDiaryTodo(g('ft').value==='diary');});
   on('fs2','change',()=>syncChapterSelect(g('fs2').value,''));
   const si=g('searchInput'),sc=g('searchClear');
   si.addEventListener('input',debounce(()=>{searchQ=si.value;gridPage=1;sc.style.display=searchQ?'block':'none';render();},250));
   sc.addEventListener('click',()=>{si.value='';searchQ='';gridPage=1;sc.style.display='none';render();si.focus();});
-  g('addBtn').addEventListener('click',()=>openForm(false));g('editBtn').addEventListener('click',()=>openForm(true));
-  g('dpClose').addEventListener('click',closeDetail);g('fpClose').addEventListener('click',closeForm);g('fpCancel').addEventListener('click',closeForm);
-  g('fpSave').addEventListener('click',saveNote);g('delBtn').addEventListener('click',deleteNote);g('exportBtn').addEventListener('click',exportData);
+  bindCoreButtons();
+  g('exportBtn').addEventListener('click',exportData);
   g('tpClose').addEventListener('click',()=>g('tp').classList.remove('open'));
   on('tagSearchInput','input',debounce(()=>{tagSearchQ=(val('tagSearchInput')||'').toLowerCase().trim();renderTagLists();},150));
   on('tagUnusedOnly','change',()=>{tagUnusedOnly=!!g('tagUnusedOnly').checked;renderTagLists();});
@@ -1008,6 +1023,7 @@ window.addEventListener('load',()=>{
   canvas.addEventListener('touchmove',e=>{if(e.touches.length===2&&pinchDist){e.preventDefault();const d=e.touches[0].clientX-e.touches[1].clientX,dd=e.touches[0].clientY-e.touches[1].clientY,nd=Math.sqrt(d*d+dd*dd);setZoom(mapScale*nd/pinchDist);pinchDist=nd;}},{passive:false});
   window.addEventListener('resize',()=>scheduleMapRedraw(100));window.addEventListener('orientationchange',()=>scheduleMapRedraw(120));
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')scheduleMapRedraw(100);});
+  window.addEventListener('pageshow',()=>bindCoreButtons());
   if(window.ResizeObserver){mapResizeObserver=new ResizeObserver(()=>scheduleMapRedraw(60));mapResizeObserver.observe(canvas);}
   g('syncBtn').addEventListener('click',()=>g('syncModal').classList.add('open'));
   g('syncCancelBtn').addEventListener('click',()=>g('syncModal').classList.remove('open'));

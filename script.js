@@ -16,6 +16,7 @@ const DEFAULTS = {
   ]
 };
 const LINK_COLOR = '#378ADD', SKEY = 'legal_notes_v4', PAGE_SIZE = 24;
+const SYNC_KEY = 'klaws_sync_v1', SYNC_FILE = 'klaws_data.json';
 const AI_MODELS = [
   {id:'openrouter/free', label:'🔀 自動選最佳免費模型（推薦）'},
   {id:'meta-llama/llama-3.3-70b-instruct:free', label:'Llama 3.3 70B（Meta）'},
@@ -73,6 +74,68 @@ const getAiKey = () => localStorage.getItem('klaws_ai_key')||'';
 const saveAiKey = k => localStorage.setItem('klaws_ai_key',k);
 const getAiModel = () => localStorage.getItem('klaws_ai_model')||'openrouter/free';
 const saveAiModel = m => localStorage.setItem('klaws_ai_model',m);
+const getSyncConfig = () => { try { return JSON.parse(localStorage.getItem(SYNC_KEY)||'{}'); } catch(e) { return {}; } };
+const saveSyncConfig = cfg => localStorage.setItem(SYNC_KEY,JSON.stringify(cfg||{}));
+const saveSyncConfigFromInputs = () => {
+  const token=(g('syncTokenInput')?.value||'').trim();
+  const gistId=(g('syncGistInput')?.value||'').trim();
+  const autoPush=!!g('syncAutoPush')?.checked;
+  const autoPull=!!g('syncAutoPull')?.checked;
+  if(token&&gistId) saveSyncConfig({token,gistId,autoPush,autoPull});
+};
+const getPayload = () => ({notes,links,nid,lid,types,subjects,chapters,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,updatedAt:new Date().toISOString()});
+const parseUpdatedAt = raw => {
+  const n=Date.parse(raw||'');
+  return Number.isFinite(n)?n:0;
+};
+async function githubSyncRequest(url,opts={}) {
+  const res=await fetch(url,opts);
+  if(!res.ok){
+    let msg=`HTTP ${res.status}`;
+    try{ const err=await res.json(); if(err&&err.message) msg=err.message; }catch(e){}
+    throw new Error(msg);
+  }
+  return res;
+}
+async function uploadToGist(token,gistId){
+  const data=JSON.stringify(getPayload());
+  await githubSyncRequest(`https://api.github.com/gists/${gistId}`,{
+    method:'PATCH',
+    headers:{'Authorization':`token ${token}`,'Content-Type':'application/json'},
+    body:JSON.stringify({files:{[SYNC_FILE]:{content:data}}})
+  });
+}
+async function downloadFromGist(token,gistId){
+  const res=await githubSyncRequest(`https://api.github.com/gists/${gistId}`,{headers:{'Authorization':`token ${token}`}});
+  const j=await res.json();
+  const f=j&&j.files&&j.files[SYNC_FILE];
+  if(!f||!f.content) throw new Error(`找不到 ${SYNC_FILE}`);
+  return f.content;
+}
+async function autoPullIfNeeded(){
+  const cfg=getSyncConfig();
+  if(!cfg.token||!cfg.gistId||!cfg.autoPull) return;
+  try{
+    const content=await downloadFromGist(cfg.token,cfg.gistId);
+    const cloud=JSON.parse(content);
+    const local=JSON.parse(localStorage.getItem(SKEY)||'{}');
+    if(parseUpdatedAt(cloud.updatedAt)>parseUpdatedAt(local.updatedAt)){
+      localStorage.setItem(SKEY,content);
+      loadData();
+      rebuildUI();
+      render();
+      showToast('已自動載入雲端較新版本');
+    }
+  }catch(e){
+    console.warn('Auto pull failed',e);
+  }
+}
+async function autoPushIfEnabled(){
+  const cfg=getSyncConfig();
+  if(!cfg.token||!cfg.gistId||!cfg.autoPush) return;
+  try{ await uploadToGist(cfg.token,cfg.gistId); }
+  catch(e){ console.warn('Auto push failed',e); }
+}
 const MAP_NODE_RADIUS_MIN=15, MAP_NODE_RADIUS_MAX=100, MAP_NODE_RADIUS_DEFAULT=15;
 const DEFAULT_LANE_NAMES=['法條','構成要件','違法性','罪責','其它'];
 const MIN_LANE_COUNT=2, MAX_LANE_COUNT=10;
@@ -207,7 +270,7 @@ function loadData() {
     notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();nodeSizes={};
   }
 }
-function saveData() { try { localStorage.setItem(SKEY,JSON.stringify({notes,links,nid,lid,types,subjects,chapters,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs})); } catch(e){} }
+function saveData() { try { localStorage.setItem(SKEY,JSON.stringify(getPayload())); autoPushIfEnabled(); } catch(e){} }
 
 // ==================== UI 建構 ====================
 function buildTypeRow() {
@@ -1087,10 +1150,26 @@ window.addEventListener('load',()=>{
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')scheduleMapRedraw(100);});
   window.addEventListener('pageshow',()=>bindCoreButtons());
   if(window.ResizeObserver){mapResizeObserver=new ResizeObserver(()=>scheduleMapRedraw(60));mapResizeObserver.observe(canvas);}
+  const syncCfg=getSyncConfig();
+  if(g('syncTokenInput')) g('syncTokenInput').value=syncCfg.token||'';
+  if(g('syncGistInput')) g('syncGistInput').value=syncCfg.gistId||'';
+  if(g('syncAutoPush')) g('syncAutoPush').checked=!!syncCfg.autoPush;
+  if(g('syncAutoPull')) g('syncAutoPull').checked=!!syncCfg.autoPull;
   g('syncBtn').addEventListener('click',()=>g('syncModal').classList.add('open'));
-  g('syncCancelBtn').addEventListener('click',()=>g('syncModal').classList.remove('open'));
-  g('syncUploadBtn').addEventListener('click',async()=>{const token=g('syncTokenInput').value.trim(),gistId=g('syncGistInput').value.trim();if(!token||!gistId){showToast('請填寫 Token 和 Gist ID');return;}try{const data=localStorage.getItem(SKEY);await fetch(`https://api.github.com/gists/${gistId}`,{method:'PATCH',headers:{'Authorization':`token ${token}`,'Content-Type':'application/json'},body:JSON.stringify({files:{'klaws_data.json':{content:data}}})});showToast('已同步到 GitHub');g('syncModal').classList.remove('open');}catch(e){showToast('同步失敗：'+e.message);}});
-  g('syncDownloadBtn').addEventListener('click',async()=>{const token=g('syncTokenInput').value.trim(),gistId=g('syncGistInput').value.trim();if(!token||!gistId){showToast('請填寫 Token 和 Gist ID');return;}try{const res=await fetch(`https://api.github.com/gists/${gistId}`,{headers:{'Authorization':`token ${token}`}});const j=await res.json();const content=j.files['klaws_data.json'].content;localStorage.setItem(SKEY,content);location.reload();}catch(e){showToast('載入失敗：'+e.message);}});
+  g('syncCancelBtn').addEventListener('click',()=>{ saveSyncConfigFromInputs(); g('syncModal').classList.remove('open'); });
+  g('syncUploadBtn').addEventListener('click',async()=>{
+    const token=(g('syncTokenInput').value||'').trim(),gistId=(g('syncGistInput').value||'').trim();
+    if(!token||!gistId){showToast('請填寫 Token 和 Gist ID');return;}
+    try{ await uploadToGist(token,gistId); saveSyncConfigFromInputs(); showToast('已同步到 GitHub'); g('syncModal').classList.remove('open'); }
+    catch(e){showToast('同步失敗：'+e.message);}
+  });
+  g('syncDownloadBtn').addEventListener('click',async()=>{
+    const token=(g('syncTokenInput').value||'').trim(),gistId=(g('syncGistInput').value||'').trim();
+    if(!token||!gistId){showToast('請填寫 Token 和 Gist ID');return;}
+    try{ const content=await downloadFromGist(token,gistId); JSON.parse(content); localStorage.setItem(SKEY,content); saveSyncConfigFromInputs(); location.reload(); }
+    catch(e){showToast('載入失敗：'+e.message);}
+  });
+  autoPullIfNeeded();
   render();
   setTimeout(()=>toggleMapView(true),120);
 });

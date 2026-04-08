@@ -84,6 +84,7 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 .flbl{font-size:11px;font-weight:600;color:#555;margin-bottom:4px;margin-top:12px;display:block}
 .fi,.fs,.ft{width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:9px;font-size:14px;background:#f8f8f8;display:block}
 .fi:focus,.fs:focus,.ft:focus{outline:none;border-color:#007AFF;background:#fff}
+.fs[multiple]{min-height:92px;padding:6px 8px}
 .ft{resize:vertical;min-height:72px;line-height:1.6}
 .f2col{display:flex;gap:8px}
 .f2col>div{flex:1}

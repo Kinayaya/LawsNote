@@ -59,10 +59,16 @@ const saveDataDeferred = () => { clearTimeout(_saveTimer); _saveTimer=setTimeout
 const typeByKey = k => types.find(t=>t.key===k)||{key:k,label:k,color:'#888'};
 const subByKey = k => subjects.find(s=>s.key===k)||{key:k,label:k,color:'#888'};
 const chapterByKey = k => chapters.find(c=>c.key===k)||{key:k,label:k,subject:'all'};
+const uniq = arr => [...new Set((Array.isArray(arr)?arr:[]).filter(Boolean))];
+const noteSubjects = n => uniq(Array.isArray(n&&n.subjects)?n.subjects:(n&&n.subject?[n.subject]:[]));
+const noteChapters = n => uniq(Array.isArray(n&&n.chapters)?n.chapters:(n&&n.chapter?[n.chapter]:[]));
+const noteSubjectText = n => noteSubjects(n).join(' ');
+const noteChapterText = n => noteChapters(n).join(' ');
+const intersects = (arr1,arr2) => arr1.some(x=>arr2.includes(x));
 const tagUsageCount = (kind,key) => {
   if(kind==='type') return notes.filter(n=>n.type===key).length;
-  if(kind==='sub') return notes.filter(n=>n.subject===key).length;
-  return notes.filter(n=>n.chapter===key).length;
+  if(kind==='sub') return notes.filter(n=>noteSubjects(n).includes(key)).length;
+  return notes.filter(n=>noteChapters(n).includes(key)).length;
 };
 const noteById = id => notes.find(n=>n.id===id);
 const noteTags = n => Array.isArray(n&&n.tags)?n.tags:[];
@@ -175,7 +181,7 @@ const formatDate = raw => {
 };
 
 const sortedNotes = arr => arr.slice().sort((a,b)=>{
-  const ad=safeStr(a&&a.date),bd=safeStr(b&&b.date),at=safeStr(a&&a.title),bt=safeStr(b&&b.title),as=safeStr(a&&a.subject),bs=safeStr(b&&b.subject),ach=safeStr(a&&a.chapter),bch=safeStr(b&&b.chapter),aty=safeStr(a&&a.type),bty=safeStr(b&&b.type);
+  const ad=safeStr(a&&a.date),bd=safeStr(b&&b.date),at=safeStr(a&&a.title),bt=safeStr(b&&b.title),as=noteSubjectText(a),bs=noteSubjectText(b),ach=noteChapterText(a),bch=noteChapterText(b),aty=safeStr(a&&a.type),bty=safeStr(b&&b.type);
   return sortMode==='date_desc'?bd.localeCompare(ad):sortMode==='date_asc'?ad.localeCompare(bd):sortMode==='title_asc'?at.localeCompare(bt,'zh'):sortMode==='title_desc'?bt.localeCompare(at,'zh'):sortMode==='subject'?as.localeCompare(bs)||at.localeCompare(bt):sortMode==='chapter'?ach.localeCompare(bch)||at.localeCompare(bt):aty.localeCompare(bty)||at.localeCompare(bt);
 });
 function normalizeNoteIds(forceReindexAll=false) {
@@ -230,8 +236,12 @@ function loadData() {
         if(!Array.isArray(n.tags)) n.tags=[];
         if(typeof n.title!=='string') n.title='';
         if(typeof n.body!=='string') n.body='';
-        if(typeof n.subject!=='string') n.subject='';
-        if(typeof n.chapter!=='string') n.chapter='';
+        if(!Array.isArray(n.subjects)) n.subjects=typeof n.subject==='string'&&n.subject?[n.subject]:[];
+        if(!Array.isArray(n.chapters)) n.chapters=typeof n.chapter==='string'&&n.chapter?[n.chapter]:[];
+        n.subjects=uniq(n.subjects);
+        n.chapters=uniq(n.chapters);
+        n.subject=n.subjects[0]||'';
+        n.chapter=n.chapters[0]||'';
         // ★ 修復日期格式
         n.date = formatDate(n.date) || '1970-01-01';
       });
@@ -254,11 +264,12 @@ function loadData() {
       mapLaneConfigs=(d.mapLaneConfigs&&typeof d.mapLaneConfigs==='object'&&!Array.isArray(d.mapLaneConfigs))?d.mapLaneConfigs:{};
       let repaired=false,chapterMigrated=false;
       types.forEach(t=>{if(/^tag_t_/.test(t.key)){let old=t.key;t.key=t.label;notes.forEach(n=>{if(n.type===old)n.type=t.label;});repaired=true;}});
-      subjects.forEach(s=>{if(/^tag_s_/.test(s.key)){let old=s.key;s.key=s.label;notes.forEach(n=>{if(n.subject===old)n.subject=s.label;});repaired=true;}});
+      subjects.forEach(s=>{if(/^tag_s_/.test(s.key)){let old=s.key;s.key=s.label;notes.forEach(n=>{n.subjects=noteSubjects(n).map(x=>x===old?s.label:x);n.subject=n.subjects[0]||'';});repaired=true;}});
       notes.forEach(n=>{
-        if(!n.chapter){
-          const fromTag=noteTags(n).find(t=>chapters.some(c=>c.key===t&&(c.subject===n.subject||c.subject==='all')));
-          n.chapter=fromTag||'';
+        if(!noteChapters(n).length){
+          const fromTag=noteTags(n).find(t=>chapters.some(c=>c.key===t&&(noteSubjects(n).includes(c.subject)||c.subject==='all')));
+          n.chapters=fromTag?[fromTag]:[];
+          n.chapter=n.chapters[0]||'';
           chapterMigrated=true;
         }
       });
@@ -330,19 +341,41 @@ function normalizeFilterSelections(){
   cch=selectedChapters.length===1?selectedChapters[0]:'all';
 }
 function chaptersBySubject(subKey){ return chapters.filter(ch=>subKey==='all'||ch.subject===subKey||ch.subject==='all'); }
-function syncChapterSelect(subjectKey, selected='') {
-  const fc=g('fc'); if(!fc) return;
-  const available=chaptersBySubject(subjectKey||'all');
-  fc.innerHTML=`<option value="">未分類</option>`+available.map(ch=>`<option value="${ch.key}">${ch.label}</option>`).join('');
-  fc.value=available.some(ch=>ch.key===selected)?selected:'';
+function selectedValues(id){
+  const el=g(id); if(!el) return [];
+  return Array.from(el.selectedOptions||[]).map(opt=>opt.value).filter(Boolean);
 }
-function buildFormSelects() { g('ft').innerHTML=types.map(t=>`<option value="${t.key}">${t.label}</option>`).join(''); g('fs2').innerHTML=subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join(''); syncChapterSelect(val('fs2')||(subjects[0]?subjects[0].key:'all')); }
+function setSelectedValues(id, values=[]){
+  const el=g(id); if(!el) return;
+  const set=new Set(values);
+  Array.from(el.options||[]).forEach(opt=>{opt.selected=set.has(opt.value);});
+}
+function syncChapterSelect(subjectKeys, selected=[]) {
+  const fc=g('fc'); if(!fc) return;
+  const keys=Array.isArray(subjectKeys)?subjectKeys.filter(Boolean):(subjectKeys?[subjectKeys]:[]);
+  const available=keys.length?chaptersBySubjects(keys):chapters.slice();
+  fc.innerHTML=available.map(ch=>`<option value="${ch.key}">${ch.label}</option>`).join('');
+  const selectedKeys=Array.isArray(selected)?selected.filter(Boolean):(selected?[selected]:[]);
+  const validSelected=selectedKeys.filter(k=>available.some(ch=>ch.key===k));
+  setSelectedValues('fc',validSelected);
+}
+function buildFormSelects() {
+  g('ft').innerHTML=types.map(t=>`<option value="${t.key}">${t.label}</option>`).join('');
+  g('fs2').innerHTML=subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join('');
+  syncChapterSelect(selectedValues('fs2'));
+}
 function rebuildUI() { buildTypeRow();buildSubRow();buildChapterRow();buildFormSelects(); }
 
 // ==================== 渲染 ====================
 function render() {
   const q=searchQ.trim().toLowerCase();
-  const filtered=sortedNotes(notes).filter(n=>(cv==='all'||n.type===cv)&&(!selectedSubjects.length||selectedSubjects.includes(n.subject))&&(!selectedChapters.length||selectedChapters.includes(n.chapter||''))&&(!q||`${n.title} ${n.body} ${n.subject} ${n.chapter||''} ${noteTags(n).join(' ')}`.toLowerCase().includes(q)));
+  const filtered=sortedNotes(notes).filter(n=>{
+    const subs=noteSubjects(n), chs=noteChapters(n);
+    return (cv==='all'||n.type===cv)
+      &&(!selectedSubjects.length||intersects(selectedSubjects,subs))
+      &&(!selectedChapters.length||intersects(selectedChapters,chs))
+      &&(!q||`${n.title} ${n.body} ${subs.join(' ')} ${chs.join(' ')} ${noteTags(n).join(' ')}`.toLowerCase().includes(q));
+  });
   const sb=g('search-results-bar');
   if(q){sb.style.display='block';sb.textContent=`搜尋「${searchQ}」：找到 ${filtered.length} 筆筆記`;}else sb.style.display='none';
   const grid=g('grid');
@@ -352,10 +385,12 @@ function render() {
   if(gridPage>maxPg) gridPage=maxPg;
   const pgF=filtered.slice((gridPage-1)*PAGE_SIZE,gridPage*PAGE_SIZE);
   grid.innerHTML=pgF.map(n=>{
-    const tp=typeByKey(n.type),sb2=subByKey(n.subject),ch2=chapterByKey(n.chapter||'');
+    const tp=typeByKey(n.type),subs=noteSubjects(n),chs=noteChapters(n);
+    const subChips=subs.map(sk=>{const sb2=subByKey(sk);return `<span class="chip" style="background:${lightC(sb2.color)};color:${darkC(sb2.color)}">${sb2.label}</span>`;}).join('');
+    const chapterChips=chs.map(chk=>`<span class="chip">${chapterByKey(chk).label}</span>`).join('');
     const tags=noteTags(n).slice(0,1).map(t=>`<span class="chip">${hl(t,q)}</span>`).join('');
     const displayDate=formatDate(n.date);
-    return `<div class="card" data-id="${n.id}"><div class="sel-check"></div><div class="cbar" style="background:${tp.color}"></div><div class="ctop"><span class="ctag" style="background:${tp.color}">${tp.label}</span><span class="cdate">${displayDate}</span></div><div class="ctitle">${hl(n.title,q)}</div><div class="cbody">${n.body}</div><div class="cfoot"><span class="chip" style="background:${lightC(sb2.color)};color:${darkC(sb2.color)}">${sb2.label}</span>${n.chapter?`<span class="chip">${ch2.label}</span>`:''}${tags}</div></div>`;
+    return `<div class="card" data-id="${n.id}"><div class="sel-check"></div><div class="cbar" style="background:${tp.color}"></div><div class="ctop"><span class="ctag" style="background:${tp.color}">${tp.label}</span><span class="cdate">${displayDate}</span></div><div class="ctitle">${hl(n.title,q)}</div><div class="cbody">${n.body}</div><div class="cfoot">${subChips}${chapterChips}${tags}</div></div>`;
   }).join('');
   grid.querySelectorAll('.card').forEach(c=>{
     const id=parseInt(c.dataset.id);
@@ -376,14 +411,16 @@ function render() {
 function openNote(id) {
   const n=noteById(id); if(!n) return;
   openId=id;
-  const tp=typeByKey(n.type),sb=subByKey(n.subject);
+  const tp=typeByKey(n.type),subs=noteSubjects(n),chs=noteChapters(n);
   g('dp-badge').textContent=tp.label; g('dp-badge').style.background=tp.color;
   g('dp-title').textContent=n.title; g('dp-body').textContent=n.body;
   g('dp-detail').innerHTML=n.detail||'（尚無詳細筆記）';
   const todoWrap=g('dp-todo'),todoLabel=g('dp-todo-label');
   if(n.type==='diary'){todoLabel.style.display='block';todoWrap.style.display='block';todoWrap.innerHTML=renderTodoHtml(n.todos);}
   else{todoLabel.style.display='none';todoWrap.style.display='none';todoWrap.innerHTML='';}
-  g('dp-chips').innerHTML=`<span class="chip" style="background:${lightC(sb.color)};color:${darkC(sb.color)}">${sb.label}</span>${n.chapter?`<span class="chip" style="background:#E6F1FB;color:#0C447C">${chapterByKey(n.chapter).label}</span>`:''}`+noteTags(n).map(t=>`<span class="chip">${t}</span>`).join('');
+  const subChips=subs.map(sk=>{const sb=subByKey(sk);return `<span class="chip" style="background:${lightC(sb.color)};color:${darkC(sb.color)}">${sb.label}</span>`;}).join('');
+  const chapterChips=chs.map(ch=>`<span class="chip" style="background:#E6F1FB;color:#0C447C">${chapterByKey(ch).label}</span>`).join('');
+  g('dp-chips').innerHTML=subChips+chapterChips+noteTags(n).map(t=>`<span class="chip">${t}</span>`).join('');
   renderLinksForNote(id);
   g('dp').classList.add('open');['fp','tp'].forEach(p=>g(p).classList.remove('open'));
   setTimeout(()=>g('dp').scrollIntoView({behavior:'smooth',block:'nearest'}),60);
@@ -409,13 +446,16 @@ function openForm(isEdit) {
   if(editMode) {
     const n=noteById(openId); if(!n) return;
     g('form-title').textContent='編輯筆記';
-    g('ft').value=n.type;g('fs2').value=n.subject;syncChapterSelect(n.subject,n.chapter||'');g('fti').value=n.title;g('fbo').value=n.body;
+    g('ft').value=n.type;setSelectedValues('fs2',noteSubjects(n));syncChapterSelect(noteSubjects(n),noteChapters(n));g('fti').value=n.title;g('fbo').value=n.body;
     g('fde').value=n.detail||'';g('fta').value=noteTags(n).join(', ');
     if(g('f-todos')) g('f-todos').value=formatTodosForEdit(n.todos);
     toggleDiaryTodo(n.type==='diary');
   } else {
     g('form-title').textContent='新增筆記';
   ['fti','fbo','fde','fta','f-todos'].forEach(id=>{const el=g(id);if(el)el.value='';});
+    const defaultSub=subjects[0]?subjects[0].key:null;
+    if(defaultSub){setSelectedValues('fs2',[defaultSub]);syncChapterSelect([defaultSub],[]);}
+    else{setSelectedValues('fs2',[]);syncChapterSelect([],[]);}
     toggleDiaryTodo(g('ft').value==='diary');
   }
   buildInlineLinksPanel();
@@ -450,7 +490,7 @@ function renderFormLinkSearch() {
   const q=(val('fl-search')||'').toLowerCase().trim();
   if(!q){el.innerHTML='';updateFormLinkBulkActions();return;}
   const existIds=links.filter(l=>openId&&(l.from===openId||l.to===openId)).map(l=>l.from===openId?l.to:l.from);
-  const pool=notes.filter(n=>n.id!==openId&&!existIds.includes(n.id)&&`${n.title} ${n.subject} ${typeByKey(n.type).label}`.toLowerCase().includes(q)).slice(0,24);
+  const pool=notes.filter(n=>n.id!==openId&&!existIds.includes(n.id)&&`${n.title} ${noteSubjectText(n)} ${typeByKey(n.type).label}`.toLowerCase().includes(q)).slice(0,24);
   if(!pool.length){el.innerHTML='<div style="font-size:12px;color:#bbb;padding:4px 0;">找不到符合的筆記</div>';updateFormLinkBulkActions();return;}
   el.innerHTML=pool.map(n=>`<div class="fl-result-item ${formLinkSelections[n.id]?'selected':''}" data-nid="${n.id}"><input type="checkbox" ${formLinkSelections[n.id]?'checked':''}><span class="fl-result-type" style="background:${typeByKey(n.type).color}">${typeByKey(n.type).label}</span><span class="fl-result-title">${n.title}</span></div>`).join('');
   el.querySelectorAll('.fl-result-item').forEach(item=>{
@@ -491,13 +531,18 @@ function saveNote() {
   g('fti').style.borderColor='';
   const tags=(g('fta').value||'').split(',').map(t=>t.trim()).filter(Boolean);
   const todos=parseTodos(val('f-todos')||'');
+  const selectedSubs=selectedValues('fs2');
+  if(!selectedSubs.length){showToast('請至少選擇一個科目');return;}
+  const selectedChs=selectedValues('fc');
+  const primarySubject=selectedSubs[0]||'';
+  const primaryChapter=selectedChs[0]||'';
   if(editMode&&openId) {
     const idx=notes.findIndex(n=>n.id===openId);
-  if(idx!==-1) Object.assign(notes[idx],{type:g('ft').value,subject:g('fs2').value,chapter:g('fc').value||'',title,body:(g('fbo').value||'').trim(),detail:(g('fde').value||'').trim(),tags,todos});
+  if(idx!==-1) Object.assign(notes[idx],{type:g('ft').value,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,title,body:(g('fbo').value||'').trim(),detail:(g('fde').value||'').trim(),tags,todos});
     saveData();closeForm();render();showToast('筆記已更新！');setTimeout(()=>openNote(openId),150);
   } else {
     const d=new Date(),dt=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    const newNote={id:nid++,type:g('ft').value,subject:g('fs2').value,chapter:g('fc').value||'',title,body:(g('fbo').value||'').trim(),detail:(g('fde').value||'').trim(),tags,date:dt,todos};
+    const newNote={id:nid++,type:g('ft').value,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,title,body:(g('fbo').value||'').trim(),detail:(g('fde').value||'').trim(),tags,date:dt,todos};
     notes.unshift(newNote);openId=newNote.id;
     saveData();closeForm();render();showToast('筆記已儲存！');
     setTimeout(()=>{window.scrollTo(0,0);setTimeout(()=>openNote(notes[0].id),300);},100);
@@ -513,7 +558,9 @@ function duplicateNote() {
     id:nid++,
     type:src.type,
     subject:src.subject,
+    subjects:[...noteSubjects(src)],
     chapter:src.chapter||'',
+    chapters:[...noteChapters(src)],
     title:copyTitle,
     body:src.body||'',
     detail:src.detail||'',
@@ -601,7 +648,7 @@ return `<div class="tag-item"><div style="display:flex;flex-direction:column;gap
   el.querySelectorAll('.tag-del-btn').forEach(b=>b.addEventListener('click',()=>deleteTag(parseInt(b.dataset.idx),b.dataset.kind)));
 }
 function clearUnusedTags(){
-  const usedTypes=new Set(notes.map(n=>n.type)),usedSubs=new Set(notes.map(n=>n.subject)),usedChapters=new Set(notes.map(n=>n.chapter).filter(Boolean));
+  const usedTypes=new Set(notes.map(n=>n.type)),usedSubs=new Set(notes.flatMap(n=>noteSubjects(n))),usedChapters=new Set(notes.flatMap(n=>noteChapters(n)));
   const before={types:types.length,subs:subjects.length,chapters:chapters.length};
   types=types.filter(t=>usedTypes.has(t.key));
   subjects=subjects.filter(s=>usedSubs.has(s.key));
@@ -631,7 +678,7 @@ function editChapterTag(idx) {
   if(subjectKey!=='all'&&!subjects.some(s=>s.key===subjectKey)){showToast('章節科目不存在');return;}
   const oldKey=item.key;
   item.label=nv;item.subject=subjectKey;
-  if(!chapters.some((c,i)=>i!==idx&&c.key===nv)){item.key=nv;notes.forEach(n=>{if(n.chapter===oldKey)n.chapter=nv;});if(cch===oldKey)cch='all';if(mapFilter.chapter===oldKey)mapFilter.chapter='all';}
+  if(!chapters.some((c,i)=>i!==idx&&c.key===nv)){item.key=nv;notes.forEach(n=>{const chs=noteChapters(n).map(x=>x===oldKey?nv:x);n.chapters=uniq(chs);n.chapter=n.chapters[0]||'';});if(cch===oldKey)cch='all';if(mapFilter.chapter===oldKey)mapFilter.chapter='all';}
   saveData();renderTagLists();rebuildUI();render();showToast('章節已更新');
 }
 function deleteTag(idx,kind) {
@@ -639,7 +686,7 @@ function deleteTag(idx,kind) {
   if(kind==='chapter'){
     const removed=arr[idx]; if(!removed) return;
     if(!confirm(`確定刪除章節「${removed.label}」？已使用此章節的筆記會改為未分類。`)) return;
-    arr.splice(idx,1);notes.forEach(n=>{if(n.chapter===removed.key)n.chapter='';});
+    arr.splice(idx,1);notes.forEach(n=>{n.chapters=noteChapters(n).filter(ch=>ch!==removed.key);n.chapter=n.chapters[0]||'';});
     if(cch===removed.key)cch='all';if(mapFilter.chapter===removed.key)mapFilter.chapter='all';
     saveData();renderTagLists();rebuildUI();render();showToast('章節已刪除');return;
   }
@@ -686,7 +733,11 @@ function importData(file) {
       // ★ 修復匯入日期格式
       d.notes.forEach(n=>{
         if(!n.dispute)n.dispute='';if(!n.f_article)n.f_article='';if(!n.f_elements)n.f_elements='';if(!n.f_conclusion)n.f_conclusion='';
-        if(!n.tags)n.tags=[];if(!n.detail)n.detail='';if(typeof n.chapter!=='string')n.chapter='';if(!Array.isArray(n.todos))n.todos=[];
+        if(!n.tags)n.tags=[];if(!n.detail)n.detail='';if(!Array.isArray(n.todos))n.todos=[];
+        if(!Array.isArray(n.subjects)) n.subjects=typeof n.subject==='string'&&n.subject?[n.subject]:[];
+        if(!Array.isArray(n.chapters)) n.chapters=typeof n.chapter==='string'&&n.chapter?[n.chapter]:[];
+        n.subjects=uniq(n.subjects);n.chapters=uniq(n.chapters);
+        n.subject=n.subjects[0]||'';n.chapter=n.chapters[0]||'';
         n.date=formatDate(n.date)||'1970-01-01';
       });
       if(d.links) d.links.forEach(l=>{l.rel='關聯';l.color=LINK_COLOR;});
@@ -771,7 +822,7 @@ function openStats() {
   const sp=g('statsPanel');
   if(sp.classList.contains('open')){sp.classList.remove('open');return;}
   const total=notes.length,byT={},byS={};
-  notes.forEach(n=>{byT[n.type]=(byT[n.type]||0)+1;byS[n.subject]=(byS[n.subject]||0)+1;});
+  notes.forEach(n=>{byT[n.type]=(byT[n.type]||0)+1;noteSubjects(n).forEach(sk=>{byS[sk]=(byS[sk]||0)+1;});});
   const lnk={};links.forEach(l=>{lnk[l.from]=true;lnk[l.to]=true;});const lc=Object.keys(lnk).length;
   let html=`<div class="stats-grid"><div class="stat-card"><div class="stat-num">${total}</div><div class="stat-lbl">筆記總數</div></div><div class="stat-card"><div class="stat-num">${links.length}</div><div class="stat-lbl">關聯數量</div></div><div class="stat-card"><div class="stat-num">${lc}</div><div class="stat-lbl">有關聯筆記</div></div><div class="stat-card"><div class="stat-num">${subjects.length}</div><div class="stat-lbl">科目數</div></div></div><div style="font-size:11px;font-weight:700;color:#888;margin-bottom:8px;">各科目筆記數</div>`;
   Object.keys(byS).sort((a,b)=>byS[b]-byS[a]).forEach(sk=>{const s=subByKey(sk),c=byS[sk],p=Math.round(c/total*100);html+=`<div class="stats-bar-row"><span class="stats-bar-label">${s.label}</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${p}%;background:${s.color}"></div></div><span class="stats-bar-count">${c}</span></div>`;});
@@ -959,7 +1010,13 @@ function redrawLines(affectedId){
 function visibleNotes(){
   const q=(mapFilter.q||'').toLowerCase(),linkedIds={};
   if(mapLinkedOnly)links.forEach(l=>{linkedIds[l.from]=true;linkedIds[l.to]=true;});
-  const filtered=notes.filter(n=>(mapFilter.sub==='all'||n.subject===mapFilter.sub)&&(mapFilter.type==='all'||n.type===mapFilter.type)&&(mapFilter.chapter==='all'||(n.chapter||'')===mapFilter.chapter)&&(!q||`${n.title}${n.subject}${n.chapter||''}${noteTags(n).join('')}`.toLowerCase().includes(q)));
+  const filtered=notes.filter(n=>{
+    const subs=noteSubjects(n),chs=noteChapters(n);
+    return (mapFilter.sub==='all'||subs.includes(mapFilter.sub))
+      &&(mapFilter.type==='all'||n.type===mapFilter.type)
+      &&(mapFilter.chapter==='all'||chs.includes(mapFilter.chapter))
+      &&(!q||`${n.title}${subs.join('')}${chs.join('')}${noteTags(n).join('')}`.toLowerCase().includes(q));
+  });
   let base=filtered.filter(n=>!mapLinkedOnly||linkedIds[n.id]);
   if(mapLinkedOnly&&!base.length&&filtered.length){
     mapLinkedOnly=false;const btn=g('mapLinkedOnlyBtn');
@@ -1136,7 +1193,7 @@ window.addEventListener('load',()=>{
   g('selAllBtn').addEventListener('click',selectAll);g('selDeleteBtn').addEventListener('click',deleteSelected);g('selCancelBtn').addEventListener('click',exitMultiSel);
   on('statsBtn','click',openStats);
   on('ft','change',()=>{toggleDiaryTodo(g('ft').value==='diary');});
-  on('fs2','change',()=>syncChapterSelect(g('fs2').value,''));
+  on('fs2','change',()=>syncChapterSelect(selectedValues('fs2'),selectedValues('fc')));
   const si=g('searchInput'),sc=g('searchClear');
   si.addEventListener('input',debounce(()=>{searchQ=si.value;gridPage=1;sc.style.display=searchQ?'block':'none';render();},250));
   sc.addEventListener('click',()=>{si.value='';searchQ='';gridPage=1;sc.style.display='none';render();si.focus();});

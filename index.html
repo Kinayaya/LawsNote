@@ -25,30 +25,40 @@
     </div>
     <div class="search-wrap">
       <span class="search-icon">&#128269;</span>
-      <input id="searchInput" placeholder="搜尋標題、標籤...">
+      <input id="searchInput" placeholder="搜尋法條、關鍵詞、標籤...">
       <button class="search-clear" id="searchClear">&#215;</button>
     </div>
     <div class="tool-btns">
-      <button class="map-btn" id="mapToggleBtn">&#128279; 體系圖</button>
-      <button class="tool-btn exam-btn-style" id="examBtn">&#9997; 申論</button>
-      <button class="tool-btn" id="shortcutMgrBtn">&#9000;</button>
-      <button class="tool-btn ai-btn-style" id="aiSettingsBtn">&#129302; AI</button>
-      <button class="tool-btn sync-btn-style" id="syncBtn">&#9729; 同步</button>
-      <button class="tool-btn" id="exportBtn">&#8593; 匯出</button>
-      <label class="tool-btn" for="importFile" style="cursor:pointer;display:inline-block;">&#8595; 匯入</label>
+      <div class="primary-tools">
+        <button class="map-btn" id="mapToggleBtn">&#128279; 體系圖</button>
+        <button class="tool-btn ai-btn-style" id="aiSettingsBtn">&#129302; AI</button>
+        <button class="add-btn" id="addBtn">+ 新增</button>
+      </div>
+      <div class="more-wrap">
+        <button class="tool-btn more-btn" id="moreToolsBtn">&#8942; 更多</button>
+        <div class="more-menu" id="moreToolsMenu">
+          <button class="tool-btn exam-btn-style more-menu-item" id="examBtn">&#9997; 申論</button>
+          <button class="tool-btn more-menu-item" id="shortcutMgrBtn">&#9000; 快捷鍵</button>
+          <button class="tool-btn sync-btn-style more-menu-item" id="syncBtn">&#9729; 同步</button>
+          <button class="tool-btn more-menu-item" id="exportBtn">&#8593; 匯出</button>
+          <label class="tool-btn more-menu-item" for="importFile" style="cursor:pointer;display:inline-block;">&#8595; 匯入</label>
+          <button class="tool-btn more-menu-item" id="multiSelBtn">&#9745; 多選</button>
+          <button class="tool-btn more-menu-item" id="statsBtn">&#128202; 統計</button>
+        </div>
+      </div>
       <input type="file" id="importFile" accept=".json" style="display:none">
-      <button class="tool-btn" id="multiSelBtn">&#9745;</button>
-      <button class="tool-btn" id="statsBtn">&#128202;</button>
-      <button class="add-btn" id="addBtn">+ 新增</button>
     </div>
   </div>
   <div class="filter-row" id="typeRow"></div>
 </div>
 <div id="selectBar"><span id="selectCount"></span><button class="sel-btn" id="selAllBtn">全選</button><button class="sel-btn" id="selDeleteBtn">&#128465; 刪除</button><button class="sel-btn" id="selCancelBtn">取消</button></div>
 <div id="subbar"></div>
-<div id="chapterbar"></div>
-<div id="search-results-bar"></div>
-<div id="sortBar"><label>排序：</label><select id="sortSelect"><option value="date_desc">最新優先</option><option value="date_asc">最舊優先</option><option value="title_asc">標題 A-Z</option><option value="title_desc">標題 Z-A</option><option value="subject">依科目</option><option value="chapter">依章節</option><option value="type">依類型</option></select></div>
+<details id="filterAdvanced">
+  <summary>進階篩選</summary>
+  <div id="chapterbar"></div>
+  <div id="sortBar"><label>排序：</label><select id="sortSelect"><option value="date_desc">最新優先</option><option value="date_asc">最舊優先</option><option value="title_asc">標題 A-Z</option><option value="title_desc">標題 Z-A</option><option value="subject">依科目</option><option value="chapter">依章節</option><option value="type">依類型</option></select></div>
+  <div id="search-results-bar"></div>
+</details>
 
 <div id="notesView">
   <div id="statsPanel"></div>

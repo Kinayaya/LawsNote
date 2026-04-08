@@ -315,10 +315,9 @@ function render() {
   const pgF=filtered.slice((gridPage-1)*PAGE_SIZE,gridPage*PAGE_SIZE);
   grid.innerHTML=pgF.map(n=>{
     const tp=typeByKey(n.type),sb2=subByKey(n.subject),ch2=chapterByKey(n.chapter||'');
-    const chips=noteTags(n).slice(0,2).map(t=>`<span class="chip">${hl(t,q)}</span>`).join('');
-    const lc=links.filter(l=>l.from===n.id||l.to===n.id).length;
+    const tags=noteTags(n).slice(0,1).map(t=>`<span class="chip">${hl(t,q)}</span>`).join('');
     const displayDate=formatDate(n.date);
-    return `<div class="card" data-id="${n.id}"><div class="sel-check"></div><div class="cbar" style="background:${tp.color}"></div><div class="ctop"><span class="ctag" style="background:${tp.color}">${tp.label}</span><span class="cdate">${displayDate}</span></div><div class="ctitle">${hl(n.title,q)}</div><div class="cbody">${n.body}</div><div class="cfoot"><span class="chip" style="background:${lightC(sb2.color)};color:${darkC(sb2.color)}">${sb2.label}</span>${n.chapter?`<span class="chip" style="background:#E6F1FB;color:#0C447C">${ch2.label}</span>`:''}${chips}${lc?`<span class="chip" style="background:#EAF3DE">🔗 ${lc}</span>`:''}</div></div>`;
+    return `<div class="card" data-id="${n.id}"><div class="sel-check"></div><div class="cbar" style="background:${tp.color}"></div><div class="ctop"><span class="ctag" style="background:${tp.color}">${tp.label}</span><span class="cdate">${displayDate}</span></div><div class="ctitle">${hl(n.title,q)}</div><div class="cbody">${n.body}</div><div class="cfoot"><span class="chip" style="background:${lightC(sb2.color)};color:${darkC(sb2.color)}">${sb2.label}</span>${n.chapter?`<span class="chip">${ch2.label}</span>`:''}${tags}</div></div>`;
   }).join('');
   grid.querySelectorAll('.card').forEach(c=>{
     const id=parseInt(c.dataset.id);
@@ -330,7 +329,7 @@ function render() {
     const totalPg=Math.ceil(filtered.length/PAGE_SIZE),pager=document.createElement('div');
     pager.id='gridPager';pager.style.cssText='display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 14px 28px;';
     if(gridPage>1){const pb=document.createElement('button');pb.className='tool-btn';pb.textContent='← 上一頁';pb.onclick=()=>{gridPage--;render();window.scrollTo(0,0);};pager.appendChild(pb);}
-    const pi=document.createElement('span');pi.style.cssText='font-size:12px;color:#888;';pi.textContent=`第 ${gridPage} / ${totalPg} 頁（共 ${filtered.length} 筆）`;pager.appendChild(pi);
+    const pi=document.createElement('span');pi.style.cssText='font-size:12px;color:#7b8492;';pi.textContent=`${gridPage} / ${totalPg}`;pager.appendChild(pi);
     if(gridPage<totalPg){const nb=document.createElement('button');nb.className='tool-btn';nb.textContent='下一頁 →';nb.onclick=()=>{gridPage++;render();window.scrollTo(0,0);};pager.appendChild(nb);}
     g('content').appendChild(pager);
   }
@@ -715,9 +714,8 @@ function toggleMapView(open) {
   g('notesView').style.display=open?'none':'block';
   g('mapView').classList.toggle('open',open);
   g('subbar').style.display=open?'none':'flex';
-  g('chapterbar').style.display=open?'none':'';
-  g('sortBar').style.display=open?'none':'';
-  g('search-results-bar').style.display=open?'none':'';
+  const advanced=g('filterAdvanced');
+  if(advanced) advanced.style.display=open?'none':'block';
   if(open){
     buildMapFilters();
     const mapSearch=g('mapSearchInput');if(mapSearch)mapSearch.value=mapFilter.q||'';
@@ -804,7 +802,22 @@ function showResult(r) {
   let tags='';(r.strengths||[]).forEach(s=>tags+=`<span class="result-tag good">✓ ${s}</span>`);(r.weaknesses||[]).forEach(s=>tags+=`<span class="result-tag bad">✗ ${s}</span>`);(r.suggestions||[]).forEach(s=>tags+=`<span class="result-tag ok">→ ${s}</span>`);
   g('resultTags').innerHTML=tags;g('resultRef').textContent=r.reference||'';
 }
-function closeExamView() { clearInterval(examTimer);g('examView').classList.remove('open');g('notesView').style.display='block';g('subbar').style.display='flex'; }
+function closeExamView() {
+  clearInterval(examTimer);
+  g('examView').classList.remove('open');
+  g('notesView').style.display='block';
+  g('subbar').style.display='flex';
+  const advanced=g('filterAdvanced');
+  if(advanced) advanced.style.display='block';
+}
+
+function initMoreMenu(){
+  const btn=g('moreToolsBtn'),menu=g('moreToolsMenu');
+  if(!btn||!menu) return;
+  btn.addEventListener('click',e=>{e.stopPropagation();menu.classList.toggle('open');});
+  menu.querySelectorAll('button,label').forEach(el=>el.addEventListener('click',()=>menu.classList.remove('open')));
+  document.addEventListener('click',e=>{if(!menu.contains(e.target)&&e.target!==btn)menu.classList.remove('open');});
+}
 
 // ==================== 體系圖 ====================
 function initNodePos() { const canvas=g('mapCanvas');mapW=canvas.offsetWidth||800;mapH=canvas.offsetHeight||500;const cx=mapW/2,cy=mapH/2,r=Math.min(mapW,mapH)*.44;notes.forEach((n,i)=>{if(!nodePos[n.id]){const angle=(i/notes.length)*2*Math.PI;nodePos[n.id]={x:cx+r*Math.cos(angle),y:cy+r*Math.sin(angle)};}}); }
@@ -1079,6 +1092,7 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
 // ==================== 初始化 ====================
 window.addEventListener('load',()=>{
   loadData();rebuildUI();
+  initMoreMenu();
   g('sortSelect').value=sortMode;g('sortSelect').addEventListener('change',()=>{sortMode=g('sortSelect').value;gridPage=1;render();saveData();});
   g('multiSelBtn').addEventListener('click',()=>multiSelMode?exitMultiSel():enterMultiSel());
   g('selAllBtn').addEventListener('click',selectAll);g('selDeleteBtn').addEventListener('click',deleteSelected);g('selCancelBtn').addEventListener('click',exitMultiSel);

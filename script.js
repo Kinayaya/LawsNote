@@ -48,6 +48,7 @@ let examList=[], examTimer=null, examSec=0, examTotal=0, currentExam=null;
 let shortcuts=[], recordingBtn=null, _aiPendingAction=null, _saveTimer=null, rafId=null;
 let mapRedrawTimer=null, mapResizeObserver=null, mapCenterNodeId=null, mapLaneConfigs={}, mapNodeMeta={};
 let mapTimer=null, currentView='notes';
+let mapAdvancedOpen=false;
 
 // ==================== 工具函數 ====================
 const g = id => document.getElementById(id);
@@ -627,9 +628,9 @@ function renderTagList(cid,arr,kind) {
 let list=arr.map((item,idx)=>({...item,_idx:idx,_usage:tagUsageCount(kind,item.key)}));
   if(tagSearchQ) list=list.filter(item=>item.label.toLowerCase().includes(tagSearchQ));
   if(tagUnusedOnly) list=list.filter(item=>item._usage===0);
-  list.sort((a,b)=>b._usage-a._usage||a.label.localeCompare(b.label,'zh-Hant'));
   if(!list.length){el.innerHTML='<div style="color:#bbb;font-size:13px;padding:8px 0">（無符合條件的標籤）</div>';return;}
-  el.innerHTML=list.map(item=>`<div class="tag-item"><div class="tag-color-dot" style="background:${item.color}"></div><span class="tag-item-label">${item.label}</span><span class="tag-item-meta">${item._usage} 筆</span><button class="tag-edit-btn" data-idx="${item._idx}" data-kind="${kind}">編輯</button><button class="tag-del-btn" data-idx="${item._idx}" data-kind="${kind}">刪</button></div>`).join('');
+  el.innerHTML=list.map(item=>`<div class="tag-item"><div class="tag-color-dot" style="background:${item.color}"></div><span class="tag-item-label">${item.label}</span><span class="tag-item-meta">${item._usage} 筆</span><button class="tag-move-btn" data-idx="${item._idx}" data-kind="${kind}" data-dir="-1">↑</button><button class="tag-move-btn" data-idx="${item._idx}" data-kind="${kind}" data-dir="1">↓</button><button class="tag-edit-btn" data-idx="${item._idx}" data-kind="${kind}">編輯</button><button class="tag-del-btn" data-idx="${item._idx}" data-kind="${kind}">刪</button></div>`).join('');
+  el.querySelectorAll('.tag-move-btn').forEach(b=>b.addEventListener('click',()=>moveTag(parseInt(b.dataset.idx),b.dataset.kind,parseInt(b.dataset.dir,10))));
   el.querySelectorAll('.tag-edit-btn').forEach(b=>b.addEventListener('click',()=>editTag(parseInt(b.dataset.idx),b.dataset.kind)));
   el.querySelectorAll('.tag-del-btn').forEach(b=>b.addEventListener('click',()=>deleteTag(parseInt(b.dataset.idx),b.dataset.kind)));
 }
@@ -638,14 +639,21 @@ function renderChapterTagList() {
 let list=chapters.map((item,idx)=>({...item,_idx:idx,_usage:tagUsageCount('chapter',item.key)}));
   if(tagSearchQ) list=list.filter(item=>`${item.label} ${subByKey(item.subject).label}`.toLowerCase().includes(tagSearchQ));
   if(tagUnusedOnly) list=list.filter(item=>item._usage===0);
-  list.sort((a,b)=>b._usage-a._usage||a.label.localeCompare(b.label,'zh-Hant'));
   if(!list.length){el.innerHTML='<div style="color:#bbb;font-size:13px;padding:8px 0">（無符合條件的章節）</div>';return;}
   el.innerHTML=list.map(item=>{
     const subLabel=item.subject==='all'?'全部':subByKey(item.subject).label;
-return `<div class="tag-item"><div style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:0;"><span class="tag-item-label">${item.label}</span><span style="font-size:10px;color:#aaa;">${subLabel}</span></div><span class="tag-item-meta">${item._usage} 筆</span><button class="tag-edit-btn" data-idx="${item._idx}" data-kind="chapter">編輯</button><button class="tag-del-btn" data-idx="${item._idx}" data-kind="chapter">刪</button></div>`;
+return `<div class="tag-item"><div style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:0;"><span class="tag-item-label">${item.label}</span><span style="font-size:10px;color:#aaa;">${subLabel}</span></div><span class="tag-item-meta">${item._usage} 筆</span><button class="tag-move-btn" data-idx="${item._idx}" data-kind="chapter" data-dir="-1">↑</button><button class="tag-move-btn" data-idx="${item._idx}" data-kind="chapter" data-dir="1">↓</button><button class="tag-edit-btn" data-idx="${item._idx}" data-kind="chapter">編輯</button><button class="tag-del-btn" data-idx="${item._idx}" data-kind="chapter">刪</button></div>`;
   }).join('');
+  el.querySelectorAll('.tag-move-btn').forEach(b=>b.addEventListener('click',()=>moveTag(parseInt(b.dataset.idx),b.dataset.kind,parseInt(b.dataset.dir,10))));
   el.querySelectorAll('.tag-edit-btn').forEach(b=>b.addEventListener('click',()=>editTag(parseInt(b.dataset.idx),b.dataset.kind)));
   el.querySelectorAll('.tag-del-btn').forEach(b=>b.addEventListener('click',()=>deleteTag(parseInt(b.dataset.idx),b.dataset.kind)));
+}
+function moveTag(idx,kind,dir){
+  const arr=kind==='type'?types:(kind==='sub'?subjects:chapters);
+  const target=idx+dir;
+  if(!arr[idx]||target<0||target>=arr.length) return;
+  [arr[idx],arr[target]]=[arr[target],arr[idx]];
+  saveData();renderTagLists();rebuildUI();render();
 }
 function clearUnusedTags(){
   const usedTypes=new Set(notes.map(n=>n.type)),usedSubs=new Set(notes.flatMap(n=>noteSubjects(n))),usedChapters=new Set(notes.flatMap(n=>noteChapters(n)));
@@ -797,6 +805,32 @@ function execShortcut(id) {
   showShortcutHint({new:'新增筆記',search:'搜尋',map:'開啟體系圖',back:'返回筆記列表',close:'關閉',edit:'編輯筆記',link:'新增關聯',export:'匯出備份',stats:'統計',shortcuts:'快捷鍵設定'}[id]);
 }
 function showShortcutHint(t){ const h=g('scHint');h.textContent=t;h.style.display='block';clearTimeout(h._t);h._t=setTimeout(()=>h.style.display='none',1800); }
+function setMapLinkedOnlyBtnStyle(){
+  const btn=g('mapLinkedOnlyBtn');
+  if(!btn) return;
+  btn.style.background=mapLinkedOnly?'#edf4fb':'#f5f5f5';
+  btn.style.color=mapLinkedOnly?'#0C447C':'#666';
+  btn.style.borderColor=mapLinkedOnly?'#b7d1eb':'#ddd';
+  btn.textContent=mapLinkedOnly?'✓ 關聯節點':'🔗 關聯節點';
+}
+function updateMapPinnedChapter(){
+  const el=g('mapPinnedChapter');
+  if(!el) return;
+  const ch=mapFilter.chapter==='all'?null:chapterByKey(mapFilter.chapter);
+  el.textContent=ch?`章節：${ch.label}`:'章節：未設定';
+}
+function setMapAdvanced(open){
+  mapAdvancedOpen=!!open;
+  const mapView=g('mapView');
+  if(mapView) mapView.classList.toggle('map-advanced-open',mapAdvancedOpen);
+  const btn=g('mapAdvancedToggleBtn');
+  if(btn){
+    btn.textContent=mapAdvancedOpen?'⚙️ 收合進階':'⚙️ 進階';
+    btn.style.background=mapAdvancedOpen?'#0C447C':'#f5f5f5';
+    btn.style.color=mapAdvancedOpen?'#fff':'#555';
+    btn.style.borderColor=mapAdvancedOpen?'#0C447C':'#ddd';
+  }
+}
 
 function toggleMapView(open) {
   isMapOpen=open;currentView=open?'map':'notes';
@@ -806,11 +840,14 @@ function toggleMapView(open) {
   const advanced=g('filterAdvanced');
   if(advanced) advanced.style.display=open?'none':'block';
   if(open){
+    setMapAdvanced(false);
+    if(cch!=='all') mapFilter.chapter=cch;
+    else if(selectedChapters.length) mapFilter.chapter=selectedChapters[0];
     buildMapFilters();
+    updateMapPinnedChapter();
     const mapSearch=g('mapSearchInput');if(mapSearch)mapSearch.value=mapFilter.q||'';
     g('zoomLabel').textContent=Math.round(mapScale*100)+'%';
-    const mlo=g('mapLinkedOnlyBtn');
-    if(mlo){mlo.style.background=mapLinkedOnly?'#3B6D11':'#EAF3DE';mlo.style.color=mapLinkedOnly?'#fff':'#3B6D11';mlo.textContent=mapLinkedOnly?'✓ 只顯示關聯':'🔗 只顯示關聯';}
+    setMapLinkedOnlyBtnStyle();
     const focusBtn=g('mapFocusBtn');
     if(focusBtn){focusBtn.style.background=mapFocusMode?'#0C447C':'#f0f7ff';focusBtn.style.color=mapFocusMode?'#fff':'#0C447C';focusBtn.textContent=`🎯 焦點模式：${mapFocusMode?'開':'關'}`;}
     setTimeout(()=>{const hadNodePos=Object.keys(nodePos).length>0;initNodePos();drawMap();if(!hadNodePos)saveData();},80);
@@ -1019,8 +1056,7 @@ function visibleNotes(){
   });
   let base=filtered.filter(n=>!mapLinkedOnly||linkedIds[n.id]);
   if(mapLinkedOnly&&!base.length&&filtered.length){
-    mapLinkedOnly=false;const btn=g('mapLinkedOnlyBtn');
-    if(btn){btn.style.background='#EAF3DE';btn.style.color='#3B6D11';btn.textContent='🔗 只顯示關聯';}
+    mapLinkedOnly=false;setMapLinkedOnlyBtnStyle();
     showToast('目前沒有關聯節點，已自動顯示全部節點');saveDataDeferred();base=filtered;
   }
   if(mapDepth==='all'||!base.length)return base;
@@ -1129,10 +1165,18 @@ function buildMapFilters(){
   st.innerHTML='<option value="all">全部類型</option>'+types.map(t=>`<option value="${t.key}">${t.label}</option>`).join('');
   if(!subjects.some(s=>s.key===mapFilter.sub))mapFilter.sub='all';if(!types.some(t=>t.key===mapFilter.type))mapFilter.type='all';
   const mapChapters=chapters.filter(ch=>mapFilter.sub==='all'||ch.subject===mapFilter.sub||ch.subject==='all');
-  sch.innerHTML='<option value="all">全部章節</option>'+mapChapters.map(ch=>`<option value="${ch.key}">${ch.label}</option>`).join('');
-  if(mapFilter.chapter!=='all'&&!mapChapters.some(ch=>ch.key===mapFilter.chapter))mapFilter.chapter='all';
+  const preferredChapter=(cch!=='all'&&cch)||selectedChapters[0]||'';
+  if(mapChapters.length){
+    if(!mapChapters.some(ch=>ch.key===mapFilter.chapter)) mapFilter.chapter=preferredChapter;
+    if(!mapChapters.some(ch=>ch.key===mapFilter.chapter)) mapFilter.chapter=mapChapters[0].key;
+    sch.innerHTML=mapChapters.map(ch=>`<option value="${ch.key}">${ch.label}</option>`).join('');
+  }else{
+    mapFilter.chapter='all';
+    sch.innerHTML='<option value="all">（目前無可用章節）</option>';
+  }
   ss.value=mapFilter.sub;st.value=mapFilter.type;sch.value=mapFilter.chapter;
   if(sd)sd.value=['all','1','2','3'].includes(mapDepth)?mapDepth:'all';
+  updateMapPinnedChapter();
 }
 function laneContextLabelText(){ const s=mapFilter.sub==='all'?'全部科目':subByKey(mapFilter.sub).label,t=mapFilter.type==='all'?'全部類型':typeByKey(mapFilter.type).label;return `目前篩選：${s} / ${t}`; }
 function ensureLanePanel(){
@@ -1222,14 +1266,15 @@ window.addEventListener('load',()=>{
   on('mapSearchInput','input',debounce(()=>{mapFilter.q=g('mapSearchInput').value;saveDataDeferred();if(isMapOpen)drawMap();},250));
   on('mapFilterSub','change',()=>{mapFilter.sub=g('mapFilterSub').value;buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
   on('mapFilterType','change',()=>{mapFilter.type=g('mapFilterType').value;nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
-  on('mapFilterChapter','change',()=>{mapFilter.chapter=g('mapFilterChapter').value;nodePos={};saveDataDeferred();if(isMapOpen){forceLayout();drawMap();}});
+  on('mapFilterChapter','change',()=>{mapFilter.chapter=g('mapFilterChapter').value;updateMapPinnedChapter();nodePos={};saveDataDeferred();if(isMapOpen){forceLayout();drawMap();}});
+  on('mapAdvancedToggleBtn','click',()=>setMapAdvanced(!mapAdvancedOpen));
   on('mapDepthSel','change',()=>{mapDepth=g('mapDepthSel').value;nodePos={};forceLayout();drawMap();saveDataDeferred();});
   on('mapFocusBtn','click',()=>{mapFocusMode=!mapFocusMode;const btn=g('mapFocusBtn');if(btn){btn.style.background=mapFocusMode?'#0C447C':'#f0f7ff';btn.style.color=mapFocusMode?'#fff':'#0C447C';btn.textContent=`🎯 焦點模式：${mapFocusMode?'開':'關'}`;}applyFocusStyles();saveDataDeferred();});
   const setZoom=z=>{mapScale=Math.max(.15,Math.min(3.5,z));g('zoomLabel').textContent=Math.round(mapScale*100)+'%';drawMap();};
   on('zoomIn','click',()=>setZoom(mapScale+.15));on('zoomOut','click',()=>setZoom(mapScale-.15));
   on('zoomFit','click',()=>{if(!notes.length)return;const xs=notes.map(n=>nodePos[n.id]?nodePos[n.id].x:mapW/2),ys=notes.map(n=>nodePos[n.id]?nodePos[n.id].y:mapH/2);const minX=Math.min(...xs)-40,maxX=Math.max(...xs)+40,minY=Math.min(...ys)-40,maxY=Math.max(...ys)+40;const sc=Math.min(mapW/(maxX-minX||1),mapH/(maxY-minY||1),2.5);mapScale=sc;mapOffX=-minX*sc+(mapW-(maxX-minX)*sc)/2;mapOffY=-minY*sc+(mapH-(maxY-minY)*sc)/2;g('zoomLabel').textContent=Math.round(sc*100)+'%';drawMap();});
   on('mpClose','click',closeMapPopup);
-  on('mapLinkedOnlyBtn','click',()=>{mapLinkedOnly=!mapLinkedOnly;const btn=g('mapLinkedOnlyBtn');if(btn){btn.style.background=mapLinkedOnly?'#3B6D11':'#EAF3DE';btn.style.color=mapLinkedOnly?'#fff':'#3B6D11';btn.textContent=mapLinkedOnly?'✓ 只顯示關聯':'🔗 只顯示關聯';}nodePos={};forceLayout();drawMap();saveDataDeferred();showToast(mapLinkedOnly?`顯示 ${visibleNotes().length} 個有關聯的節點`:'顯示全部節點');});
+  on('mapLinkedOnlyBtn','click',()=>{mapLinkedOnly=!mapLinkedOnly;setMapLinkedOnlyBtnStyle();nodePos={};forceLayout();drawMap();saveDataDeferred();showToast(mapLinkedOnly?`顯示 ${visibleNotes().length} 個有關聯節點`:'顯示全部節點');});
   on('mapAutoBtn','click',()=>{const btn=g('mapAutoBtn'),orig=btn.textContent;btn.textContent='排列中...';btn.disabled=true;setTimeout(()=>{nodePos={};mapScale=1;mapOffX=mapOffY=0;forceLayout();drawMap();saveDataDeferred();g('zoomLabel').textContent='100%';btn.textContent=orig;btn.disabled=false;showToast('已自動排列（保留核心節點）');},30);});
   on('mapLaneBtn','click',()=>{const panel=ensureLanePanel();if(!panel){showToast('泳道面板載入失敗');return;}if(panel.classList.contains('open'))closeLanePanel();else openLanePanel();});
   on('lanePanelClose','click',closeLanePanel);on('laneSaveBtn','click',saveLanePanel);on('laneResetBtn','click',resetLanePanel);

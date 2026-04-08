@@ -36,6 +36,7 @@ const DEFAULT_SHORTCUTS = [
 // ==================== 全域變數 ====================
 let notes=[], links=[], nid=10, lid=10, types=[], subjects=[], chapters=[];
 let cv='all', cs='all', cch='all', searchQ='', openId=null, editMode=false;
+let selectedSubjects=[], selectedChapters=[];
 let formLinkSelections={}, tagSearchQ='', tagUnusedOnly=false;
 let nodePos={}, dragNode=null, dragOffX=0, dragOffY=0, mapW=800, mapH=500;
 let nodeSizes={};
@@ -280,16 +281,53 @@ function buildTypeRow() {
   on('tagMgrBtn','click',openTagMgr);
 }
 function buildSubRow() {
+  normalizeFilterSelections();
   const row=g('subbar');
-  row.innerHTML=`<button class="sc ${cs==='all'?'on':''}" data-s="all">全部</button>`+subjects.map(s=>`<button class="sc ${cs===s.key?'on':''}" data-s="${s.key}" style="${cs===s.key?`background:${s.color};color:#fff;`:''}">${s.label}</button>`).join('');
-  row.querySelectorAll('.sc').forEach(btn=>btn.addEventListener('click',()=>{cs=btn.dataset.s;if(cch!=='all'&&!chapters.some(ch=>ch.key===cch&&(ch.subject===cs||ch.subject==='all')))cch='all';gridPage=1;buildSubRow();buildChapterRow();render();}));
+  const isAll=selectedSubjects.length===0;
+  row.innerHTML=`<button class="sc ${isAll?'on':''}" data-s="all">全部</button>`+subjects.map(s=>{
+    const active=selectedSubjects.includes(s.key);
+    return `<button class="sc ${active?'on':''}" data-s="${s.key}" style="${active?`background:${s.color};color:#fff;`:''}">${s.label}</button>`;
+  }).join('');
+  row.querySelectorAll('.sc').forEach(btn=>btn.addEventListener('click',()=>{
+    const key=btn.dataset.s;
+    if(key==='all') selectedSubjects=[];
+    else selectedSubjects=selectedSubjects.includes(key)?selectedSubjects.filter(x=>x!==key):[...selectedSubjects,key];
+    cs=selectedSubjects.length===1?selectedSubjects[0]:'all';
+    const availKeys=new Set(chaptersBySubjects(selectedSubjects).map(ch=>ch.key));
+    selectedChapters=selectedChapters.filter(k=>availKeys.has(k));
+    cch=selectedChapters.length===1?selectedChapters[0]:'all';
+    gridPage=1;buildSubRow();buildChapterRow();render();
+  }));
 }
 function buildChapterRow() {
+  normalizeFilterSelections();
   const row=g('chapterbar'); if(!row) return;
-  const available=chapters.filter(ch=>cs==='all'||ch.subject===cs||ch.subject==='all');
-  row.innerHTML=available.length?`<button class="ch ${cch==='all'?'on':''}" data-ch="all">全部</button>`+available.map(ch=>`<button class="ch ${cch===ch.key?'on':''}" data-ch="${ch.key}">${ch.label}</button>`).join(''):'';
+  const available=chaptersBySubjects(selectedSubjects);
+  const isAll=selectedChapters.length===0;
+  row.innerHTML=available.length?`<button class="ch ${isAll?'on':''}" data-ch="all">全部</button>`+available.map(ch=>{
+    const active=selectedChapters.includes(ch.key);
+    return `<button class="ch ${active?'on':''}" data-ch="${ch.key}">${ch.label}</button>`;
+  }).join(''):'';
   row.style.display=available.length?'flex':'none';
-  row.querySelectorAll('.ch').forEach(btn=>btn.addEventListener('click',()=>{cch=btn.dataset.ch;gridPage=1;buildChapterRow();render();}));
+  row.querySelectorAll('.ch').forEach(btn=>btn.addEventListener('click',()=>{
+    const key=btn.dataset.ch;
+    if(key==='all') selectedChapters=[];
+    else selectedChapters=selectedChapters.includes(key)?selectedChapters.filter(x=>x!==key):[...selectedChapters,key];
+    cch=selectedChapters.length===1?selectedChapters[0]:'all';
+    gridPage=1;buildChapterRow();render();
+  }));
+}
+function chaptersBySubjects(subKeys){
+  if(!Array.isArray(subKeys)||!subKeys.length) return chapters.slice();
+  return chapters.filter(ch=>subKeys.includes(ch.subject)||ch.subject==='all');
+}
+function normalizeFilterSelections(){
+  const validSubjectKeys=new Set(subjects.map(s=>s.key));
+  selectedSubjects=selectedSubjects.filter(k=>validSubjectKeys.has(k));
+  const validChapterKeys=new Set(chaptersBySubjects(selectedSubjects).map(ch=>ch.key));
+  selectedChapters=selectedChapters.filter(k=>validChapterKeys.has(k));
+  cs=selectedSubjects.length===1?selectedSubjects[0]:'all';
+  cch=selectedChapters.length===1?selectedChapters[0]:'all';
 }
 function chaptersBySubject(subKey){ return chapters.filter(ch=>subKey==='all'||ch.subject===subKey||ch.subject==='all'); }
 function syncChapterSelect(subjectKey, selected='') {
@@ -304,7 +342,7 @@ function rebuildUI() { buildTypeRow();buildSubRow();buildChapterRow();buildFormS
 // ==================== 渲染 ====================
 function render() {
   const q=searchQ.trim().toLowerCase();
-  const filtered=sortedNotes(notes).filter(n=>(cv==='all'||n.type===cv)&&(cs==='all'||n.subject===cs)&&(cch==='all'||n.chapter===cch)&&(!q||`${n.title} ${n.body} ${n.subject} ${n.chapter||''} ${noteTags(n).join(' ')}`.toLowerCase().includes(q)));
+  const filtered=sortedNotes(notes).filter(n=>(cv==='all'||n.type===cv)&&(!selectedSubjects.length||selectedSubjects.includes(n.subject))&&(!selectedChapters.length||selectedChapters.includes(n.chapter||''))&&(!q||`${n.title} ${n.body} ${n.subject} ${n.chapter||''} ${noteTags(n).join(' ')}`.toLowerCase().includes(q)));
   const sb=g('search-results-bar');
   if(q){sb.style.display='block';sb.textContent=`搜尋「${searchQ}」：找到 ${filtered.length} 筆筆記`;}else sb.style.display='none';
   const grid=g('grid');

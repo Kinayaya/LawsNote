@@ -55,7 +55,7 @@ let nodeEls={}, linkElsMap={}, nodeLinksIndex={}, linkCurveOffsets={}, isMapOpen
 let gridPage=1, sortMode='date_desc', multiSelMode=false, selectedIds={};
 let examList=[], examTimer=null, examSec=0, examTotal=0, currentExam=null;
 let shortcuts=[], recordingBtn=null, _aiPendingAction=null, _saveTimer=null, rafId=null;
-let mapRedrawTimer=null, mapResizeObserver=null, mapCenterNodeId=null, mapLaneConfigs={}, mapNodeMeta={};
+let mapRedrawTimer=null, mapResizeObserver=null, mapCenterNodeId=null, mapCenterNodeIds={}, mapLaneConfigs={}, mapNodeMeta={};
 let mapTimer=null, currentView='notes';
 let mapAdvancedOpen=false;
 let mapCollapsed={};
@@ -122,7 +122,19 @@ const saveSyncConfigFromInputs = () => {
   const autoPull=!!g('syncAutoPull')?.checked;
   if(token&&gistId) saveSyncConfig({token,gistId,autoPush,autoPull});
 };
-const getPayload = () => ({notes,links,nid,lid,types,subjects,chapters,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,typeFieldConfigs,customFieldDefs,updatedAt:new Date().toISOString()});
+const getMapCenterContextKey = () => `${mapFilter.sub||'all'}::${mapFilter.chapter||'all'}`;
+const getMapCenterFromScopes = () => {
+  const key=getMapCenterContextKey();
+  const scopedId=mapCenterNodeIds[key];
+  if(scopedId&&notes.some(n=>n.id===scopedId)) return scopedId;
+  return (mapCenterNodeId&&notes.some(n=>n.id===mapCenterNodeId))?mapCenterNodeId:null;
+};
+const setMapCenterForCurrentScope = id => {
+  if(!Number.isFinite(id)) return;
+  mapCenterNodeIds[getMapCenterContextKey()]=id;
+  mapCenterNodeId=id;
+};
+const getPayload = () => ({notes,links,nid,lid,types,subjects,chapters,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,typeFieldConfigs,customFieldDefs,updatedAt:new Date().toISOString()});
 const parseUpdatedAt = raw => {
   const n=Date.parse(raw||'');
   return Number.isFinite(n)?n:0;
@@ -249,6 +261,15 @@ function normalizeNoteIds(forceReindexAll=false) {
   Object.keys(selectedIds||{}).forEach(k=>{const nk=firstMap[Number(k)];if(nk!==undefined) remapSelected[nk]=true;});
   nodePos=remapPos; nodeSizes=remapSize; selectedIds=remapSelected;
   mapCenterNodeId=firstMap[mapCenterNodeId]??null;
+  if(mapCenterNodeIds&&typeof mapCenterNodeIds==='object'){
+    const remappedCenters={};
+    Object.keys(mapCenterNodeIds).forEach(key=>{
+      const oldId=Number(mapCenterNodeIds[key]);
+      const newId=firstMap[oldId];
+      if(newId!==undefined) remappedCenters[key]=newId;
+    });
+    mapCenterNodeIds=remappedCenters;
+  }
   mapFocusedNodeId=firstMap[mapFocusedNodeId]??null;
   openId=firstMap[openId]??null;
   nid=nextId;
@@ -291,6 +312,7 @@ function loadData() {
       nodeSizes=(d.nodeSizes&&typeof d.nodeSizes==='object'&&!Array.isArray(d.nodeSizes))?d.nodeSizes:{};
       if(d.sortMode) sortMode=d.sortMode;
       mapCenterNodeId=d.mapCenterNodeId||null;
+      mapCenterNodeIds=(d.mapCenterNodeIds&&typeof d.mapCenterNodeIds==='object'&&!Array.isArray(d.mapCenterNodeIds))?d.mapCenterNodeIds:{};
       if(d.mapFilter&&typeof d.mapFilter==='object') mapFilter={sub:typeof d.mapFilter.sub==='string'?d.mapFilter.sub:'all',type:typeof d.mapFilter.type==='string'?d.mapFilter.type:'all',chapter:typeof d.mapFilter.chapter==='string'?d.mapFilter.chapter:'all',q:typeof d.mapFilter.q==='string'?d.mapFilter.q:''};
       if(typeof d.mapLinkedOnly==='boolean') mapLinkedOnly=d.mapLinkedOnly;
       if(['all','1','2','3'].includes(d.mapDepth)) mapDepth=d.mapDepth;
@@ -906,7 +928,7 @@ function addTag(kind) {
 
 // ==================== 匯入/匯出 ====================
 function exportData() {
-  const json=JSON.stringify({notes,links,nid,lid,types,subjects,chapters,nodeSizes,mapCenterNodeId,mapCollapsed,exported:new Date().toISOString()},null,2);
+  const json=JSON.stringify({notes,links,nid,lid,types,subjects,chapters,nodeSizes,mapCenterNodeId,mapCenterNodeIds,mapCollapsed,exported:new Date().toISOString()},null,2);
   const blob=new Blob([json],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
   const d=new Date();
   a.download=`法律筆記備份_${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}.json`;
@@ -931,7 +953,7 @@ function importData(file) {
       if(confirm('確定 = 完整覆蓋（取代所有現有筆記，保留現有科目/章節設定）\n取消 = 合併（只加入新筆記）')) {
         // ★ 覆蓋模式：不覆蓋 types/subjects/chapters
         notes=d.notes;links=d.links||[];
-        nodeSizes=d.nodeSizes||{};mapCenterNodeId=d.mapCenterNodeId||null;mapCollapsed=(d.mapCollapsed&&typeof d.mapCollapsed==='object')?d.mapCollapsed:{};
+        nodeSizes=d.nodeSizes||{};mapCenterNodeId=d.mapCenterNodeId||null;mapCenterNodeIds=(d.mapCenterNodeIds&&typeof d.mapCenterNodeIds==='object')?d.mapCenterNodeIds:{};mapCollapsed=(d.mapCollapsed&&typeof d.mapCollapsed==='object')?d.mapCollapsed:{};
         nid=d.nid||notes.length+100;lid=d.lid||10;notes.sort((a,b)=>b.id-a.id);
         normalizeNoteIds(true);
         saveData();rebuildUI();render();showToast(`已覆蓋，共 ${notes.length} 筆筆記`);
@@ -941,6 +963,7 @@ function importData(file) {
         d.notes.forEach(n=>{if(!existing.includes(n.id)){notes.push(n);added++;if(n.id>=nid)nid=n.id+1;}});
         if(d.links)links=d.links;
         if(d.nodeSizes)nodeSizes={...nodeSizes,...d.nodeSizes};if(d.mapCenterNodeId)mapCenterNodeId=d.mapCenterNodeId;
+        if(d.mapCenterNodeIds&&typeof d.mapCenterNodeIds==='object') mapCenterNodeIds={...mapCenterNodeIds,...d.mapCenterNodeIds};
         if(d.mapCollapsed&&typeof d.mapCollapsed==='object') mapCollapsed={...mapCollapsed,...d.mapCollapsed};
         notes.sort((a,b)=>b.id-a.id);normalizeNoteIds(true);saveData();rebuildUI();render();showToast(`已合併，新增 ${added} 筆`);
       }
@@ -1167,12 +1190,14 @@ function forceLayout() {
   const canvas=g('mapCanvas');mapW=canvas.offsetWidth||800;mapH=canvas.offsetHeight||600;
   const layoutNotes=visibleNotes(),visIds={};layoutNotes.forEach(n=>visIds[n.id]=true);
   const visLinks=visibleLinks(visIds),n2=layoutNotes.length;if(!n2)return;
-  const hasStoredCenter=!!mapCenterNodeId&&notes.some(n=>n.id===mapCenterNodeId);
+  const scopedCenterId=getMapCenterFromScopes();
+  const hasStoredCenter=!!scopedCenterId&&notes.some(n=>n.id===scopedCenterId);
   if(!hasStoredCenter){
     const linkCount={};layoutNotes.forEach(n=>linkCount[n.id]=0);visLinks.forEach(lk=>{linkCount[lk.from]=(linkCount[lk.from]||0)+1;linkCount[lk.to]=(linkCount[lk.to]||0)+1;});
-    mapCenterNodeId=layoutNotes.reduce((max,n)=>linkCount[n.id]>linkCount[max.id]?n:max,layoutNotes[0]).id;
+    setMapCenterForCurrentScope(layoutNotes.reduce((max,n)=>linkCount[n.id]>linkCount[max.id]?n:max,layoutNotes[0]).id);
   }
-  const layoutCenterNodeId=visIds[mapCenterNodeId]?mapCenterNodeId:(()=>{
+  const activeCenterId=getMapCenterFromScopes();
+  const layoutCenterNodeId=visIds[activeCenterId]?activeCenterId:(()=>{
     const linkCount={};layoutNotes.forEach(n=>linkCount[n.id]=0);visLinks.forEach(lk=>{linkCount[lk.from]=(linkCount[lk.from]||0)+1;linkCount[lk.to]=(linkCount[lk.to]||0)+1;});
     return layoutNotes.reduce((max,n)=>linkCount[n.id]>linkCount[max.id]?n:max,layoutNotes[0]).id;
   })();
@@ -1295,10 +1320,11 @@ function visibleNotes(){
   }
   if(mapDepth==='all'||!base.length)return base;
   const depthBaseIds={};base.forEach(n=>depthBaseIds[n.id]=true);
-  if(!mapCenterNodeId||!depthBaseIds[mapCenterNodeId])return base;
+  const centerId=getMapCenterFromScopes();
+  if(!centerId||!depthBaseIds[centerId])return base;
   const maxDepth=parseInt(mapDepth,10);if(!maxDepth)return base;
   const adj={};links.forEach(l=>{if(!depthBaseIds[l.from]||!depthBaseIds[l.to])return;if(!adj[l.from])adj[l.from]=[];if(!adj[l.to])adj[l.to]=[];adj[l.from].push(l.to);adj[l.to].push(l.from);});
-  const seen={[mapCenterNodeId]:0},q2=[mapCenterNodeId];
+  const seen={[centerId]:0},q2=[centerId];
   while(q2.length){const id=q2.shift(),depth=seen[id];if(depth>=maxDepth)continue;(adj[id]||[]).forEach(nid=>{if(seen[nid]===undefined){seen[nid]=depth+1;q2.push(nid);}});}
   return base.filter(n=>seen[n.id]!==undefined);
 }
@@ -1400,10 +1426,11 @@ function showMapInfo(id){
     sizeNumInput.oninput=()=>{const v=parseInt(sizeNumInput.value,10);if(isNaN(v))return;const clamped=clampMapRadius(v);nodeSizes[id]=clamped;clampNodeToCanvas(id);moveNodeEl(id,nodePos[id].x,nodePos[id].y);redrawLines(id);saveDataDeferred();};
     g('mpNodeSizeReset').onclick=()=>{delete nodeSizes[id];sizeNumInput.value=String(Math.round(getNodeRadius(id)));clampNodeToCanvas(id);moveNodeEl(id,nodePos[id].x,nodePos[id].y);redrawLines(id);saveDataDeferred();};
   }
+  const currentCenterId=getMapCenterFromScopes();
   const setCenterBtn=document.createElement('button');setCenterBtn.className='mp-set-center';
-  setCenterBtn.textContent=mapCenterNodeId===id?'✓ 已是核心':'⭐ 設為核心';
-  setCenterBtn.style.cssText='width:100%;padding:8px;margin:8px 0 4px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ddd;'+(mapCenterNodeId===id?'background:#EAF3DE;color:#3B6D11;border-color:#97C459;':'background:#f5f5f5;color:#555;');
-  setCenterBtn.onclick=()=>{mapCenterNodeId=id;nodePos={};forceLayout();drawMap();saveData();closeMapPopup();showToast(`已將「${n.title}」設為核心節點`);};
+  setCenterBtn.textContent=currentCenterId===id?'✓ 已是核心':'⭐ 設為核心';
+  setCenterBtn.style.cssText='width:100%;padding:8px;margin:8px 0 4px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ddd;'+(currentCenterId===id?'background:#EAF3DE;color:#3B6D11;border-color:#97C459;':'background:#f5f5f5;color:#555;');
+  setCenterBtn.onclick=()=>{setMapCenterForCurrentScope(id);nodePos={};forceLayout();drawMap();saveData();closeMapPopup();showToast(`已將「${n.title}」設為核心節點（僅此科目/章節）`);};
   const goBtn=g('mpGoto');
   if(goBtn&&goBtn.parentNode){const oldBtn=goBtn.parentNode.querySelector('.mp-set-center');if(oldBtn)oldBtn.remove();goBtn.parentNode.insertBefore(setCenterBtn,goBtn);}
   const linksEl=g('mpLinks');

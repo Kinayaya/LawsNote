@@ -760,11 +760,7 @@ function openTagMgr() { chapterSubjectFilter='';g('tp').classList.add('open');['
 function renderTagLists() {
   renderTagList('typeTagList',types,'type');
   renderTagList('subTagList',subjects,'sub');
-  const chapterFilter=g('chapterSubjectFilter');
-  if(chapterFilter){
-    chapterFilter.innerHTML='<option value="">請先選擇科目</option>'+subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join('');
-    chapterFilter.value=subjects.some(s=>s.key===chapterSubjectFilter)?chapterSubjectFilter:'';
-  }
+  if(chapterSubjectFilter&&!subjects.some(s=>s.key===chapterSubjectFilter)) chapterSubjectFilter='';
   renderChapterTagList();
   const sel=g('newChapterSubject');
   if(sel) sel.innerHTML='<option value="all">全部科目</option>'+subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join('');
@@ -775,14 +771,21 @@ let list=arr.map((item,idx)=>({...item,_idx:idx,_usage:tagUsageCount(kind,item.k
   if(tagSearchQ) list=list.filter(item=>item.label.toLowerCase().includes(tagSearchQ));
   if(tagUnusedOnly) list=list.filter(item=>item._usage===0);
   if(!list.length){el.innerHTML='<div style="color:#bbb;font-size:13px;padding:8px 0">（無符合條件的標籤）</div>';return;}
-  el.innerHTML=list.map(item=>`<div class="tag-item"><div class="tag-color-dot" style="background:${item.color}"></div><span class="tag-item-label">${item.label}</span><span class="tag-item-meta">${item._usage} 筆</span><button class="tag-move-btn" data-idx="${item._idx}" data-kind="${kind}" data-dir="-1">↑</button><button class="tag-move-btn" data-idx="${item._idx}" data-kind="${kind}" data-dir="1">↓</button><button class="tag-edit-btn" data-idx="${item._idx}" data-kind="${kind}">編輯</button><button class="tag-del-btn" data-idx="${item._idx}" data-kind="${kind}">刪</button></div>`).join('');
+  el.innerHTML=list.map(item=>`<div class="tag-item ${kind==='sub'&&chapterSubjectFilter===item.key?'active-subject':''}" ${kind==='sub'?`data-subject-key="${item.key}"`:''}><div class="tag-color-dot" style="background:${item.color}"></div><span class="tag-item-label">${item.label}</span><span class="tag-item-meta">${item._usage} 筆</span><button class="tag-move-btn" data-idx="${item._idx}" data-kind="${kind}" data-dir="-1">↑</button><button class="tag-move-btn" data-idx="${item._idx}" data-kind="${kind}" data-dir="1">↓</button><button class="tag-edit-btn" data-idx="${item._idx}" data-kind="${kind}">編輯</button><button class="tag-del-btn" data-idx="${item._idx}" data-kind="${kind}">刪</button></div>`).join('');
+  if(kind==='sub'){
+    el.querySelectorAll('.tag-item[data-subject-key]').forEach(row=>row.addEventListener('click',ev=>{
+      if(ev.target.closest('button')) return;
+      chapterSubjectFilter=row.dataset.subjectKey||'';
+      renderTagLists();
+    }));
+  }
   el.querySelectorAll('.tag-move-btn').forEach(b=>b.addEventListener('click',()=>moveTag(parseInt(b.dataset.idx),b.dataset.kind,parseInt(b.dataset.dir,10))));
   el.querySelectorAll('.tag-edit-btn').forEach(b=>b.addEventListener('click',()=>editTag(parseInt(b.dataset.idx),b.dataset.kind)));
   el.querySelectorAll('.tag-del-btn').forEach(b=>b.addEventListener('click',()=>deleteTag(parseInt(b.dataset.idx),b.dataset.kind)));
 }
 function renderChapterTagList() {
   const el=g('chapterTagList'); if(!el) return;
-  if(!chapterSubjectFilter){el.innerHTML='<div style="color:#bbb;font-size:13px;padding:8px 0">請先選擇科目後，再管理章節。</div>';return;}
+  if(!chapterSubjectFilter){el.innerHTML='<div style="color:#bbb;font-size:13px;padding:8px 0">請先點擊上方科目標籤，再管理章節。</div>';return;}
 let list=chapters.map((item,idx)=>({...item,_idx:idx,_usage:tagUsageCount('chapter',item.key)}));
   list=list.filter(item=>item.subject===chapterSubjectFilter||item.subject==='all');
   if(tagSearchQ) list=list.filter(item=>`${item.label} ${subByKey(item.subject).label}`.toLowerCase().includes(tagSearchQ));
@@ -948,10 +951,14 @@ function handleGlobalKey(e) {
 }
 function execShortcut(id) {
   const map={
-    new:()=>{if(!isMapOpen)openForm(false);},search:()=>{if(!isMapOpen){g('searchInput').focus();g('searchInput').select();}},
+    new:()=>openForm(false),
+    search:()=>{
+      const target=isMapOpen?g('mapSearchInput'):g('searchInput');
+      if(target){target.focus();target.select?.();}
+    },
     map:()=>{if(!isMapOpen)toggleMapView(true);},back:()=>{if(isMapOpen)toggleMapView(false);},
     close:()=>{if(g('scp').style.display==='block')closeShortcutMgr();else if(g('tp').classList.contains('open'))g('tp').classList.remove('open');else if(g('fp').classList.contains('open'))closeForm();else if(g('dp').classList.contains('open'))closeDetail();},
-    edit:()=>{if(openId&&g('dp').classList.contains('open'))openForm(true);},link:()=>{if(openId&&g('dp').classList.contains('open'))openForm(true);},
+    edit:()=>{if(openId)openForm(true);},link:()=>{if(openId)openForm(true);},
     export:()=>exportData(),stats:()=>{if(!isMapOpen)openStats();},shortcuts:()=>openShortcutMgr()
   };
   if(map[id]) map[id]();
@@ -1370,7 +1377,8 @@ function resetLanePanel(){ const cfg=getLaneConfig();mapLaneConfigs[cfg.key]={co
 
 function bindCoreButtons(){
   const bind=(id,fn)=>{const el=g(id);if(el)el.onclick=fn;};
-  bind('addBtn',()=>openForm(false));bind('editBtn',()=>openForm(true));
+  bind('addBtn',()=>openForm(false));
+  bind('editBtn',()=>{if(!openId){showToast('請先開啟一筆筆記');return;}openForm(true);});
   bind('copyBtn',copyNoteToClipboard);
   bind('dupBtn',duplicateNote);
   bind('dpClose',closeDetail);bind('fpClose',closeForm);bind('fpCancel',closeForm);
@@ -1399,7 +1407,6 @@ window.addEventListener('load',()=>{
   g('tpClose').addEventListener('click',()=>g('tp').classList.remove('open'));
   on('tagSearchInput','input',debounce(()=>{tagSearchQ=(val('tagSearchInput')||'').toLowerCase().trim();renderTagLists();},150));
   on('tagUnusedOnly','change',()=>{tagUnusedOnly=!!g('tagUnusedOnly').checked;renderTagLists();});
-  on('chapterSubjectFilter','change',()=>{chapterSubjectFilter=g('chapterSubjectFilter').value||'';renderChapterTagList();});
   on('clearUnusedTagsBtn','click',clearUnusedTags);
   g('addTypeBtn').addEventListener('click',()=>addTag('type'));g('addSubBtn').addEventListener('click',()=>addTag('sub'));g('addChapterBtn').addEventListener('click',()=>addTag('chapter'));
   on('addTypeFieldBtn','click',addTypeFieldForCurrentType);
@@ -1420,6 +1427,8 @@ window.addEventListener('load',()=>{
   g('scpReset').addEventListener('click',()=>{shortcuts=DEFAULT_SHORTCUTS.map(s=>({...s}));saveShortcuts();renderShortcutList();showToast('已恢復預設快捷鍵');});
   loadShortcuts();document.addEventListener('keydown',handleGlobalKey);
   g('mapToggleBtn').addEventListener('click',()=>toggleMapView(true));g('mapBackBtn').addEventListener('click',()=>toggleMapView(false));
+  on('mapAddNoteBtn','click',()=>openForm(false));
+  on('mapEditNoteBtn','click',()=>{if(!openId){showToast('請先點選一則筆記節點');return;}openForm(true);});
   on('mapSearchInput','input',debounce(()=>{mapFilter.q=g('mapSearchInput').value;saveDataDeferred();if(isMapOpen)drawMap();},250));
   on('mapFilterSub','change',()=>{mapFilter.sub=g('mapFilterSub').value;buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
   on('mapFilterType','change',()=>{mapFilter.type=g('mapFilterType').value;nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});

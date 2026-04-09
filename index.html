@@ -141,10 +141,6 @@
     </div>
 
     <div class="tag-section-title">章節</div>
-    <div class="tag-chapter-filter-row">
-      <label for="chapterSubjectFilter">先選科目</label>
-      <select id="chapterSubjectFilter" class="fs"></select>
-    </div>
     <div class="tag-list" id="chapterTagList"></div>
     <div class="tag-add-row">
       <input id="newChapterLabel" placeholder="新章節名稱">
@@ -158,6 +154,8 @@
 <div id="mapView">
   <div id="mapToolbar">
     <span style="font-size:13px;font-weight:600;flex-shrink:0;">&#128279; 體系圖</span>
+    <button class="tool-btn map-primary-action" id="mapAddNoteBtn">+ 新增筆記</button>
+    <button class="tool-btn" id="mapEditNoteBtn">&#9998; 編輯目前筆記</button>
     <div class="map-search-wrap">
       <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:#aaa;font-size:12px;pointer-events:none;">&#128269;</span>
       <input id="mapSearchInput" placeholder="搜尋節點..." autocomplete="off">

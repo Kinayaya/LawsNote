@@ -77,6 +77,19 @@ const applyPanelDir = dir => {
   const btn=g('panelDirBtn');
   if(btn) btn.textContent=next==='bottom'?'↥ 底部展開':'↤ 右側展開';
 };
+const togglePanelDir = () => {
+  const next=getPanelDir()==='side'?'bottom':'side';
+  const openPanelIds=['dp','fp','tp'].filter(id=>g(id)?.classList.contains('open'));
+  applyPanelDir(next);
+  if(openPanelIds.length){
+    openPanelIds.forEach(id=>g(id)?.classList.remove('open'));
+    requestAnimationFrame(()=>{
+      openPanelIds.forEach(id=>g(id)?.classList.add('open'));
+      syncSidePanelState();
+    });
+  }
+  showToast(next==='bottom'?'已切換為底部展開':'已切換為右側展開');
+};
 const saveDataDeferred = () => { clearTimeout(_saveTimer); _saveTimer=setTimeout(()=>{ if(JSON.stringify({notes,links}).length>4500000) showToast('⚠️ 資料接近儲存上限'); saveData(); },500); };
 const typeByKey = k => types.find(t=>t.key===k)||{key:k,label:k,color:'#888'};
 const subByKey = k => subjects.find(s=>s.key===k)||{key:k,label:k,color:'#888'};
@@ -1718,7 +1731,7 @@ window.addEventListener('load',()=>{
   on('tagUnusedOnly','change',()=>{tagUnusedOnly=!!g('tagUnusedOnly').checked;renderTagLists();});
   on('clearUnusedTagsBtn','click',clearUnusedTags);
   g('addTypeBtn').addEventListener('click',()=>addTag('type'));g('addSubBtn').addEventListener('click',()=>addTag('sub'));g('addChapterBtn').addEventListener('click',()=>addTag('chapter'));g('addSectionBtn').addEventListener('click',()=>addTag('section'));
-  on('panelDirBtn','click',()=>applyPanelDir(getPanelDir()==='side'?'bottom':'side'));
+  on('panelDirBtn','click',togglePanelDir);
   on('addTypeFieldBtn','click',addTypeFieldForCurrentType);
   on('removeTypeFieldBtn','click',removeTypeFieldForCurrentType);
   loadExams();on('examBtn','click',openExamPanel);on('examListClose','click',()=>g('examListPanel').classList.remove('open'));

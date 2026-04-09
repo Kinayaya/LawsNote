@@ -330,7 +330,7 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
   overflow:auto;
   overscroll-behavior:contain;
   -webkit-overflow-scrolling:touch;
-  touch-action:manipulation;
+  touch-action:pan-y;
   transform:translateX(105%);
   transition:transform .24s ease;
   display:block;
@@ -355,7 +355,7 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
   overflow:auto;
   overscroll-behavior:contain;
   -webkit-overflow-scrolling:touch;
-  touch-action:manipulation;
+  touch-action:pan-y;
   transform:translateX(105%);
   transition:transform .24s ease;
   display:block;

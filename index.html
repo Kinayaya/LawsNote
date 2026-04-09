@@ -89,16 +89,16 @@
     </div>
     <label class="flbl">標題</label>
     <input class="fi" id="fti" placeholder="例：民法第 184 條">
-    <label class="flbl">摘要</label>
-    <textarea class="ft" id="fbo" placeholder="條文或重點摘要..."></textarea>
-    <label class="flbl">詳細筆記</label>
-    <textarea class="ft" id="fde" placeholder="構成要件、學說、實務見解..."></textarea>
-    <div id="diaryTodoWrap" style="display:none;">
-      <label class="flbl">&#128221; 待辦清單（每行一項，開頭 [x] 代表已完成）</label>
-      <textarea class="ft" id="f-todos" placeholder="[ ] 完成筆記整理&#10;[x] 複習例題第 3 題" style="min-height:96px;"></textarea>
+    <div id="dynamicFieldWrap">
+      <div class="field-config-head">
+        <span>欄位（依類型）</span>
+        <div class="field-config-actions">
+          <button class="tool-btn mini-btn" id="addTypeFieldBtn" type="button">+ 新增欄位</button>
+          <button class="tool-btn mini-btn" id="removeTypeFieldBtn" type="button">− 刪除欄位</button>
+        </div>
+      </div>
+      <div id="dynamicFields"></div>
     </div>
-    <label class="flbl">標籤（單一）</label>
-    <input class="fi" id="fta" placeholder="例：侵權行為">
     <div id="form-links-wrap" style="margin-top:16px;padding-top:14px;border-top:1px solid #eee;">
       <div style="font-size:11px;font-weight:700;color:#888;letter-spacing:.06em;margin-bottom:8px;">&#128279; 關聯筆記</div>
       <div id="form-links-list" style="margin-bottom:10px;display:flex;flex-direction:column;gap:5px;"></div>
@@ -141,6 +141,10 @@
     </div>
 
     <div class="tag-section-title">章節</div>
+    <div class="tag-chapter-filter-row">
+      <label for="chapterSubjectFilter">先選科目</label>
+      <select id="chapterSubjectFilter" class="fs"></select>
+    </div>
     <div class="tag-list" id="chapterTagList"></div>
     <div class="tag-add-row">
       <input id="newChapterLabel" placeholder="新章節名稱">

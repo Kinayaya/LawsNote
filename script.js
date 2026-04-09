@@ -1464,6 +1464,19 @@ window.addEventListener('load',()=>{
   g('shortcutMgrBtn').addEventListener('click',openShortcutMgr);g('scpClose').addEventListener('click',closeShortcutMgr);g('scpDone').addEventListener('click',closeShortcutMgr);
   g('scpReset').addEventListener('click',()=>{shortcuts=DEFAULT_SHORTCUTS.map(s=>({...s}));saveShortcuts();renderShortcutList();showToast('已恢復預設快捷鍵');});
   loadShortcuts();document.addEventListener('keydown',handleGlobalKey);
+  const isInsideMapCanvas = target => !!(target&&target.closest&&target.closest('#mapCanvas'));
+  let lastTouchEndTs=0;
+  document.addEventListener('dblclick',e=>{ if(!isInsideMapCanvas(e.target)) e.preventDefault(); },{capture:true,passive:false});
+  document.addEventListener('wheel',e=>{ if(e.ctrlKey&&!isInsideMapCanvas(e.target)) e.preventDefault(); },{passive:false});
+  ['gesturestart','gesturechange','gestureend'].forEach(evt=>{
+    document.addEventListener(evt,e=>{ if(!isInsideMapCanvas(e.target)) e.preventDefault(); },{passive:false});
+  });
+  document.addEventListener('touchend',e=>{
+    if(isInsideMapCanvas(e.target)) return;
+    const now=Date.now();
+    if(now-lastTouchEndTs<320) e.preventDefault();
+    lastTouchEndTs=now;
+  },{passive:false});
   g('mapToggleBtn').addEventListener('click',()=>toggleMapView(true));g('mapBackBtn').addEventListener('click',()=>toggleMapView(false));
   on('mapAddNoteBtn','click',()=>openForm(false));
   on('mapEditNoteBtn','click',()=>{if(!openId){showToast('請先點選一則筆記節點');return;}openForm(true);});

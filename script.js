@@ -1167,16 +1167,21 @@ function forceLayout() {
   const canvas=g('mapCanvas');mapW=canvas.offsetWidth||800;mapH=canvas.offsetHeight||600;
   const layoutNotes=visibleNotes(),visIds={};layoutNotes.forEach(n=>visIds[n.id]=true);
   const visLinks=visibleLinks(visIds),n2=layoutNotes.length;if(!n2)return;
-  if(!mapCenterNodeId||!visIds[mapCenterNodeId]){
+  const hasStoredCenter=!!mapCenterNodeId&&notes.some(n=>n.id===mapCenterNodeId);
+  if(!hasStoredCenter){
     const linkCount={};layoutNotes.forEach(n=>linkCount[n.id]=0);visLinks.forEach(lk=>{linkCount[lk.from]=(linkCount[lk.from]||0)+1;linkCount[lk.to]=(linkCount[lk.to]||0)+1;});
     mapCenterNodeId=layoutNotes.reduce((max,n)=>linkCount[n.id]>linkCount[max.id]?n:max,layoutNotes[0]).id;
   }
+  const layoutCenterNodeId=visIds[mapCenterNodeId]?mapCenterNodeId:(()=>{
+    const linkCount={};layoutNotes.forEach(n=>linkCount[n.id]=0);visLinks.forEach(lk=>{linkCount[lk.from]=(linkCount[lk.from]||0)+1;linkCount[lk.to]=(linkCount[lk.to]||0)+1;});
+    return layoutNotes.reduce((max,n)=>linkCount[n.id]>linkCount[max.id]?n:max,layoutNotes[0]).id;
+  })();
   const laneCfg=getLaneConfig(),laneCount=laneCfg.names.length;
   const ROW_GAP_Y=92,TOP_PAD=72,BOT_PAD=40;
   const laneLeft=Math.max(80,mapW*.1),laneRight=Math.min(mapW-80,mapW*.9);
   const laneGapX=laneCount>1?(laneRight-laneLeft)/(laneCount-1):0;
   const adj={};layoutNotes.forEach(n=>adj[n.id]=[]);visLinks.forEach(lk=>{if(adj[lk.from])adj[lk.from].push(lk.to);if(adj[lk.to])adj[lk.to].push(lk.from);});
-  const layers={},visited=new Set(),queue=[mapCenterNodeId];layers[mapCenterNodeId]=0;visited.add(mapCenterNodeId);
+  const layers={},visited=new Set(),queue=[layoutCenterNodeId];layers[layoutCenterNodeId]=0;visited.add(layoutCenterNodeId);
   while(queue.length){const current=queue.shift(),cl=layers[current];(adj[current]||[]).forEach(neighbor=>{if(!visited.has(neighbor)){visited.add(neighbor);layers[neighbor]=cl+1;queue.push(neighbor);}});}
   const connectedMaxLayer=Object.values(layers).reduce((m,v)=>Math.max(m,v),0);
   layoutNotes.forEach(n=>{if(!visited.has(n.id))layers[n.id]=connectedMaxLayer+1;});

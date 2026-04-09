@@ -188,6 +188,7 @@ async function autoPushIfEnabled(){
   catch(e){ console.warn('Auto push failed',e); }
 }
 const MAP_NODE_RADIUS_MIN=15, MAP_NODE_RADIUS_MAX=100, MAP_NODE_RADIUS_DEFAULT=15;
+const MAP_LIGHT_BUNDLING_STRENGTH=0.38;
 const DEFAULT_LANE_NAMES=['法條','構成要件','違法性','罪責','其它'];
 const MIN_LANE_COUNT=2, MAX_LANE_COUNT=10;
 const clampMapRadius = r => Math.max(MAP_NODE_RADIUS_MIN,Math.min(MAP_NODE_RADIUS_MAX,r));
@@ -1235,6 +1236,7 @@ function forceLayout() {
 }
 function visibleLinks(visIds){ return links.filter(lk=>visIds[lk.from]&&visIds[lk.to]); }
 function buildLinkCurveOffsets(visLinks){
+  if(MAP_LIGHT_BUNDLING_STRENGTH<=0) return {};
   const groups={},spacing=12,laneOrder2=idx=>idx===0?0:(idx%2===1?(idx+1)/2:-(idx/2));
   visLinks.forEach(lk=>{
     const fp=nodePos[lk.from],tp=nodePos[lk.to];if(!fp||!tp)return;
@@ -1245,18 +1247,17 @@ function buildLinkCurveOffsets(visLinks){
   const offsets={};Object.values(groups).forEach(arr=>{arr.sort((a,b)=>a.id-b.id);arr.forEach((lk,idx)=>{offsets[lk.id]=laneOrder2(idx)*spacing;});});
   return offsets;
 }
-function calcLinkPath(lk){
+function calcLinkPath(lk,opt={}){
   const fp=nodePos[lk.from],tp=nodePos[lk.to];if(!fp||!tp)return null;
   const dx=tp.x-fp.x,dy=tp.y-fp.y,dist=Math.sqrt(dx*dx+dy*dy)||1,nx=dx/dist,ny=dy/dist;
   const rf=getNodeRadius(lk.from),rt=getNodeRadius(lk.to);
   const x1=fp.x+nx*rf,y1=fp.y+ny*rf,x2=tp.x-nx*(rt+8),y2=tp.y-ny*(rt+8);
-  const fromMeta=mapNodeMeta[lk.from]||{lane:0,order:0},toMeta=mapNodeMeta[lk.to]||{lane:fromMeta.lane+1,order:0};
-  const laneDiff=toMeta.lane-fromMeta.lane,laneOffset=linkCurveOffsets[lk.id]||0;
-  const bundleShift=Math.max(-24,Math.min(24,laneOffset*.85));
-  if(Math.abs(laneDiff)<=1){const mx=(x1+x2)/2;return{d:`M${x1},${y1} C${mx-20},${y1+bundleShift} ${mx+20},${y2+bundleShift} ${x2},${y2}`};}
-  let d=`M${x1},${y1}`,sx=x1,sy=y1;const steps=Math.abs(laneDiff),dir=laneDiff>0?1:-1;
-  for(let step=1;step<=steps;step++){const t=step/steps,tx=x1+(x2-x1)*t,ty=y1+(y2-y1)*t+bundleShift,c1x=sx+36*dir,c2x=tx-36*dir;d+=` C${c1x},${sy} ${c2x},${ty} ${tx},${ty}`;sx=tx;sy=ty;}
-  return{d};
+  const laneOffset=linkCurveOffsets[lk.id]||0;
+  const unbundled=!!opt.unbundled;
+  const bundleShift=unbundled?0:Math.max(-24,Math.min(24,laneOffset*.85*MAP_LIGHT_BUNDLING_STRENGTH));
+  const mx=(x1+x2)/2+bundleShift;
+  const d=`M${x1},${y1} L${mx},${y1} L${mx},${y2} L${x2},${y2}`;
+  return {d};
 }
 function moveNodeEl(id,x,y){
   const grp=nodeEls[id];if(!grp)return;
@@ -1283,7 +1284,9 @@ function redrawLines(affectedId){
   const toUpdateIds=affectedId!==undefined?(nodeLinksIndex[affectedId]||[]):Object.keys(linkElsMap).map(Number);
   toUpdateIds.forEach(linkId=>{
     const els=linkElsMap[linkId],lk=links.find(x=>x.id===linkId);if(!els||!els.p||!lk)return;
-    if(!visIds[lk.from]||!visIds[lk.to])return;const c=calcLinkPath(lk);if(!c)return;els.p.setAttribute('d',c.d);
+    if(!visIds[lk.from]||!visIds[lk.to])return;
+    const unbundled=!!mapFocusedNodeId&&(lk.from===mapFocusedNodeId||lk.to===mapFocusedNodeId);
+    const c=calcLinkPath(lk,{unbundled});if(!c)return;els.p.setAttribute('d',c.d);
   });
 }
 function visibleNotes(){
@@ -1445,7 +1448,16 @@ function getFocusNodeSet(id){ const set={[id]:true};links.forEach(l=>{if(l.from=
 function applyFocusStyles(){
   const focusSet=(mapFocusMode&&mapFocusedNodeId)?getFocusNodeSet(mapFocusedNodeId):null;
   g('nodesLayer').querySelectorAll('.map-node').forEach(grp=>{const nid2=parseInt(grp.dataset.id);grp.classList.remove('map-node-highlight','map-node-dimmed');if(mapFocusedNodeId===nid2)grp.classList.add('map-node-highlight');if(focusSet&&!focusSet[nid2])grp.classList.add('map-node-dimmed');});
-  Object.keys(linkElsMap).forEach(key=>{const lid2=parseInt(key,10),lk=links.find(l=>l.id===lid2),path=linkElsMap[lid2]&&linkElsMap[lid2].p;if(!lk||!path)return;const active=!focusSet||(focusSet[lk.from]&&focusSet[lk.to]);path.style.opacity=active?'0.72':'0.05';path.setAttribute('stroke-width',active?'2.1':'0.9');});
+  Object.keys(linkElsMap).forEach(key=>{
+    const lid2=parseInt(key,10),lk=links.find(l=>l.id===lid2),path=linkElsMap[lid2]&&linkElsMap[lid2].p;
+    if(!lk||!path)return;
+    const active=!focusSet||(focusSet[lk.from]&&focusSet[lk.to]);
+    const isSelectedRelated=!!mapFocusedNodeId&&(lk.from===mapFocusedNodeId||lk.to===mapFocusedNodeId);
+    const c=calcLinkPath(lk,{unbundled:isSelectedRelated});
+    if(c) path.setAttribute('d',c.d);
+    path.style.opacity=isSelectedRelated?'0.98':(active?'0.72':'0.05');
+    path.setAttribute('stroke-width',isSelectedRelated?'3.3':(active?'2.1':'0.9'));
+  });
 }
 function highlightNode(id){ mapFocusedNodeId=id;applyFocusStyles(); }
 function startDrag(e,id){ e.preventDefault();e.stopPropagation();closeMapPopup();dragNode=id;const pos=nodePos[id],rect=g('mapCanvas').getBoundingClientRect();dragOffX=e.clientX-rect.left-(pos.x*mapScale+mapOffX);dragOffY=e.clientY-rect.top-(pos.y*mapScale+mapOffY); }

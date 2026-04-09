@@ -303,7 +303,7 @@ function buildSubRow() {
   row.querySelectorAll('.sc').forEach(btn=>btn.addEventListener('click',()=>{
     const key=btn.dataset.s;
     if(key==='all') selectedSubjects=[];
-    else selectedSubjects=selectedSubjects.includes(key)?selectedSubjects.filter(x=>x!==key):[...selectedSubjects,key];
+    else selectedSubjects=selectedSubjects[0]===key?[]:[key];
     cs=selectedSubjects.length===1?selectedSubjects[0]:'all';
     const availKeys=new Set(chaptersBySubjects(selectedSubjects).map(ch=>ch.key));
     selectedChapters=selectedChapters.filter(k=>availKeys.has(k));
@@ -324,7 +324,7 @@ function buildChapterRow() {
   row.querySelectorAll('.ch').forEach(btn=>btn.addEventListener('click',()=>{
     const key=btn.dataset.ch;
     if(key==='all') selectedChapters=[];
-    else selectedChapters=selectedChapters.includes(key)?selectedChapters.filter(x=>x!==key):[...selectedChapters,key];
+    else selectedChapters=selectedChapters[0]===key?[]:[key];
     cch=selectedChapters.length===1?selectedChapters[0]:'all';
     gridPage=1;buildChapterRow();render();
   }));
@@ -335,9 +335,9 @@ function chaptersBySubjects(subKeys){
 }
 function normalizeFilterSelections(){
   const validSubjectKeys=new Set(subjects.map(s=>s.key));
-  selectedSubjects=selectedSubjects.filter(k=>validSubjectKeys.has(k));
+  selectedSubjects=selectedSubjects.filter(k=>validSubjectKeys.has(k)).slice(0,1);
   const validChapterKeys=new Set(chaptersBySubjects(selectedSubjects).map(ch=>ch.key));
-  selectedChapters=selectedChapters.filter(k=>validChapterKeys.has(k));
+  selectedChapters=selectedChapters.filter(k=>validChapterKeys.has(k)).slice(0,1);
   cs=selectedSubjects.length===1?selectedSubjects[0]:'all';
   cch=selectedChapters.length===1?selectedChapters[0]:'all';
 }
@@ -356,7 +356,7 @@ function syncChapterSelect(subjectKeys, selected=[]) {
   const keys=Array.isArray(subjectKeys)?subjectKeys.filter(Boolean):(subjectKeys?[subjectKeys]:[]);
   const available=keys.length?chaptersBySubjects(keys):chapters.slice();
   fc.innerHTML=available.map(ch=>`<option value="${ch.key}">${ch.label}</option>`).join('');
-  const selectedKeys=Array.isArray(selected)?selected.filter(Boolean):(selected?[selected]:[]);
+  const selectedKeys=(Array.isArray(selected)?selected.filter(Boolean):(selected?[selected]:[])).slice(0,1);
   const validSelected=selectedKeys.filter(k=>available.some(ch=>ch.key===k));
   setSelectedValues('fc',validSelected);
 }
@@ -424,7 +424,6 @@ function openNote(id) {
   g('dp-chips').innerHTML=subChips+chapterChips+noteTags(n).map(t=>`<span class="chip">${t}</span>`).join('');
   renderLinksForNote(id);
   g('dp').classList.add('open');['fp','tp'].forEach(p=>g(p).classList.remove('open'));
-  setTimeout(()=>g('dp').scrollIntoView({behavior:'smooth',block:'nearest'}),60);
 }
 
 function renderLinksForNote(id) {
@@ -441,6 +440,28 @@ function renderLinksForNote(id) {
 
 function closeDetail() { g('dp').classList.remove('open'); openId=null; }
 
+let debugVisible=false;
+function ensureEruda(){
+  return new Promise((resolve,reject)=>{
+    if(window.eruda){resolve(window.eruda);return;}
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/eruda';
+    s.onload=()=>resolve(window.eruda);
+    s.onerror=()=>reject(new Error('load eruda failed'));
+    document.head.appendChild(s);
+  });
+}
+async function toggleDebugTool(){
+  const btn=g('debugToggle');
+  try{
+    const er=await ensureEruda();
+    if(!er._isInit) er.init();
+    debugVisible=!debugVisible;
+    if(debugVisible){ er.show(); btn?.classList.add('active'); showToast('偵錯工具已開啟'); }
+    else { er.hide(); btn?.classList.remove('active'); showToast('偵錯工具已隱藏'); }
+  }catch(e){ showToast('偵錯工具載入失敗'); }
+}
+
 // ==================== 表單 ====================
 function openForm(isEdit) {
   editMode=isEdit; buildFormSelects();
@@ -448,7 +469,7 @@ function openForm(isEdit) {
     const n=noteById(openId); if(!n) return;
     g('form-title').textContent='編輯筆記';
     g('ft').value=n.type;setSelectedValues('fs2',noteSubjects(n));syncChapterSelect(noteSubjects(n),noteChapters(n));g('fti').value=n.title;g('fbo').value=n.body;
-    g('fde').value=n.detail||'';g('fta').value=noteTags(n).join(', ');
+    g('fde').value=n.detail||'';g('fta').value=noteTags(n)[0]||'';
     if(g('f-todos')) g('f-todos').value=formatTodosForEdit(n.todos);
     toggleDiaryTodo(n.type==='diary');
   } else {
@@ -530,11 +551,12 @@ function saveNote() {
   const title=(g('fti').value||'').trim();
   if(!title){g('fti').style.borderColor='#FF3B30';showToast('請輸入標題');return;}
   g('fti').style.borderColor='';
-  const tags=(g('fta').value||'').split(',').map(t=>t.trim()).filter(Boolean);
+  const singleTag=(g('fta').value||'').trim();
+  const tags=singleTag?[singleTag]:[];
   const todos=parseTodos(val('f-todos')||'');
-  const selectedSubs=selectedValues('fs2');
+  const selectedSubs=selectedValues('fs2').slice(0,1);
   if(!selectedSubs.length){showToast('請至少選擇一個科目');return;}
-  const selectedChs=selectedValues('fc');
+  const selectedChs=selectedValues('fc').slice(0,1);
   const primarySubject=selectedSubs[0]||'';
   const primaryChapter=selectedChs[0]||'';
   if(editMode&&openId) {
@@ -1259,6 +1281,7 @@ window.addEventListener('load',()=>{
   g('aiKeySave').addEventListener('click',()=>{const k=(g('aiKeyInput').value||'').trim();if(!k){showToast('請輸入 OpenRouter API Key');return;}saveAiKey(k);const sel=g('aiModelSel');if(sel&&sel.value)saveAiModel(sel.value);g('aiKeyModal').classList.remove('open');if(_aiPendingAction){_aiPendingAction(k);_aiPendingAction=null;}else showToast('AI 設定已儲存！');});
   g('aiKeyCancel').addEventListener('click',()=>{g('aiKeyModal').classList.remove('open');_aiPendingAction=null;});
   g('importFile').addEventListener('change',e=>{if(e.target.files&&e.target.files[0])importData(e.target.files[0]);e.target.value='';});
+  on('debugToggle','click',toggleDebugTool);
   g('shortcutMgrBtn').addEventListener('click',openShortcutMgr);g('scpClose').addEventListener('click',closeShortcutMgr);g('scpDone').addEventListener('click',closeShortcutMgr);
   g('scpReset').addEventListener('click',()=>{shortcuts=DEFAULT_SHORTCUTS.map(s=>({...s}));saveShortcuts();renderShortcutList();showToast('已恢復預設快捷鍵');});
   loadShortcuts();document.addEventListener('keydown',handleGlobalKey);

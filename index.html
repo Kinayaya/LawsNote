@@ -8,7 +8,6 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="sync-bar"><span>&#9432;</span><span>筆記自動兼存。點 <b>匯出</b> 備份，點 <b>匯入</b> 跨裝置同步。</span></div>
 <div id="topbar">
   <div class="title-row">
     <div class="brand-wrap">
@@ -171,14 +170,13 @@
   <div id="mapToolbar">
     <span style="font-size:13px;font-weight:600;flex-shrink:0;">&#128279; 體系圖</span>
     <button class="tool-btn map-primary-action" id="mapAddNoteBtn">+ 新增筆記</button>
-    <button class="tool-btn" id="mapEditNoteBtn">&#9998; 編輯目前筆記</button>
     <div class="map-search-wrap">
       <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:#aaa;font-size:12px;pointer-events:none;">&#128269;</span>
       <input id="mapSearchInput" placeholder="搜尋節點..." autocomplete="off">
     </div>
     <select id="mapFilterSub" class="map-filter-sel"><option value="all">全部科目</option></select>
-    <select id="mapFilterType" class="map-filter-sel"><option value="all">全部類型</option></select>
     <select id="mapFilterChapter" class="map-filter-sel"><option value="all">全部章</option></select>
+    <select id="mapFilterSection" class="map-filter-sel"><option value="all">全部節</option></select>
     <span id="mapPinnedChapter" class="map-pinned-chapter">章：未設定</span>
     <button class="tool-btn" id="mapAdvancedToggleBtn" style="background:#f5f5f5;color:#555;border-color:#ddd;">⚙️ 進階</button>
     <button class="tool-btn" id="mapAutoBtn">&#10024; 自動排列</button>
@@ -202,7 +200,7 @@
   <div id="mapCanvas">
     <div id="lanePanel">
       <div class="lane-panel-head"><span class="lane-panel-title">泳道設定</span><button class="pcls" id="lanePanelClose">&#215;</button></div>
-      <div class="lane-panel-desc">可依「目前科目/類型篩選」分開設定泳道名稱。</div>
+      <div class="lane-panel-desc">可依「目前科目/節篩選」分開設定泳道名稱。</div>
       <div id="laneContextLabel"></div>
       <div class="lane-count-row"><label for="laneCountInput">泳道數量</label><input id="laneCountInput" type="number" min="2" max="10" value="5"></div>
       <div id="laneInputs"></div>

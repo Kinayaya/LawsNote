@@ -51,7 +51,7 @@ let chapterSubjectFilter='', sectionChapterFilter='';
 let tagChapterTab='chapter';
 let nodePos={}, dragNode=null, dragOffX=0, dragOffY=0, mapW=800, mapH=500;
 let nodeSizes={};
-let mapScale=1, mapOffX=0, mapOffY=0, mapFilter={sub:'all',type:'all',chapter:'all',q:''}, mapLinkedOnly=true;
+let mapScale=1, mapOffX=0, mapOffY=0, mapFilter={sub:'all',chapter:'all',section:'all',q:''}, mapLinkedOnly=true;
 let mapDepth='all', mapFocusMode=false, mapFocusedNodeId=null;
 let nodeEls={}, linkElsMap={}, nodeLinksIndex={}, linkCurveOffsets={}, isMapOpen=false;
 let gridPage=1, sortMode='date_desc', multiSelMode=false, selectedIds={};
@@ -219,7 +219,7 @@ const MAP_LIGHT_BUNDLING_STRENGTH=0.38;
 const DEFAULT_LANE_NAMES=['法條','構成要件','違法性','罪責','其它'];
 const MIN_LANE_COUNT=2, MAX_LANE_COUNT=10;
 const clampMapRadius = r => Math.max(MAP_NODE_RADIUS_MIN,Math.min(MAP_NODE_RADIUS_MAX,r));
-const laneContextKey = () => `${mapFilter.sub||'all'}::${mapFilter.type||'all'}`;
+const laneContextKey = () => `${mapFilter.sub||'all'}::${mapFilter.section||'all'}`;
 const defaultLaneNameAt = idx => DEFAULT_LANE_NAMES[idx]||`泳道 ${idx+1}`;
 const normalizeLaneCount = v => Math.max(MIN_LANE_COUNT,Math.min(MAX_LANE_COUNT,parseInt(v,10)||DEFAULT_LANE_NAMES.length));
 const getLaneConfig = () => {
@@ -345,7 +345,12 @@ function loadData() {
       if(d.sortMode) sortMode=d.sortMode;
       mapCenterNodeId=d.mapCenterNodeId||null;
       mapCenterNodeIds=(d.mapCenterNodeIds&&typeof d.mapCenterNodeIds==='object'&&!Array.isArray(d.mapCenterNodeIds))?d.mapCenterNodeIds:{};
-      if(d.mapFilter&&typeof d.mapFilter==='object') mapFilter={sub:typeof d.mapFilter.sub==='string'?d.mapFilter.sub:'all',type:typeof d.mapFilter.type==='string'?d.mapFilter.type:'all',chapter:typeof d.mapFilter.chapter==='string'?d.mapFilter.chapter:'all',q:typeof d.mapFilter.q==='string'?d.mapFilter.q:''};
+      if(d.mapFilter&&typeof d.mapFilter==='object') mapFilter={
+        sub:typeof d.mapFilter.sub==='string'?d.mapFilter.sub:'all',
+        chapter:typeof d.mapFilter.chapter==='string'?d.mapFilter.chapter:'all',
+        section:typeof d.mapFilter.section==='string'?d.mapFilter.section:'all',
+        q:typeof d.mapFilter.q==='string'?d.mapFilter.q:''
+      };
       if(typeof d.mapLinkedOnly==='boolean') mapLinkedOnly=d.mapLinkedOnly;
       if(['all','1','2','3'].includes(d.mapDepth)) mapDepth=d.mapDepth;
       if(typeof d.mapFocusMode==='boolean') mapFocusMode=d.mapFocusMode;
@@ -1467,11 +1472,11 @@ function visibleNotes(){
   const q=(mapFilter.q||'').toLowerCase(),linkedIds={};
   if(mapLinkedOnly)links.forEach(l=>{linkedIds[l.from]=true;linkedIds[l.to]=true;});
   const filtered=notes.filter(n=>{
-    const subs=noteSubjects(n),chs=noteChapters(n);
+    const subs=noteSubjects(n),chs=noteChapters(n),secs=noteSections(n);
     return (mapFilter.sub==='all'||subs.includes(mapFilter.sub))
-      &&(mapFilter.type==='all'||n.type===mapFilter.type)
       &&(mapFilter.chapter==='all'||chs.includes(mapFilter.chapter))
-      &&(!q||`${n.title}${subs.join('')}${chs.join('')}${noteTags(n).join('')}`.toLowerCase().includes(q));
+      &&(mapFilter.section==='all'||secs.includes(mapFilter.section))
+      &&(!q||`${n.title}${subs.join('')}${chs.join('')}${secs.join('')}${noteTags(n).join('')}`.toLowerCase().includes(q));
   });
   let base=filtered.filter(n=>!mapLinkedOnly||linkedIds[n.id]);
   if(mapLinkedOnly&&!base.length&&filtered.length){
@@ -1637,10 +1642,9 @@ function highlightNode(id){ mapFocusedNodeId=id;applyFocusStyles(); }
 function startDrag(e,id){ e.preventDefault();e.stopPropagation();closeMapPopup();dragNode=id;const pos=nodePos[id],rect=g('mapCanvas').getBoundingClientRect();dragOffX=e.clientX-rect.left-(pos.x*mapScale+mapOffX);dragOffY=e.clientY-rect.top-(pos.y*mapScale+mapOffY); }
 function startDragTouch(e,id){ e.stopPropagation();dragNode=id;const pos=nodePos[id],rect=g('mapCanvas').getBoundingClientRect(),touch=e.touches[0];dragOffX=touch.clientX-rect.left-(pos.x*mapScale+mapOffX);dragOffY=touch.clientY-rect.top-(pos.y*mapScale+mapOffY); }
 function buildMapFilters(){
-  const ss=g('mapFilterSub'),st=g('mapFilterType'),sch=g('mapFilterChapter'),sd=g('mapDepthSel');if(!ss||!st||!sch)return;
+  const ss=g('mapFilterSub'),sch=g('mapFilterChapter'),ssc=g('mapFilterSection'),sd=g('mapDepthSel');if(!ss||!sch||!ssc)return;
   ss.innerHTML='<option value="all">全部科目</option>'+subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join('');
-  st.innerHTML='<option value="all">全部類型</option>'+types.map(t=>`<option value="${t.key}">${t.label}</option>`).join('');
-  if(!subjects.some(s=>s.key===mapFilter.sub))mapFilter.sub='all';if(!types.some(t=>t.key===mapFilter.type))mapFilter.type='all';
+  if(!subjects.some(s=>s.key===mapFilter.sub))mapFilter.sub='all';
   const mapChapters=chapters.filter(ch=>mapFilter.sub==='all'||ch.subject===mapFilter.sub||ch.subject==='all');
   const preferredChapter=(cch!=='all'&&cch)||selectedChapters[0]||'';
   if(mapChapters.length){
@@ -1651,16 +1655,24 @@ function buildMapFilters(){
     mapFilter.chapter='all';
     sch.innerHTML='<option value="all">（目前無可用章）</option>';
   }
-  ss.value=mapFilter.sub;st.value=mapFilter.type;sch.value=mapFilter.chapter;
+  const mapSections=sections.filter(sec=>mapFilter.chapter==='all'||sec.chapter===mapFilter.chapter||sec.chapter==='all');
+  if(mapSections.length){
+    if(!mapSections.some(sec=>sec.key===mapFilter.section)) mapFilter.section='all';
+    ssc.innerHTML='<option value="all">全部節</option>'+mapSections.map(sec=>`<option value="${sec.key}">${sec.label}</option>`).join('');
+  }else{
+    mapFilter.section='all';
+    ssc.innerHTML='<option value="all">（目前無可用節）</option>';
+  }
+  ss.value=mapFilter.sub;sch.value=mapFilter.chapter;ssc.value=mapFilter.section;
   if(sd)sd.value=['all','1','2','3'].includes(mapDepth)?mapDepth:'all';
   updateMapPinnedChapter();
 }
-function laneContextLabelText(){ const s=mapFilter.sub==='all'?'全部科目':subByKey(mapFilter.sub).label,t=mapFilter.type==='all'?'全部類型':typeByKey(mapFilter.type).label;return `目前篩選：${s} / ${t}`; }
+function laneContextLabelText(){ const s=mapFilter.sub==='all'?'全部科目':subByKey(mapFilter.sub).label,sec=mapFilter.section==='all'?'全部節':sectionByKey(mapFilter.section).label;return `目前篩選：${s} / ${sec}`; }
 function ensureLanePanel(){
   const existing=g('lanePanel');if(existing)return existing;
   const canvas=g('mapCanvas');if(!canvas)return null;
   const panel=document.createElement('div');panel.id='lanePanel';
-  panel.innerHTML=`<div class="lane-panel-head"><span class="lane-panel-title">泳道設定</span><button class="pcls" id="lanePanelClose">×</button></div><div class="lane-panel-desc">可依「目前科目/類型篩選」分開設定泳道名稱。</div><div id="laneContextLabel"></div><div class="lane-count-row"><label for="laneCountInput">泳道數量</label><input id="laneCountInput" type="number" min="${MIN_LANE_COUNT}" max="${MAX_LANE_COUNT}" value="${DEFAULT_LANE_NAMES.length}"></div><div id="laneInputs"></div><div class="lane-panel-actions"><button class="fbtn bcl" id="laneResetBtn">恢復預設</button><button class="fbtn bsv" id="laneSaveBtn">儲存</button></div>`;
+  panel.innerHTML=`<div class="lane-panel-head"><span class="lane-panel-title">泳道設定</span><button class="pcls" id="lanePanelClose">×</button></div><div class="lane-panel-desc">可依「目前科目/節篩選」分開設定泳道名稱。</div><div id="laneContextLabel"></div><div class="lane-count-row"><label for="laneCountInput">泳道數量</label><input id="laneCountInput" type="number" min="${MIN_LANE_COUNT}" max="${MAX_LANE_COUNT}" value="${DEFAULT_LANE_NAMES.length}"></div><div id="laneInputs"></div><div class="lane-panel-actions"><button class="fbtn bcl" id="laneResetBtn">恢復預設</button><button class="fbtn bsv" id="laneSaveBtn">儲存</button></div>`;
   canvas.appendChild(panel);on('lanePanelClose','click',closeLanePanel);on('laneSaveBtn','click',saveLanePanel);on('laneResetBtn','click',resetLanePanel);return panel;
 }
 function renderLanePanel(){
@@ -1776,11 +1788,10 @@ window.addEventListener('load',()=>{
   },{passive:false});
   g('mapToggleBtn').addEventListener('click',()=>toggleMapView(true));g('mapBackBtn').addEventListener('click',()=>toggleMapView(false));
   on('mapAddNoteBtn','click',()=>openForm(false));
-  on('mapEditNoteBtn','click',()=>{if(!openId){showToast('請先點選一則筆記節點');return;}openForm(true);});
   on('mapSearchInput','input',debounce(()=>{mapFilter.q=g('mapSearchInput').value;saveDataDeferred();if(isMapOpen)drawMap();},250));
   on('mapFilterSub','change',()=>{mapFilter.sub=g('mapFilterSub').value;buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
-  on('mapFilterType','change',()=>{mapFilter.type=g('mapFilterType').value;nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
-  on('mapFilterChapter','change',()=>{mapFilter.chapter=g('mapFilterChapter').value;updateMapPinnedChapter();nodePos={};saveDataDeferred();if(isMapOpen){forceLayout();drawMap();}});
+  on('mapFilterChapter','change',()=>{mapFilter.chapter=g('mapFilterChapter').value;buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
+  on('mapFilterSection','change',()=>{mapFilter.section=g('mapFilterSection').value;nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
   on('mapAdvancedToggleBtn','click',()=>setMapAdvanced(!mapAdvancedOpen));
   on('mapDepthSel','change',()=>{mapDepth=g('mapDepthSel').value;nodePos={};forceLayout();drawMap();saveDataDeferred();});
   on('mapFocusBtn','click',()=>{mapFocusMode=!mapFocusMode;const btn=g('mapFocusBtn');if(btn){btn.style.background=mapFocusMode?'#0C447C':'#f0f7ff';btn.style.color=mapFocusMode?'#fff':'#0C447C';btn.textContent=`🎯 焦點模式：${mapFocusMode?'開':'關'}`;}applyFocusStyles();saveDataDeferred();});

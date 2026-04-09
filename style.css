@@ -1,4 +1,5 @@
 *{box-sizing:border-box;margin:0;padding:0}
+html,body{touch-action:manipulation}
 body{font-family:-apple-system,BlinkMacSystemFont,"PingFang TC",sans-serif;font-size:14px;background:#f6f7f9;color:#1c1c1e}
 body.side-panel-open{overflow:hidden}
 button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appearance:none}
@@ -329,7 +330,7 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
   overflow:auto;
   overscroll-behavior:contain;
   -webkit-overflow-scrolling:touch;
-  touch-action:pan-y;
+  touch-action:manipulation;
   transform:translateX(105%);
   transition:transform .24s ease;
   display:block;
@@ -354,7 +355,7 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
   overflow:auto;
   overscroll-behavior:contain;
   -webkit-overflow-scrolling:touch;
-  touch-action:pan-y;
+  touch-action:manipulation;
   transform:translateX(105%);
   transition:transform .24s ease;
   display:block;

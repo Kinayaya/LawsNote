@@ -1465,12 +1465,24 @@ window.addEventListener('load',()=>{
   g('scpReset').addEventListener('click',()=>{shortcuts=DEFAULT_SHORTCUTS.map(s=>({...s}));saveShortcuts();renderShortcutList();showToast('已恢復預設快捷鍵');});
   loadShortcuts();document.addEventListener('keydown',handleGlobalKey);
   const isInsideMapCanvas = target => !!(target&&target.closest&&target.closest('#mapCanvas'));
-  let lastTouchEndTs=0;
+  let lastTouchEndTs=0, lastTouchTs=0, lastTouchX=0, lastTouchY=0;
   document.addEventListener('dblclick',e=>{ if(!isInsideMapCanvas(e.target)) e.preventDefault(); },{capture:true,passive:false});
   document.addEventListener('wheel',e=>{ if(e.ctrlKey&&!isInsideMapCanvas(e.target)) e.preventDefault(); },{passive:false});
   ['gesturestart','gesturechange','gestureend'].forEach(evt=>{
     document.addEventListener(evt,e=>{ if(!isInsideMapCanvas(e.target)) e.preventDefault(); },{passive:false});
   });
+  document.addEventListener('touchstart',e=>{
+    if(isInsideMapCanvas(e.target)) return;
+    if(e.touches.length>1){ e.preventDefault(); return; }
+    const t=e.touches[0];
+    if(!t) return;
+    const now=Date.now(), dx=Math.abs(t.clientX-lastTouchX), dy=Math.abs(t.clientY-lastTouchY);
+    if(now-lastTouchTs<350&&dx<28&&dy<28) e.preventDefault();
+    lastTouchTs=now; lastTouchX=t.clientX; lastTouchY=t.clientY;
+  },{passive:false});
+  document.addEventListener('touchmove',e=>{
+    if(!isInsideMapCanvas(e.target)&&e.touches.length>1) e.preventDefault();
+  },{passive:false});
   document.addEventListener('touchend',e=>{
     if(isInsideMapCanvas(e.target)) return;
     const now=Date.now();

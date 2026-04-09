@@ -58,6 +58,7 @@ let shortcuts=[], recordingBtn=null, _aiPendingAction=null, _saveTimer=null, raf
 let mapRedrawTimer=null, mapResizeObserver=null, mapCenterNodeId=null, mapLaneConfigs={}, mapNodeMeta={};
 let mapTimer=null, currentView='notes';
 let mapAdvancedOpen=false;
+let mapCollapsed={};
 let typeFieldConfigs={}, customFieldDefs={};
 
 // ==================== 工具函數 ====================
@@ -121,7 +122,7 @@ const saveSyncConfigFromInputs = () => {
   const autoPull=!!g('syncAutoPull')?.checked;
   if(token&&gistId) saveSyncConfig({token,gistId,autoPush,autoPull});
 };
-const getPayload = () => ({notes,links,nid,lid,types,subjects,chapters,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,typeFieldConfigs,customFieldDefs,updatedAt:new Date().toISOString()});
+const getPayload = () => ({notes,links,nid,lid,types,subjects,chapters,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,typeFieldConfigs,customFieldDefs,updatedAt:new Date().toISOString()});
 const parseUpdatedAt = raw => {
   const n=Date.parse(raw||'');
   return Number.isFinite(n)?n:0;
@@ -295,6 +296,7 @@ function loadData() {
       if(['all','1','2','3'].includes(d.mapDepth)) mapDepth=d.mapDepth;
       if(typeof d.mapFocusMode==='boolean') mapFocusMode=d.mapFocusMode;
       mapLaneConfigs=(d.mapLaneConfigs&&typeof d.mapLaneConfigs==='object'&&!Array.isArray(d.mapLaneConfigs))?d.mapLaneConfigs:{};
+      mapCollapsed=(d.mapCollapsed&&typeof d.mapCollapsed==='object'&&!Array.isArray(d.mapCollapsed))?d.mapCollapsed:{};
       customFieldDefs=(d.customFieldDefs&&typeof d.customFieldDefs==='object'&&!Array.isArray(d.customFieldDefs))?d.customFieldDefs:{};
       Object.keys(customFieldDefs).forEach(key=>{
         const item=customFieldDefs[key]||{};
@@ -904,7 +906,7 @@ function addTag(kind) {
 
 // ==================== 匯入/匯出 ====================
 function exportData() {
-  const json=JSON.stringify({notes,links,nid,lid,types,subjects,chapters,nodeSizes,mapCenterNodeId,exported:new Date().toISOString()},null,2);
+  const json=JSON.stringify({notes,links,nid,lid,types,subjects,chapters,nodeSizes,mapCenterNodeId,mapCollapsed,exported:new Date().toISOString()},null,2);
   const blob=new Blob([json],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
   const d=new Date();
   a.download=`法律筆記備份_${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}.json`;
@@ -929,7 +931,7 @@ function importData(file) {
       if(confirm('確定 = 完整覆蓋（取代所有現有筆記，保留現有科目/章節設定）\n取消 = 合併（只加入新筆記）')) {
         // ★ 覆蓋模式：不覆蓋 types/subjects/chapters
         notes=d.notes;links=d.links||[];
-        nodeSizes=d.nodeSizes||{};mapCenterNodeId=d.mapCenterNodeId||null;
+        nodeSizes=d.nodeSizes||{};mapCenterNodeId=d.mapCenterNodeId||null;mapCollapsed=(d.mapCollapsed&&typeof d.mapCollapsed==='object')?d.mapCollapsed:{};
         nid=d.nid||notes.length+100;lid=d.lid||10;notes.sort((a,b)=>b.id-a.id);
         normalizeNoteIds(true);
         saveData();rebuildUI();render();showToast(`已覆蓋，共 ${notes.length} 筆筆記`);
@@ -939,6 +941,7 @@ function importData(file) {
         d.notes.forEach(n=>{if(!existing.includes(n.id)){notes.push(n);added++;if(n.id>=nid)nid=n.id+1;}});
         if(d.links)links=d.links;
         if(d.nodeSizes)nodeSizes={...nodeSizes,...d.nodeSizes};if(d.mapCenterNodeId)mapCenterNodeId=d.mapCenterNodeId;
+        if(d.mapCollapsed&&typeof d.mapCollapsed==='object') mapCollapsed={...mapCollapsed,...d.mapCollapsed};
         notes.sort((a,b)=>b.id-a.id);normalizeNoteIds(true);saveData();rebuildUI();render();showToast(`已合併，新增 ${added} 筆`);
       }
     } catch(ex){showToast('匯入失敗，請確認檔案格式');}
@@ -1229,6 +1232,10 @@ function moveNodeEl(id,x,y){
   const grp=nodeEls[id];if(!grp)return;
   const mainCircle=grp.querySelector('circle.node-main'),r=parseFloat(mainCircle?mainCircle.getAttribute('r'):24)||24;
   if(mainCircle){mainCircle.setAttribute('cx',x);mainCircle.setAttribute('cy',y);}
+  const foldBtn=grp.querySelector('circle.node-fold-btn');
+  if(foldBtn){foldBtn.setAttribute('cx',x+r*.72);foldBtn.setAttribute('cy',y-r*.72);}
+  const foldSign=grp.querySelector('text.node-fold-sign');
+  if(foldSign){foldSign.setAttribute('x',x+r*.72);foldSign.setAttribute('y',y-r*.72+1);}
   const countText=grp.querySelector('text.node-count');if(countText){countText.setAttribute('x',x);countText.setAttribute('y',y);}
   const titleText=grp.querySelector('text.node-title');if(titleText){titleText.setAttribute('x',x);titleText.setAttribute('y',y+r+14);titleText.querySelectorAll('tspan').forEach(t=>t.setAttribute('x',x));}
 }
@@ -1256,11 +1263,28 @@ function visibleNotes(){
     mapLinkedOnly=false;setMapLinkedOnlyBtnStyle();
     showToast('目前沒有關聯節點，已自動顯示全部節點');saveDataDeferred();base=filtered;
   }
-  if(mapDepth==='all'||!base.length)return base;
   const baseIds={};base.forEach(n=>baseIds[n.id]=true);
-  if(!mapCenterNodeId||!baseIds[mapCenterNodeId])return base;
+  if(base.length){
+    const hiddenByCollapse={},stack=[];
+    Object.keys(mapCollapsed||{}).forEach(key=>{
+      const id=parseInt(key,10);
+      if(mapCollapsed[id]&&baseIds[id]) stack.push(id);
+    });
+    while(stack.length){
+      const current=stack.pop();
+      links.forEach(lk=>{
+        if(lk.from!==current||!baseIds[lk.to]||hiddenByCollapse[lk.to]||mapCollapsed[lk.to]) return;
+        hiddenByCollapse[lk.to]=true;
+        stack.push(lk.to);
+      });
+    }
+    base=base.filter(n=>!hiddenByCollapse[n.id]);
+  }
+  if(mapDepth==='all'||!base.length)return base;
+  const depthBaseIds={};base.forEach(n=>depthBaseIds[n.id]=true);
+  if(!mapCenterNodeId||!depthBaseIds[mapCenterNodeId])return base;
   const maxDepth=parseInt(mapDepth,10);if(!maxDepth)return base;
-  const adj={};links.forEach(l=>{if(!baseIds[l.from]||!baseIds[l.to])return;if(!adj[l.from])adj[l.from]=[];if(!adj[l.to])adj[l.to]=[];adj[l.from].push(l.to);adj[l.to].push(l.from);});
+  const adj={};links.forEach(l=>{if(!depthBaseIds[l.from]||!depthBaseIds[l.to])return;if(!adj[l.from])adj[l.from]=[];if(!adj[l.to])adj[l.to]=[];adj[l.from].push(l.to);adj[l.to].push(l.from);});
   const seen={[mapCenterNodeId]:0},q2=[mapCenterNodeId];
   while(q2.length){const id=q2.shift(),depth=seen[id];if(depth>=maxDepth)continue;(adj[id]||[]).forEach(nid=>{if(seen[nid]===undefined){seen[nid]=depth+1;q2.push(nid);}});}
   return base.filter(n=>seen[n.id]!==undefined);
@@ -1308,12 +1332,40 @@ function drawMap(){
     const countText=document.createElementNS('http://www.w3.org/2000/svg','text');countText.classList.add('node-count');countText.setAttribute('x',pos.x);countText.setAttribute('y',pos.y+4);countText.setAttribute('text-anchor','middle');countText.setAttribute('font-size',String(Math.max(10,Math.min(14,radius*.55))));countText.setAttribute('font-weight','700');countText.setAttribute('fill',type.color);countText.textContent=String(links.filter(l=>l.from===n.id||l.to===n.id).length||0);
     const titleText=document.createElementNS('http://www.w3.org/2000/svg','text');titleText.classList.add('node-title');titleText.setAttribute('x',pos.x);titleText.setAttribute('y',pos.y+radius+14);titleText.setAttribute('text-anchor','middle');titleText.setAttribute('font-size','11');titleText.setAttribute('fill','#2b2b2b');
     splitMapTitleLines(n.title,8).slice(0,2).forEach((line,i)=>{const tspan=document.createElementNS('http://www.w3.org/2000/svg','tspan');tspan.setAttribute('x',pos.x);tspan.setAttribute('dy',i===0?0:13);tspan.textContent=line;titleText.appendChild(tspan);});
+    const hasChildren=links.some(l=>l.from===n.id&&visIds[l.to]);
+    if(hasChildren){
+      const foldX=pos.x+radius*.72,foldY=pos.y-radius*.72,foldBtnR=Math.max(8,Math.min(11,radius*.33));
+      const foldBtn=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      foldBtn.classList.add('node-fold-btn');
+      foldBtn.setAttribute('cx',foldX);foldBtn.setAttribute('cy',foldY);foldBtn.setAttribute('r',foldBtnR);
+      foldBtn.setAttribute('fill','#ffffff');foldBtn.setAttribute('stroke',type.color);foldBtn.setAttribute('stroke-width','1.5');
+      foldBtn.style.cursor='pointer';
+      const foldSign=document.createElementNS('http://www.w3.org/2000/svg','text');
+      foldSign.classList.add('node-fold-sign');
+      foldSign.setAttribute('x',foldX);foldSign.setAttribute('y',foldY+1);
+      foldSign.setAttribute('text-anchor','middle');foldSign.setAttribute('dominant-baseline','middle');
+      foldSign.setAttribute('font-size',String(Math.max(11,Math.min(16,radius*.65))));
+      foldSign.setAttribute('font-weight','700');foldSign.setAttribute('fill',type.color);
+      foldSign.style.cursor='pointer';
+      foldSign.textContent=mapCollapsed[n.id]?'+':'−';
+      const toggleFold=e=>{e.stopPropagation();toggleMapFold(n.id);};
+      foldBtn.addEventListener('click',toggleFold);
+      foldSign.addEventListener('click',toggleFold);
+      grp.appendChild(foldBtn);grp.appendChild(foldSign);
+    }
     grp.appendChild(circle);grp.appendChild(countText);grp.appendChild(titleText);
     grp.addEventListener('click',e=>{e.stopPropagation();showMapInfo(n.id);openMapPopup(n.id);highlightNode(n.id);});
     grp.addEventListener('mousedown',e=>startDrag(e,n.id));grp.addEventListener('touchstart',e=>startDragTouch(e,n.id),{passive:true});
     nodesLayer.appendChild(grp);nodeEls[n.id]=grp;
   });
   applyFocusStyles();
+}
+function toggleMapFold(id){
+  if(mapCollapsed[id]) delete mapCollapsed[id];
+  else mapCollapsed[id]=true;
+  closeMapPopup();
+  drawMap();
+  saveDataDeferred();
 }
 function openMapPopup(id){
   const popup=g('mapPopup'),pos=nodePos[id];if(!popup||!pos)return;

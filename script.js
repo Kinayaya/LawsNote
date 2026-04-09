@@ -475,6 +475,7 @@ function openNote(id) {
   g('dp-chips').innerHTML=subChips+chapterChips+tagHtml+customHtml;
   renderLinksForNote(id);
   g('dp').classList.add('open');['fp','tp'].forEach(p=>g(p).classList.remove('open'));
+  syncSidePanelState();
 }
 
 function renderLinksForNote(id) {
@@ -489,7 +490,7 @@ function renderLinksForNote(id) {
   el.querySelectorAll('.link-del').forEach(btn=>btn.addEventListener('click',()=>{links=links.filter(l=>l.id!==parseInt(btn.dataset.lid));saveData();renderLinksForNote(id);render();showToast('關聯已刪除');}));
 }
 
-function closeDetail() { g('dp').classList.remove('open'); openId=null; }
+function closeDetail() { g('dp').classList.remove('open'); openId=null; syncSidePanelState(); }
 
 let debugVisible=false;
 function ensureEruda(){
@@ -531,9 +532,21 @@ function openForm(isEdit) {
   }
   buildInlineLinksPanel();
   g('fp').classList.add('open');['dp','tp'].forEach(p=>g(p).classList.remove('open'));
-  setTimeout(()=>g('fp').scrollIntoView({behavior:'smooth',block:'nearest'}),60);
+  syncSidePanelState();
 }
-function closeForm() { g('fp').classList.remove('open'); }
+function closeForm() { g('fp').classList.remove('open'); syncSidePanelState(); }
+
+function detachSidePanelsFromNotesView(){
+  const host=document.body;
+  ['dp','fp','tp'].forEach(id=>{
+    const panel=g(id);
+    if(panel&&panel.parentElement!==host) host.appendChild(panel);
+  });
+}
+function syncSidePanelState(){
+  const hasOpen=['dp','fp','tp'].some(id=>g(id)?.classList.contains('open'));
+  document.body.classList.toggle('side-panel-open',hasOpen);
+}
 
 function buildInlineLinksPanel() {
   formLinkSelections={};
@@ -682,13 +695,15 @@ function saveNote() {
   if(editMode&&openId) {
     const idx=notes.findIndex(n=>n.id===openId);
   if(idx!==-1) Object.assign(notes[idx],{type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,title,body:fieldData.body,detail:fieldData.detail,tags:fieldData.tags,todos:fieldData.todos,extraFields:fieldData.extraFields});
-    saveData();closeForm();render();showToast('筆記已更新！');setTimeout(()=>openNote(openId),150);
+    saveData();closeForm();render();showToast('筆記已更新！');
+    setTimeout(()=>openNote(openId),150);
   } else {
     const d=new Date(),dt=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const newNote={id:nid++,type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,title,body:fieldData.body,detail:fieldData.detail,tags:fieldData.tags,date:dt,todos:fieldData.todos,extraFields:fieldData.extraFields};
     notes.unshift(newNote);openId=newNote.id;
     saveData();closeForm();render();showToast('筆記已儲存！');
-    setTimeout(()=>{window.scrollTo(0,0);setTimeout(()=>openNote(notes[0].id),300);},100);
+    if(isMapOpen) setTimeout(()=>openNote(newNote.id),120);
+    else setTimeout(()=>{window.scrollTo(0,0);setTimeout(()=>openNote(notes[0].id),300);},100);
   }
 }
 function duplicateNote() {
@@ -756,7 +771,13 @@ async function copyNoteToClipboard() {
 }
 function deleteNote() { if(!openId||!confirm('確定刪除這筆筆記？相關關聯也會一起刪除。')) return; links=links.filter(l=>l.from!==openId&&l.to!==openId);notes=notes.filter(n=>n.id!==openId);saveData();closeDetail();render();showToast('已刪除'); }
 // ==================== 標籤管理 ====================
-function openTagMgr() { chapterSubjectFilter='';g('tp').classList.add('open');['dp','fp'].forEach(p=>g(p).classList.remove('open'));renderTagLists();setTimeout(()=>g('tp').scrollIntoView({behavior:'smooth',block:'nearest'}),60); }
+function openTagMgr() {
+  chapterSubjectFilter='';
+  g('tp').classList.add('open');
+  ['dp','fp'].forEach(p=>g(p).classList.remove('open'));
+  renderTagLists();
+  syncSidePanelState();
+}
 function renderTagLists() {
   renderTagList('typeTagList',types,'type');
   renderTagList('subTagList',subjects,'sub');
@@ -935,7 +956,14 @@ function renderShortcutList() {
   g('scpList').querySelectorAll('.sc-key').forEach(btn=>btn.addEventListener('click',()=>{if(recordingBtn){recordingBtn.classList.remove('recording');recordingBtn.textContent=fmtKey(shortcuts[parseInt(recordingBtn.dataset.idx)]);}recordingBtn=btn;btn.classList.add('recording');btn.textContent='請按下按鍵...';btn.focus();}));
   g('scpList').querySelectorAll('[data-clear]').forEach(btn=>btn.addEventListener('click',()=>{const idx=parseInt(btn.dataset.clear);shortcuts[idx].code='';shortcuts[idx].ctrl=shortcuts[idx].shift=shortcuts[idx].alt=false;saveShortcuts();renderShortcutList();}));
 }
-function openShortcutMgr() { recordingBtn=null;renderShortcutList();g('scp').style.display='block';['dp','fp','tp'].forEach(p=>g(p).classList.remove('open'));setTimeout(()=>g('scp').scrollIntoView({behavior:'smooth',block:'nearest'}),60); }
+function openShortcutMgr() {
+  recordingBtn=null;
+  renderShortcutList();
+  g('scp').style.display='block';
+  ['dp','fp','tp'].forEach(p=>g(p).classList.remove('open'));
+  syncSidePanelState();
+  setTimeout(()=>g('scp').scrollIntoView({behavior:'smooth',block:'nearest'}),60);
+}
 function closeShortcutMgr() { if(recordingBtn){recordingBtn.classList.remove('recording');recordingBtn=null;}g('scp').style.display='none'; }
 function handleGlobalKey(e) {
   if(recordingBtn){
@@ -957,7 +985,7 @@ function execShortcut(id) {
       if(target){target.focus();target.select?.();}
     },
     map:()=>{if(!isMapOpen)toggleMapView(true);},back:()=>{if(isMapOpen)toggleMapView(false);},
-    close:()=>{if(g('scp').style.display==='block')closeShortcutMgr();else if(g('tp').classList.contains('open'))g('tp').classList.remove('open');else if(g('fp').classList.contains('open'))closeForm();else if(g('dp').classList.contains('open'))closeDetail();},
+    close:()=>{if(g('scp').style.display==='block')closeShortcutMgr();else if(g('tp').classList.contains('open')){g('tp').classList.remove('open');syncSidePanelState();}else if(g('fp').classList.contains('open'))closeForm();else if(g('dp').classList.contains('open'))closeDetail();},
     edit:()=>{if(openId)openForm(true);},link:()=>{if(openId)openForm(true);},
     export:()=>exportData(),stats:()=>{if(!isMapOpen)openStats();},shortcuts:()=>openShortcutMgr()
   };
@@ -1029,7 +1057,16 @@ function openStats() {
 }
 
 // ==================== 多選 ====================
-function enterMultiSel() { multiSelMode=true;selectedIds={};g('selectBar').classList.add('open');g('multiSelBtn').style.background='#1a1a2e';g('multiSelBtn').style.color='#fff';['dp','fp'].forEach(p=>g(p).classList.remove('open'));updateSelBar();render(); }
+function enterMultiSel() {
+  multiSelMode=true;selectedIds={};
+  g('selectBar').classList.add('open');
+  g('multiSelBtn').style.background='#1a1a2e';
+  g('multiSelBtn').style.color='#fff';
+  ['dp','fp'].forEach(p=>g(p).classList.remove('open'));
+  syncSidePanelState();
+  updateSelBar();
+  render();
+}
 function exitMultiSel() { multiSelMode=false;selectedIds={};g('selectBar').classList.remove('open');g('multiSelBtn').style.background='#f0f0f0';g('multiSelBtn').style.color='';render(); }
 function updateSelBar() { const cnt=Object.keys(selectedIds).length;g('selectCount').textContent=`已選 ${cnt} 筆`;g('selDeleteBtn').disabled=cnt===0;g('selDeleteBtn').style.opacity=cnt===0?'0.4':'1'; }
 function toggleCardSelect(id) { selectedIds[id]?delete selectedIds[id]:selectedIds[id]=true;updateSelBar();const c=g('grid').querySelector(`.card[data-id="${id}"]`);if(c){if(selectedIds[id]){c.classList.add('selected');c.querySelector('.sel-check').textContent='✓';}else{c.classList.remove('selected');c.querySelector('.sel-check').textContent='';}} }
@@ -1283,7 +1320,7 @@ function openMapPopup(id){
   const maxLeft=Math.max(8,mapW-320),maxTop=Math.max(8,mapH-250);
   const left=Math.max(8,Math.min(maxLeft,pos.x*mapScale+mapOffX+14)),top=Math.max(8,Math.min(maxTop,pos.y*mapScale+mapOffY+14));
   popup.style.left=`${left}px`;popup.style.top=`${top}px`;popup.classList.add('open');
-  const goBtn=g('mpGoto');if(goBtn)goBtn.onclick=()=>{toggleMapView(false);openNote(id);};
+  const goBtn=g('mpGoto');if(goBtn)goBtn.onclick=()=>{openNote(id);closeMapPopup();};
 }
 function showMapInfo(id){
   const n=noteById(id);if(!n)return;
@@ -1391,6 +1428,7 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
 
 // ==================== 初始化 ====================
 window.addEventListener('load',()=>{
+  detachSidePanelsFromNotesView();
   loadData();rebuildUI();
   initMoreMenu();
   g('sortSelect').value=sortMode;g('sortSelect').addEventListener('change',()=>{sortMode=g('sortSelect').value;gridPage=1;render();saveData();});
@@ -1404,7 +1442,7 @@ window.addEventListener('load',()=>{
   sc.addEventListener('click',()=>{si.value='';searchQ='';gridPage=1;sc.style.display='none';render();si.focus();});
   bindCoreButtons();
   g('exportBtn').addEventListener('click',exportData);
-  g('tpClose').addEventListener('click',()=>g('tp').classList.remove('open'));
+  g('tpClose').addEventListener('click',()=>{g('tp').classList.remove('open');syncSidePanelState();});
   on('tagSearchInput','input',debounce(()=>{tagSearchQ=(val('tagSearchInput')||'').toLowerCase().trim();renderTagLists();},150));
   on('tagUnusedOnly','change',()=>{tagUnusedOnly=!!g('tagUnusedOnly').checked;renderTagLists();});
   on('clearUnusedTagsBtn','click',clearUnusedTags);

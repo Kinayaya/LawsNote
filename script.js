@@ -1240,23 +1240,35 @@ function buildLinkCurveOffsets(visLinks){
   const groups={},spacing=12,laneOrder2=idx=>idx===0?0:(idx%2===1?(idx+1)/2:-(idx/2));
   visLinks.forEach(lk=>{
     const fp=nodePos[lk.from],tp=nodePos[lk.to];if(!fp||!tp)return;
-    const dx=tp.x-fp.x,dy=tp.y-fp.y,ang=Math.atan2(dy,dx),mx=(fp.x+tp.x)/2,my=(fp.y+tp.y)/2;
-    const key=`${Math.round(mx/84)}_${Math.round(my/84)}_${Math.round((ang+Math.PI)/(Math.PI/8))}`;
+    const dx=tp.x-fp.x,dy=tp.y-fp.y,ang=Math.atan2(dy,dx);
+    const key=`${lk.from}_${Math.round((ang+Math.PI)/(Math.PI/10))}`;
     if(!groups[key])groups[key]=[];groups[key].push(lk);
   });
-  const offsets={};Object.values(groups).forEach(arr=>{arr.sort((a,b)=>a.id-b.id);arr.forEach((lk,idx)=>{offsets[lk.id]=laneOrder2(idx)*spacing;});});
+  const offsets={};
+  Object.values(groups).forEach(arr=>{
+    arr.sort((a,b)=>{
+      const ta=nodePos[a.to],tb=nodePos[b.to];
+      if(!ta||!tb) return a.id-b.id;
+      return ta.y-tb.y||ta.x-tb.x||a.id-b.id;
+    });
+    arr.forEach((lk,idx)=>{offsets[lk.id]=laneOrder2(idx)*spacing;});
+  });
   return offsets;
 }
 function calcLinkPath(lk,opt={}){
   const fp=nodePos[lk.from],tp=nodePos[lk.to];if(!fp||!tp)return null;
   const dx=tp.x-fp.x,dy=tp.y-fp.y,dist=Math.sqrt(dx*dx+dy*dy)||1,nx=dx/dist,ny=dy/dist;
+  const px=-ny,py=nx;
   const rf=getNodeRadius(lk.from),rt=getNodeRadius(lk.to);
   const x1=fp.x+nx*rf,y1=fp.y+ny*rf,x2=tp.x-nx*(rt+8),y2=tp.y-ny*(rt+8);
   const laneOffset=linkCurveOffsets[lk.id]||0;
   const unbundled=!!opt.unbundled;
-  const bundleShift=unbundled?0:Math.max(-24,Math.min(24,laneOffset*.85*MAP_LIGHT_BUNDLING_STRENGTH));
-  const mx=(x1+x2)/2+bundleShift;
-  const d=`M${x1},${y1} L${mx},${y1} L${mx},${y2} L${x2},${y2}`;
+  const splitOffset=unbundled?0:Math.max(-26,Math.min(26,laneOffset*MAP_LIGHT_BUNDLING_STRENGTH));
+  const trunkLen=Math.max(22,Math.min(68,dist*0.5));
+  const c1x=x1+nx*trunkLen, c1y=y1+ny*trunkLen;
+  const c2x=x2-nx*Math.max(20,Math.min(52,dist*0.22))+px*splitOffset;
+  const c2y=y2-ny*Math.max(20,Math.min(52,dist*0.22))+py*splitOffset;
+  const d=`M${x1},${y1} C${c1x},${c1y} ${c2x},${c2y} ${x2},${y2}`;
   return {d};
 }
 function moveNodeEl(id,x,y){

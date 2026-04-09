@@ -42,6 +42,7 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 #filterAdvanced summary{list-style:none;cursor:pointer;font-size:12px;color:#5a6371;padding:7px 14px;border-bottom:1px solid #f0f2f6;font-weight:600}
 #filterAdvanced summary::-webkit-details-marker{display:none}
 #chapterbar{background:#fff;padding:5px 14px;display:flex;gap:4px;overflow-x:auto;align-items:center}
+#sectionbar{background:#fff;padding:5px 14px;display:flex;gap:4px;overflow-x:auto;align-items:center;border-top:1px solid #f2f4f7}
 .ch{padding:3px 10px;border-radius:99px;border:1px solid #dce2eb;background:#f6f8fc;font-size:11px;color:#5a6371;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0}
 .ch.on{background:#0C447C;color:#fff;border-color:#0C447C}
 #search-results-bar{display:none;background:#fff7e6;border-top:1px solid #ffe7b8;padding:6px 14px;font-size:12px;color:#b36a00}
@@ -127,6 +128,9 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
 .tag-chapter-filter-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 .tag-chapter-filter-row label{font-size:12px;color:#666;white-space:nowrap}
 .tag-chapter-filter-row select{max-width:180px}
+.tag-chapter-tabs{display:flex;gap:6px;margin:8px 0 4px}
+.tag-tab{padding:5px 10px;border-radius:999px;border:1px solid #dce2eb;background:#f6f8fc;color:#5a6371;font-size:12px;cursor:pointer}
+.tag-tab.on{background:#0C447C;color:#fff;border-color:#0C447C}
 .color-pick{width:32px;height:32px;border-radius:7px;border:1px solid #ddd;cursor:pointer;padding:2px;flex-shrink:0}
 .tag-add-icon-btn{width:32px;height:32px;border-radius:8px;border:none;background:#007AFF;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1}
 .tag-add-icon-btn:active{background:#0062cc}
@@ -362,6 +366,24 @@ button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appeara
   box-shadow:-12px 0 30px rgba(0,0,0,.12);
 }
 #fp.open,#tp.open{transform:translateX(0)}
+
+body.panel-dir-bottom #dp,
+body.panel-dir-bottom #fp,
+body.panel-dir-bottom #tp{
+  top:auto;
+  right:0;
+  bottom:0;
+  width:100vw;
+  height:min(72vh,620px);
+  border-left:none;
+  border-right:none;
+  border-top:1px solid #e0e0e0;
+  box-shadow:0 -12px 30px rgba(0,0,0,.12);
+  transform:translateY(105%);
+}
+body.panel-dir-bottom #dp.open,
+body.panel-dir-bottom #fp.open,
+body.panel-dir-bottom #tp.open{transform:translateY(0)}
 
 /* debug tool button */
 #debugToggle{

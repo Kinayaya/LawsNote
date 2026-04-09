@@ -29,6 +29,7 @@
     <div class="tool-btns">
       <div class="primary-tools">
         <button class="map-btn" id="mapToggleBtn">&#128279; 體系圖</button>
+        <button class="tool-btn" id="panelDirBtn" title="切換筆記展開方向">&#8646; 面板方向</button>
         <button class="tool-btn ai-btn-style" id="aiSettingsBtn">&#129302; AI</button>
         <button class="add-btn" id="addBtn">+ 新增</button>
       </div>
@@ -54,7 +55,8 @@
 <details id="filterAdvanced">
   <summary>進階篩選</summary>
   <div id="chapterbar"></div>
-  <div id="sortBar"><label>排序：</label><select id="sortSelect"><option value="date_desc">最新優先</option><option value="date_asc">最舊優先</option><option value="title_asc">標題 A-Z</option><option value="title_desc">標題 Z-A</option><option value="subject">依科目</option><option value="chapter">依章節</option><option value="type">依類型</option></select></div>
+  <div id="sectionbar"></div>
+  <div id="sortBar"><label>排序：</label><select id="sortSelect"><option value="date_desc">最新優先</option><option value="date_asc">最舊優先</option><option value="title_asc">標題 A-Z</option><option value="title_desc">標題 Z-A</option><option value="subject">依科目</option><option value="chapter">依章</option><option value="type">依類型</option></select></div>
   <div id="search-results-bar"></div>
 </details>
 
@@ -85,7 +87,8 @@
     <div class="f2col">
       <div><label class="flbl" style="margin-top:0">類型</label><select class="fs" id="ft"></select></div>
       <div><label class="flbl" style="margin-top:0">科目</label><select class="fs" id="fs2"></select></div>
-      <div><label class="flbl" style="margin-top:0">章節</label><select class="fs" id="fc"></select></div>
+      <div><label class="flbl" style="margin-top:0">章</label><select class="fs" id="fc"></select></div>
+      <div><label class="flbl" style="margin-top:0">節</label><select class="fs" id="fsec"></select></div>
     </div>
     <label class="flbl">標題</label>
     <input class="fi" id="fti" placeholder="例：民法第 184 條">
@@ -119,7 +122,7 @@
   <div class="panel" id="tp">
   <div class="ph"><span class="ph-title">管理標籤</span><button class="pcls" id="tpClose">&#215;</button></div>
   <div class="tag-tools-row">
-    <input id="tagSearchInput" placeholder="搜尋標籤 / 章節">
+    <input id="tagSearchInput" placeholder="搜尋標籤 / 章 / 節">
     <label><input type="checkbox" id="tagUnusedOnly"> 只看未使用</label>
     <button class="tool-btn" id="clearUnusedTagsBtn">&#128465; 清理未使用</button>
   </div>
@@ -140,12 +143,25 @@
       <button class="tag-add-icon-btn" id="addSubBtn">+</button>
     </div>
 
-    <div class="tag-section-title">章節</div>
+    <div class="tag-chapter-tabs" id="tagChapterTabs">
+      <button class="tag-tab on" data-tab="chapter">章</button>
+      <button class="tag-tab" data-tab="section">節</button>
+    </div>
+
+    <div class="tag-section-title">章</div>
     <div class="tag-list" id="chapterTagList"></div>
     <div class="tag-add-row">
-      <input id="newChapterLabel" placeholder="新章節名稱">
+      <input id="newChapterLabel" placeholder="新章名稱">
       <select id="newChapterSubject" class="fs" style="max-width:110px;min-width:80px;"></select>
       <button class="tag-add-icon-btn" id="addChapterBtn">+</button>
+    </div>
+
+    <div class="tag-section-title">節</div>
+    <div class="tag-list" id="sectionTagList"></div>
+    <div class="tag-add-row">
+      <input id="newSectionLabel" placeholder="新節名稱">
+      <select id="newSectionChapter" class="fs" style="max-width:110px;min-width:80px;"></select>
+      <button class="tag-add-icon-btn" id="addSectionBtn">+</button>
     </div>
   </div>
 </div>
@@ -162,8 +178,8 @@
     </div>
     <select id="mapFilterSub" class="map-filter-sel"><option value="all">全部科目</option></select>
     <select id="mapFilterType" class="map-filter-sel"><option value="all">全部類型</option></select>
-    <select id="mapFilterChapter" class="map-filter-sel"><option value="all">全部章節</option></select>
-    <span id="mapPinnedChapter" class="map-pinned-chapter">章節：未設定</span>
+    <select id="mapFilterChapter" class="map-filter-sel"><option value="all">全部章</option></select>
+    <span id="mapPinnedChapter" class="map-pinned-chapter">章：未設定</span>
     <button class="tool-btn" id="mapAdvancedToggleBtn" style="background:#f5f5f5;color:#555;border-color:#ddd;">⚙️ 進階</button>
     <button class="tool-btn" id="mapAutoBtn">&#10024; 自動排列</button>
     <select id="mapDepthSel" class="map-filter-sel map-adv-item">

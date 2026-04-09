@@ -1233,9 +1233,17 @@ function moveNodeEl(id,x,y){
   const mainCircle=grp.querySelector('circle.node-main'),r=parseFloat(mainCircle?mainCircle.getAttribute('r'):24)||24;
   if(mainCircle){mainCircle.setAttribute('cx',x);mainCircle.setAttribute('cy',y);}
   const foldBtn=grp.querySelector('circle.node-fold-btn');
-  if(foldBtn){foldBtn.setAttribute('cx',x+r*.72);foldBtn.setAttribute('cy',y-r*.72);}
+  if(foldBtn){
+    const foldBtnR=parseFloat(foldBtn.getAttribute('r')||'9')||9;
+    const foldOffset=(r+foldBtnR)/Math.sqrt(2);
+    foldBtn.setAttribute('cx',x+foldOffset);foldBtn.setAttribute('cy',y-foldOffset);
+  }
   const foldSign=grp.querySelector('text.node-fold-sign');
-  if(foldSign){foldSign.setAttribute('x',x+r*.72);foldSign.setAttribute('y',y-r*.72+1);}
+  if(foldSign&&foldBtn){
+    const cx=parseFloat(foldBtn.getAttribute('cx')||String(x+r*.72))||x+r*.72;
+    const cy=parseFloat(foldBtn.getAttribute('cy')||String(y-r*.72))||y-r*.72;
+    foldSign.setAttribute('x',cx);foldSign.setAttribute('y',cy+1);
+  }
   const countText=grp.querySelector('text.node-count');if(countText){countText.setAttribute('x',x);countText.setAttribute('y',y);}
   const titleText=grp.querySelector('text.node-title');if(titleText){titleText.setAttribute('x',x);titleText.setAttribute('y',y+r+14);titleText.querySelectorAll('tspan').forEach(t=>t.setAttribute('x',x));}
 }
@@ -1332,9 +1340,11 @@ function drawMap(){
     const countText=document.createElementNS('http://www.w3.org/2000/svg','text');countText.classList.add('node-count');countText.setAttribute('x',pos.x);countText.setAttribute('y',pos.y+4);countText.setAttribute('text-anchor','middle');countText.setAttribute('font-size',String(Math.max(10,Math.min(14,radius*.55))));countText.setAttribute('font-weight','700');countText.setAttribute('fill',type.color);countText.textContent=String(links.filter(l=>l.from===n.id||l.to===n.id).length||0);
     const titleText=document.createElementNS('http://www.w3.org/2000/svg','text');titleText.classList.add('node-title');titleText.setAttribute('x',pos.x);titleText.setAttribute('y',pos.y+radius+14);titleText.setAttribute('text-anchor','middle');titleText.setAttribute('font-size','11');titleText.setAttribute('fill','#2b2b2b');
     splitMapTitleLines(n.title,8).slice(0,2).forEach((line,i)=>{const tspan=document.createElementNS('http://www.w3.org/2000/svg','tspan');tspan.setAttribute('x',pos.x);tspan.setAttribute('dy',i===0?0:13);tspan.textContent=line;titleText.appendChild(tspan);});
-    const hasChildren=links.some(l=>l.from===n.id&&visIds[l.to]);
+    const hasChildren=links.some(l=>l.from===n.id&&noteById(l.to));
     if(hasChildren){
-      const foldX=pos.x+radius*.72,foldY=pos.y-radius*.72,foldBtnR=Math.max(8,Math.min(11,radius*.33));
+      const foldBtnR=Math.max(8,Math.min(11,radius*.33));
+      const foldOffset=(radius+foldBtnR)/Math.sqrt(2);
+      const foldX=pos.x+foldOffset,foldY=pos.y-foldOffset;
       const foldBtn=document.createElementNS('http://www.w3.org/2000/svg','circle');
       foldBtn.classList.add('node-fold-btn');
       foldBtn.setAttribute('cx',foldX);foldBtn.setAttribute('cy',foldY);foldBtn.setAttribute('r',foldBtnR);

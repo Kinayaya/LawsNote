@@ -145,6 +145,7 @@ const hexRgb = hex => { if(hex.length===4) hex='#'+hex[1]+hex[1]+hex[2]+hex[2]+h
 const lightC = hex => `rgba(${hexRgb(hex).join(',')},0.12)`;
 const darkC = hex => { let r=hexRgb(hex); return `rgb(${Math.round(r[0]*.55)},${Math.round(r[1]*.55)},${Math.round(r[2]*.55)})`; };
 const safeStr = v => typeof v==='string'?v:'';
+const escapeHtml = txt => safeStr(txt).replace(/[&<>"']/g,ch=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[ch]||ch));
 const hl = (text,q) => { const s=safeStr(text); return !q?s:s.replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`,'gi'),'<span class="hl">$1</span>'); };
 const getAiKey = () => localStorage.getItem('klaws_ai_key')||'';
 const saveAiKey = k => localStorage.setItem('klaws_ai_key',k);
@@ -241,6 +242,13 @@ const raw=mapLaneConfigs[key]||{};
   return {key,count,names};
 };
 const splitMapTitleLines = (title,max=8) => { const s=String(title||'').trim(); if(!s) return ['（未命名）']; const r=[]; for(let i=0;i<s.length;i+=max) r.push(s.slice(i,i+max)); return r; };
+const getMapCardBox = id => {
+  const scale=Math.max(0.7,Math.min(2.3,getNodeRadius(id)/MAP_NODE_RADIUS_DEFAULT));
+  const width=Math.round(210*scale);
+  const bodyLines=Math.max(2,Math.min(5,Math.round(2+scale)));
+  const height=96+bodyLines*18;
+  return {width,height,bodyLines};
+};
 const parseTodos = raw => (raw||'').split('\n').map(x=>x.trim()).filter(Boolean).map(line=>({text:line.replace(/^\[(x|X| )\]\s*/,''),done:/^\[(x|X)\]/.test(line)})).filter(x=>x.text);
 const formatTodosForEdit = todos => (Array.isArray(todos)?todos:[]).map(t=>`${t.done?'[x]':'[ ]'} ${t.text||''}`.trim()).join('\n');
 const renderTodoHtml = todos => {
@@ -1421,7 +1429,13 @@ function initMoreMenu(){
 // ==================== 體系圖 ====================
 function initNodePos() { const canvas=g('mapCanvas');mapW=canvas.offsetWidth||800;mapH=canvas.offsetHeight||500;const cx=mapW/2,cy=mapH/2,r=Math.min(mapW,mapH)*.44;notes.forEach((n,i)=>{if(!nodePos[n.id]){const angle=(i/notes.length)*2*Math.PI;nodePos[n.id]={x:cx+r*Math.cos(angle),y:cy+r*Math.sin(angle)};}}); }
 function getNodeRadius(id){ return clampMapRadius(parseFloat(nodeSizes[id])||MAP_NODE_RADIUS_DEFAULT); }
-function clampNodeToCanvas(id){ if(!nodePos[id])return;const r=getNodeRadius(id)+12;nodePos[id].x=Math.max(r,Math.min(mapW-r,nodePos[id].x));nodePos[id].y=Math.max(r,Math.min(mapH-r,nodePos[id].y)); }
+function clampNodeToCanvas(id){
+  if(!nodePos[id])return;
+  const box=getMapCardBox(id);
+  const pad=12,halfW=box.width/2+pad,halfH=box.height/2+pad;
+  nodePos[id].x=Math.max(halfW,Math.min(mapW-halfW,nodePos[id].x));
+  nodePos[id].y=Math.max(halfH,Math.min(mapH-halfH,nodePos[id].y));
+}
 function pointToSegmentDistance(px,py,x1,y1,x2,y2){
   const dx=x2-x1,dy=y2-y1,len2=dx*dx+dy*dy;
   if(!len2) return {dist:Math.hypot(px-x1,py-y1),nx:0,ny:0};
@@ -1508,7 +1522,9 @@ function calcLinkPath(lk,opt={}){
   const fp=nodePos[lk.from],tp=nodePos[lk.to];if(!fp||!tp)return null;
   const dx=tp.x-fp.x,dy=tp.y-fp.y,dist=Math.sqrt(dx*dx+dy*dy)||1,nx=dx/dist,ny=dy/dist;
   const px=-ny,py=nx;
-  const rf=getNodeRadius(lk.from),rt=getNodeRadius(lk.to);
+  const fromBox=getMapCardBox(lk.from),toBox=getMapCardBox(lk.to);
+  const rf=Math.max(fromBox.width,fromBox.height)*0.32;
+  const rt=Math.max(toBox.width,toBox.height)*0.32;
   const x1=fp.x+nx*rf,y1=fp.y+ny*rf,x2=tp.x-nx*(rt+8),y2=tp.y-ny*(rt+8);
   const laneOffset=linkCurveOffsets[lk.id]||0;
   const unbundled=!!opt.unbundled;
@@ -1522,22 +1538,24 @@ function calcLinkPath(lk,opt={}){
 }
 function moveNodeEl(id,x,y){
   const grp=nodeEls[id];if(!grp)return;
-  const mainCircle=grp.querySelector('circle.node-main'),r=parseFloat(mainCircle?mainCircle.getAttribute('r'):24)||24;
-  if(mainCircle){mainCircle.setAttribute('cx',x);mainCircle.setAttribute('cy',y);}
+  const card=grp.querySelector('rect.node-card');
+  const info=getMapCardBox(id);
+  const halfW=info.width/2,halfH=info.height/2;
+  if(card){card.setAttribute('x',String(x-halfW));card.setAttribute('y',String(y-halfH));}
+  const cardBody=grp.querySelector('foreignObject.node-card-body');
+  if(cardBody){cardBody.setAttribute('x',String(x-halfW));cardBody.setAttribute('y',String(y-halfH));cardBody.setAttribute('width',String(info.width));cardBody.setAttribute('height',String(info.height));}
   const foldBtn=grp.querySelector('circle.node-fold-btn');
   if(foldBtn){
     const foldBtnR=parseFloat(foldBtn.getAttribute('r')||'9')||9;
-    const foldOffset=(r+foldBtnR)/Math.sqrt(2);
-    foldBtn.setAttribute('cx',x+foldOffset);foldBtn.setAttribute('cy',y-foldOffset);
+    foldBtn.setAttribute('cx',String(x+halfW-foldBtnR-5));
+    foldBtn.setAttribute('cy',String(y-halfH+foldBtnR+5));
   }
   const foldSign=grp.querySelector('text.node-fold-sign');
   if(foldSign&&foldBtn){
-    const cx=parseFloat(foldBtn.getAttribute('cx')||String(x+r*.72))||x+r*.72;
-    const cy=parseFloat(foldBtn.getAttribute('cy')||String(y-r*.72))||y-r*.72;
-    foldSign.setAttribute('x',cx);foldSign.setAttribute('y',cy+1);
+    const cx=parseFloat(foldBtn.getAttribute('cx')||String(x+halfW-12))||x+halfW-12;
+    const cy=parseFloat(foldBtn.getAttribute('cy')||String(y-halfH+12))||y-halfH+12;
+    foldSign.setAttribute('x',String(cx));foldSign.setAttribute('y',String(cy+1));
   }
-  const countText=grp.querySelector('text.node-count');if(countText){countText.setAttribute('x',x);countText.setAttribute('y',y);}
-  const titleText=grp.querySelector('text.node-title');if(titleText){titleText.setAttribute('x',x);titleText.setAttribute('y',y+r+14);titleText.querySelectorAll('tspan').forEach(t=>t.setAttribute('x',x));}
 }
 function redrawLines(affectedId){
   const visIds={};visibleNotes().forEach(n=>visIds[n.id]=true);
@@ -1635,27 +1653,43 @@ function drawMap(){
   });
   visNotes.forEach(n=>{
     const pos=nodePos[n.id];if(!pos)return;
-    const type=typeByKey(n.type),radius=getNodeRadius(n.id);
+    const type=typeByKey(n.type),box=getMapCardBox(n.id),halfW=box.width/2,halfH=box.height/2;
     const grp=document.createElementNS('http://www.w3.org/2000/svg','g');grp.classList.add('map-node');grp.dataset.id=String(n.id);
-    const circle=document.createElementNS('http://www.w3.org/2000/svg','circle');circle.classList.add('node-main');circle.setAttribute('cx',pos.x);circle.setAttribute('cy',pos.y);circle.setAttribute('r',radius);circle.setAttribute('fill',lightC(type.color));circle.setAttribute('stroke',type.color);circle.setAttribute('stroke-width','2');
-    const countText=document.createElementNS('http://www.w3.org/2000/svg','text');countText.classList.add('node-count');countText.setAttribute('x',pos.x);countText.setAttribute('y',pos.y+4);countText.setAttribute('text-anchor','middle');countText.setAttribute('font-size',String(Math.max(10,Math.min(14,radius*.55))));countText.setAttribute('font-weight','700');countText.setAttribute('fill',type.color);countText.textContent=String(links.filter(l=>l.from===n.id||l.to===n.id).length||0);
-    const titleText=document.createElementNS('http://www.w3.org/2000/svg','text');titleText.classList.add('node-title');titleText.setAttribute('x',pos.x);titleText.setAttribute('y',pos.y+radius+14);titleText.setAttribute('text-anchor','middle');titleText.setAttribute('font-size','11');titleText.setAttribute('fill','#2b2b2b');
-    splitMapTitleLines(n.title,8).slice(0,2).forEach((line,i)=>{const tspan=document.createElementNS('http://www.w3.org/2000/svg','tspan');tspan.setAttribute('x',pos.x);tspan.setAttribute('dy',i===0?0:13);tspan.textContent=line;titleText.appendChild(tspan);});
+    const card=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    card.classList.add('node-card');
+    card.setAttribute('x',String(pos.x-halfW));card.setAttribute('y',String(pos.y-halfH));
+    card.setAttribute('rx','12');card.setAttribute('ry','12');
+    card.setAttribute('width',String(box.width));card.setAttribute('height',String(box.height));
+    card.setAttribute('fill','#ffffff');card.setAttribute('stroke',type.color);card.setAttribute('stroke-width','1.8');
+    const cardBody=document.createElementNS('http://www.w3.org/2000/svg','foreignObject');
+    cardBody.classList.add('node-card-body');
+    cardBody.setAttribute('x',String(pos.x-halfW));cardBody.setAttribute('y',String(pos.y-halfH));
+    cardBody.setAttribute('width',String(box.width));cardBody.setAttribute('height',String(box.height));
+    cardBody.style.pointerEvents='none';
+    const bodyPreview=safeStr(n.body).replace(/\s+/g,' ').trim()||'（尚無摘要）';
+    const tagText=noteTags(n).slice(0,2).join(' · ');
+    const subs=noteSubjects(n).join('、')||'未分類科目';
+    cardBody.innerHTML=`<div xmlns="http://www.w3.org/1999/xhtml" class="map-card-inner">
+      <div class="map-card-head"><span class="map-card-type" style="background:${lightC(type.color)};color:${darkC(type.color)}">${type.label}</span><span class="map-card-date">${formatDate(n.date)||''}</span></div>
+      <div class="map-card-title">${escapeHtml(n.title||'（未命名）')}</div>
+      <div class="map-card-body-text" style="-webkit-line-clamp:${box.bodyLines};">${escapeHtml(bodyPreview)}</div>
+      <div class="map-card-foot">${escapeHtml(subs)}${tagText?` · ${escapeHtml(tagText)}`:''}</div>
+    </div>`;
     const hasChildren=links.some(l=>l.from===n.id&&noteById(l.to));
+    grp.appendChild(card);grp.appendChild(cardBody);
     if(hasChildren){
-      const foldBtnR=Math.max(8,Math.min(11,radius*.33));
-      const foldOffset=(radius+foldBtnR)/Math.sqrt(2);
-      const foldX=pos.x+foldOffset,foldY=pos.y-foldOffset;
+      const foldBtnR=9;
+      const foldX=pos.x+halfW-foldBtnR-5,foldY=pos.y-halfH+foldBtnR+5;
       const foldBtn=document.createElementNS('http://www.w3.org/2000/svg','circle');
       foldBtn.classList.add('node-fold-btn');
-      foldBtn.setAttribute('cx',foldX);foldBtn.setAttribute('cy',foldY);foldBtn.setAttribute('r',foldBtnR);
+      foldBtn.setAttribute('cx',String(foldX));foldBtn.setAttribute('cy',String(foldY));foldBtn.setAttribute('r',String(foldBtnR));
       foldBtn.setAttribute('fill','#ffffff');foldBtn.setAttribute('stroke',type.color);foldBtn.setAttribute('stroke-width','1.5');
       foldBtn.style.cursor='pointer';
       const foldSign=document.createElementNS('http://www.w3.org/2000/svg','text');
       foldSign.classList.add('node-fold-sign');
-      foldSign.setAttribute('x',foldX);foldSign.setAttribute('y',foldY+1);
+      foldSign.setAttribute('x',String(foldX));foldSign.setAttribute('y',String(foldY+1));
       foldSign.setAttribute('text-anchor','middle');foldSign.setAttribute('dominant-baseline','middle');
-      foldSign.setAttribute('font-size',String(Math.max(11,Math.min(16,radius*.65))));
+      foldSign.setAttribute('font-size','14');
       foldSign.setAttribute('font-weight','700');foldSign.setAttribute('fill',type.color);
       foldSign.style.cursor='pointer';
       foldSign.textContent=mapCollapsed[n.id]?'+':'−';
@@ -1664,7 +1698,6 @@ function drawMap(){
       foldSign.addEventListener('click',toggleFold);
       grp.appendChild(foldBtn);grp.appendChild(foldSign);
     }
-    grp.appendChild(circle);grp.appendChild(countText);grp.appendChild(titleText);
     grp.addEventListener('click',e=>{e.stopPropagation();showMapInfo(n.id);openMapPopup(n.id);highlightNode(n.id);});
     grp.addEventListener('mousedown',e=>startDrag(e,n.id));grp.addEventListener('touchstart',e=>startDragTouch(e,n.id),{passive:true});
     nodesLayer.appendChild(grp);nodeEls[n.id]=grp;

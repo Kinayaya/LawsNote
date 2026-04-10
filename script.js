@@ -18,6 +18,7 @@ const DEFAULTS = {
 };
 const LINK_COLOR = '#378ADD', SKEY = 'legal_notes_v4', PAGE_SIZE = 24;
 const SCOPE_LINKED_TOGGLE_KEY = 'klaws_scope_linked_toggle_v1';
+const COMPACT_FILTER_KEY = 'klaws_compact_filters_v1';
 const SYNC_KEY = 'klaws_sync_v1', SYNC_FILE = 'klaws_data.json';
 const AI_MODELS = [
   {id:'openrouter/free', label:'🔀 自動選最佳免費模型（推薦）'},
@@ -259,6 +260,18 @@ const formatDate = raw => {
     if(isNaN(d.getTime())) return raw;
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   } catch(e) { return raw; }
+};
+const relativeDateLabel = raw => {
+  if(!raw) return '';
+  const d=new Date(raw);
+  if(!Number.isFinite(d.getTime())) return '';
+  const now=new Date();
+  const dayMs=24*60*60*1000;
+  const diff=Math.max(0,Math.floor((new Date(now.getFullYear(),now.getMonth(),now.getDate())-new Date(d.getFullYear(),d.getMonth(),d.getDate()))/dayMs));
+  if(diff===0) return '今天';
+  if(diff===1) return '1 天前';
+  if(diff<7) return `${diff} 天前`;
+  return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
 };
 
 const sortedNotes = arr => arr.slice().sort((a,b)=>{
@@ -569,8 +582,8 @@ function render() {
     const sectionChips=secs.map(sk=>`<span class="chip">${sectionByKey(sk).label}</span>`).join('');
     const tags=noteTags(n).slice(0,1).map(t=>`<span class="chip">${hl(t,q)}</span>`).join('');
     const linkedChip=(shouldExpand&&!seedIds.has(n.id))?'<span class="chip" style="background:#EAF3DE;color:#3B6D11;border-color:#97C459">跨科關聯</span>':'';
-    const displayDate=formatDate(n.date);
-    return `<div class="card" data-id="${n.id}"><div class="sel-check"></div><div class="cbar" style="background:${tp.color}"></div><div class="ctop"><span class="ctag" style="background:${tp.color}">${tp.label}</span><span class="cdate">${displayDate}</span></div><div class="ctitle">${hl(n.title,q)}</div><div class="cbody">${n.body}</div><div class="cfoot">${subChips}${chapterChips}${sectionChips}${tags}${linkedChip}</div></div>`;
+    const displayDate=relativeDateLabel(n.date)||formatDate(n.date);
+    return `<div class="card" data-id="${n.id}" style="--type-color:${tp.color}"><div class="sel-check"></div><div class="ctop"><span class="ctag">${tp.label}</span><span class="cdate">${displayDate}</span></div><div class="ctitle">${hl(n.title,q)}</div><div class="cbody">${n.body}</div><div class="cfoot">${subChips}${chapterChips}${sectionChips}${tags}${linkedChip}</div></div>`;
   }).join('');
   grid.querySelectorAll('.card').forEach(c=>{
     const id=parseInt(c.dataset.id);
@@ -586,6 +599,12 @@ function render() {
     if(gridPage<totalPg){const nb=document.createElement('button');nb.className='tool-btn';nb.textContent='下一頁 →';nb.onclick=()=>{gridPage++;render();window.scrollTo(0,0);};pager.appendChild(nb);}
     g('content').appendChild(pager);
   }
+}
+function applyCompactFilterMode(enabled){
+  document.body.classList.toggle('compact-filters',!!enabled);
+  localStorage.setItem(COMPACT_FILTER_KEY,enabled?'1':'0');
+  const btn=g('compactToggleBtn');
+  if(btn) btn.textContent=enabled?'☰ 顯示分類':'☰ 收合分類';
 }
 
 function openNote(id) {
@@ -1815,6 +1834,9 @@ window.addEventListener('load',()=>{
   const si=g('searchInput'),sc=g('searchClear');
   si.addEventListener('input',debounce(()=>{searchQ=si.value;gridPage=1;sc.style.display=searchQ?'block':'none';render();},250));
   sc.addEventListener('click',()=>{si.value='';searchQ='';gridPage=1;sc.style.display='none';render();si.focus();});
+  const compactDefault=localStorage.getItem(COMPACT_FILTER_KEY);
+  applyCompactFilterMode(compactDefault===null?true:compactDefault==='1');
+  on('compactToggleBtn','click',()=>applyCompactFilterMode(!document.body.classList.contains('compact-filters')));
   bindCoreButtons();
   bindTagManagerNav();
   g('exportBtn').addEventListener('click',exportData);

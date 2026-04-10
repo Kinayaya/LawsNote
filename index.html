@@ -125,47 +125,65 @@
   <div class="panel" id="tp">
   <div class="ph"><span class="ph-title">管理標籤</span><button class="pcls" id="tpClose">&#215;</button></div>
   <div class="tag-tools-row">
-    <input id="tagSearchInput" placeholder="搜尋標籤 / 章 / 節">
+    <div class="tag-search-wrap">
+      <span class="tag-search-icon">&#128269;</span>
+      <input id="tagSearchInput" placeholder="搜尋標籤 / 章 / 節">
+    </div>
+    <button class="tool-btn tag-settings-btn" id="tagSettingsBtn" title="全域設定">⚙️</button>
+  </div>
+  <div class="tag-global-options" id="tagGlobalOptions">
     <label><input type="checkbox" id="tagUnusedOnly"> 只看未使用</label>
     <button class="tool-btn" id="clearUnusedTagsBtn">&#128465; 清理未使用</button>
   </div>
-
-    <div class="tag-section-title">類型</div>
-    <div class="tag-list" id="typeTagList"></div>
-    <div class="tag-add-row">
-      <input id="newTypeLabel" placeholder="新類型名稱">
-      <input type="color" class="color-pick" id="newTypeColor" value="#378ADD">
-      <button class="tag-add-icon-btn" id="addTypeBtn">+</button>
+  <div class="tag-manager-layout">
+    <div class="tag-category-nav" id="tagCategoryNav">
+      <button class="tag-nav-btn active" data-category="type">類型</button>
+      <button class="tag-nav-btn" data-category="subject">科目</button>
+      <button class="tag-nav-btn" data-category="chapter">章</button>
+      <button class="tag-nav-btn" data-category="section">節</button>
     </div>
+    <div class="tag-manager-content">
+      <div class="tag-category-panel" data-category-panel="type">
+        <div class="tag-section-title">類型</div>
+        <div class="tag-list" id="typeTagList"></div>
+        <div class="tag-add-row">
+          <input id="newTypeLabel" placeholder="新類型名稱">
+          <input type="color" class="color-pick" id="newTypeColor" value="#378ADD">
+          <button class="tag-add-icon-btn" id="addTypeBtn">+</button>
+        </div>
+      </div>
 
-    <div class="tag-section-title">科目</div>
-    <div class="tag-list" id="subTagList"></div>
-    <div class="tag-add-row">
-      <input id="newSubLabel" placeholder="新科目名稱">
-      <input type="color" class="color-pick" id="newSubColor" value="#1D9E75">
-      <button class="tag-add-icon-btn" id="addSubBtn">+</button>
-    </div>
+      <div class="tag-category-panel" data-category-panel="subject">
+        <div class="tag-section-title">科目</div>
+        <div class="tag-list" id="subTagList"></div>
+        <div class="tag-add-row">
+          <input id="newSubLabel" placeholder="新科目名稱">
+          <input type="color" class="color-pick" id="newSubColor" value="#1D9E75">
+          <button class="tag-add-icon-btn" id="addSubBtn">+</button>
+        </div>
+      </div>
 
-    <div class="tag-chapter-tabs" id="tagChapterTabs">
-      <button class="tag-tab on" data-tab="chapter">章</button>
-      <button class="tag-tab" data-tab="section">節</button>
-    </div>
+      <div class="tag-category-panel" data-category-panel="chapter">
+        <div class="tag-section-title">章</div>
+        <div class="tag-list" id="chapterTagList"></div>
+        <div class="tag-add-row">
+          <input id="newChapterLabel" placeholder="新章名稱">
+          <select id="newChapterSubject" class="fs" style="max-width:110px;min-width:80px;"></select>
+          <button class="tag-add-icon-btn" id="addChapterBtn">+</button>
+        </div>
+      </div>
 
-    <div class="tag-section-title">章</div>
-    <div class="tag-list" id="chapterTagList"></div>
-    <div class="tag-add-row">
-      <input id="newChapterLabel" placeholder="新章名稱">
-      <select id="newChapterSubject" class="fs" style="max-width:110px;min-width:80px;"></select>
-      <button class="tag-add-icon-btn" id="addChapterBtn">+</button>
+      <div class="tag-category-panel" data-category-panel="section">
+        <div class="tag-section-title">節</div>
+        <div class="tag-list" id="sectionTagList"></div>
+        <div class="tag-add-row">
+          <input id="newSectionLabel" placeholder="新節名稱">
+          <select id="newSectionChapter" class="fs" style="max-width:110px;min-width:80px;"></select>
+          <button class="tag-add-icon-btn" id="addSectionBtn">+</button>
+        </div>
+      </div>
     </div>
-
-    <div class="tag-section-title">節</div>
-    <div class="tag-list" id="sectionTagList"></div>
-    <div class="tag-add-row">
-      <input id="newSectionLabel" placeholder="新節名稱">
-      <select id="newSectionChapter" class="fs" style="max-width:110px;min-width:80px;"></select>
-      <button class="tag-add-icon-btn" id="addSectionBtn">+</button>
-    </div>
+  </div>
   </div>
 </div>
 

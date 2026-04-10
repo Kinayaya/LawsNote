@@ -50,7 +50,7 @@ let selectedSubjects=[], selectedChapters=[], selectedSections=[];
 let scopeLinkedEnabled = localStorage.getItem(SCOPE_LINKED_TOGGLE_KEY)==='1';
 let formLinkSelections={}, tagSearchQ='', tagUnusedOnly=false;
 let chapterSubjectFilter='', sectionChapterFilter='';
-let tagChapterTab='chapter';
+let activeTagCategory='type';
 let nodePos={}, dragNode=null, dragOffX=0, dragOffY=0, mapW=800, mapH=500;
 let nodeSizes={};
 let mapScale=1, mapOffX=0, mapOffY=0, mapFilter={sub:'all',chapter:'all',section:'all',q:''}, mapLinkedOnly=true;
@@ -916,7 +916,7 @@ function deleteNote() { if(!openId||!confirm('確定刪除這筆筆記？相關�
 function openTagMgr() {
   chapterSubjectFilter='';
   sectionChapterFilter='';
-  tagChapterTab='chapter';
+  activeTagCategory='type';
   g('tp').classList.add('open');
   ['dp','fp'].forEach(p=>g(p).classList.remove('open'));
   renderTagLists();
@@ -933,23 +933,14 @@ function renderTagLists() {
   if(sel) sel.innerHTML='<option value="all">全部科目</option>'+subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join('');
   const secSel=g('newSectionChapter');
   if(secSel) secSel.innerHTML='<option value="all">全部章</option>'+chapters.map(ch=>`<option value="${ch.key}">${ch.label}</option>`).join('');
-  const chapterBlock=g('chapterTagList')?.closest('.tag-section-title')?.nextElementSibling;
-  g('tagChapterTabs')?.querySelectorAll('.tag-tab').forEach(btn=>{
-    btn.classList.toggle('on',btn.dataset.tab===tagChapterTab);
-    btn.onclick=()=>{
-      tagChapterTab=btn.dataset.tab||'chapter';
-      renderTagLists();
-    };
+  g('tagCategoryNav')?.querySelectorAll('.tag-nav-btn').forEach(btn=>{
+    const active=btn.dataset.category===activeTagCategory;
+    btn.classList.toggle('active',active);
+    btn.onclick=()=>{ activeTagCategory=btn.dataset.category||'type'; renderTagLists(); };
   });
-  const sectionList=g('sectionTagList');
-  const sectionAdd=sectionList?.nextElementSibling;
-  const sectionTitle=sectionList?.previousElementSibling;
-  const chapterList=g('chapterTagList');
-  const chapterAdd=chapterList?.nextElementSibling;
-  const chapterTitle=chapterList?.previousElementSibling;
-  const showSection=tagChapterTab==='section';
-  [sectionTitle,sectionList,sectionAdd].forEach(el=>{ if(el) el.style.display=showSection?'':'none'; });
-  [chapterTitle,chapterList,chapterAdd].forEach(el=>{ if(el) el.style.display=showSection?'none':''; });
+  g('tp')?.querySelectorAll('.tag-category-panel').forEach(panel=>{
+    panel.classList.toggle('active',panel.dataset.categoryPanel===activeTagCategory);
+  });
 }
 function renderTagList(cid,arr,kind) {
   const el=g(cid);
@@ -957,21 +948,21 @@ let list=arr.map((item,idx)=>({...item,_idx:idx,_usage:tagUsageCount(kind,item.k
   if(tagSearchQ) list=list.filter(item=>item.label.toLowerCase().includes(tagSearchQ));
   if(tagUnusedOnly) list=list.filter(item=>item._usage===0);
   if(!list.length){el.innerHTML='<div style="color:#bbb;font-size:13px;padding:8px 0">（無符合條件的標籤）</div>';return;}
-  el.innerHTML=list.map(item=>`<div class="tag-item ${kind==='sub'&&chapterSubjectFilter===item.key?'active-subject':''}" ${kind==='sub'?`data-subject-key="${item.key}"`:''}><div class="tag-color-dot" style="background:${item.color}"></div><span class="tag-item-label">${item.label}</span><span class="tag-item-meta">${item._usage} 筆</span><button class="tag-move-btn" data-idx="${item._idx}" data-kind="${kind}" data-dir="-1">↑</button><button class="tag-move-btn" data-idx="${item._idx}" data-kind="${kind}" data-dir="1">↓</button><button class="tag-edit-btn" data-idx="${item._idx}" data-kind="${kind}">編輯</button><button class="tag-del-btn" data-idx="${item._idx}" data-kind="${kind}">刪</button></div>`).join('');
+  el.innerHTML=list.map(item=>`<div class="tag-item ${kind==='sub'&&chapterSubjectFilter===item.key?'active-subject':''}" draggable="true" data-draggable-tag="1" data-idx="${item._idx}" data-kind="${kind}" ${kind==='sub'?`data-subject-key="${item.key}"`:''}><span class="tag-drag-handle" title="拖曳排序">⋮⋮</span><div class="tag-color-dot" style="background:${item.color}"></div><span class="tag-item-label">${item.label}</span><span class="tag-item-meta">${item._usage} 筆</span><div class="tag-actions"><button class="tag-icon-btn" title="上移" data-idx="${item._idx}" data-kind="${kind}" data-dir="-1">↑</button><button class="tag-icon-btn" title="下移" data-idx="${item._idx}" data-kind="${kind}" data-dir="1">↓</button><button class="tag-icon-btn" title="編輯" data-idx="${item._idx}" data-kind="${kind}" data-edit="1">✎</button><button class="tag-icon-btn delete" title="刪除" data-idx="${item._idx}" data-kind="${kind}" data-del="1">🗑</button></div></div>`).join('');
   if(kind==='sub'){
     el.querySelectorAll('.tag-item[data-subject-key]').forEach(row=>row.addEventListener('click',ev=>{
       if(ev.target.closest('button')) return;
       chapterSubjectFilter=row.dataset.subjectKey||'';
+      activeTagCategory='chapter';
       renderTagLists();
     }));
   }
-  el.querySelectorAll('.tag-move-btn').forEach(b=>b.addEventListener('click',()=>moveTag(parseInt(b.dataset.idx),b.dataset.kind,parseInt(b.dataset.dir,10))));
-  el.querySelectorAll('.tag-edit-btn').forEach(b=>b.addEventListener('click',()=>editTag(parseInt(b.dataset.idx),b.dataset.kind)));
-  el.querySelectorAll('.tag-del-btn').forEach(b=>b.addEventListener('click',()=>deleteTag(parseInt(b.dataset.idx),b.dataset.kind)));
+  bindTagActions(el);
+  bindTagDrag(el);
 }
 function renderChapterTagList() {
   const el=g('chapterTagList'); if(!el) return;
-  if(!chapterSubjectFilter){el.innerHTML='<div style="color:#bbb;font-size:13px;padding:8px 0">請先點擊上方科目標籤，再管理章。</div>';return;}
+  if(!chapterSubjectFilter){el.innerHTML='<div style="color:#bbb;font-size:13px;padding:8px 0">請先到「科目」面板選擇一個科目，再管理章。</div>';return;}
 let list=chapters.map((item,idx)=>({...item,_idx:idx,_usage:tagUsageCount('chapter',item.key)}));
   list=list.filter(item=>item.subject===chapterSubjectFilter||item.subject==='all');
   if(tagSearchQ) list=list.filter(item=>`${item.label} ${subByKey(item.subject).label}`.toLowerCase().includes(tagSearchQ));
@@ -979,21 +970,20 @@ let list=chapters.map((item,idx)=>({...item,_idx:idx,_usage:tagUsageCount('chapt
   if(!list.length){el.innerHTML='<div style="color:#bbb;font-size:13px;padding:8px 0">（無符合條件的章）</div>';return;}
   el.innerHTML=list.map(item=>{
     const subLabel=item.subject==='all'?'全部':subByKey(item.subject).label;
-return `<div class="tag-item ${sectionChapterFilter===item.key?'active-subject':''}" data-chapter-key="${item.key}"><div style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:0;"><span class="tag-item-label">${item.label}</span><span style="font-size:10px;color:#aaa;">${subLabel}</span></div><span class="tag-item-meta">${item._usage} 筆</span><button class="tag-move-btn" data-idx="${item._idx}" data-kind="chapter" data-dir="-1">↑</button><button class="tag-move-btn" data-idx="${item._idx}" data-kind="chapter" data-dir="1">↓</button><button class="tag-edit-btn" data-idx="${item._idx}" data-kind="chapter">編輯</button><button class="tag-del-btn" data-idx="${item._idx}" data-kind="chapter">刪</button></div>`;
+return `<div class="tag-item ${sectionChapterFilter===item.key?'active-subject':''}" draggable="true" data-draggable-tag="1" data-idx="${item._idx}" data-kind="chapter" data-chapter-key="${item.key}"><span class="tag-drag-handle" title="拖曳排序">⋮⋮</span><div style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:0;"><span class="tag-item-label">${item.label}</span><span class="tag-item-sub">${subLabel}</span></div><span class="tag-item-meta">${item._usage} 筆</span><div class="tag-actions"><button class="tag-icon-btn" title="上移" data-idx="${item._idx}" data-kind="chapter" data-dir="-1">↑</button><button class="tag-icon-btn" title="下移" data-idx="${item._idx}" data-kind="chapter" data-dir="1">↓</button><button class="tag-icon-btn" title="編輯" data-idx="${item._idx}" data-kind="chapter" data-edit="1">✎</button><button class="tag-icon-btn delete" title="刪除" data-idx="${item._idx}" data-kind="chapter" data-del="1">🗑</button></div></div>`;
   }).join('');
   el.querySelectorAll('.tag-item[data-chapter-key]').forEach(row=>row.addEventListener('click',ev=>{
     if(ev.target.closest('button')) return;
     sectionChapterFilter=row.dataset.chapterKey||'';
-    tagChapterTab='section';
+    activeTagCategory='section';
     renderTagLists();
   }));
-  el.querySelectorAll('.tag-move-btn').forEach(b=>b.addEventListener('click',()=>moveTag(parseInt(b.dataset.idx),b.dataset.kind,parseInt(b.dataset.dir,10))));
-  el.querySelectorAll('.tag-edit-btn').forEach(b=>b.addEventListener('click',()=>editTag(parseInt(b.dataset.idx),b.dataset.kind)));
-  el.querySelectorAll('.tag-del-btn').forEach(b=>b.addEventListener('click',()=>deleteTag(parseInt(b.dataset.idx),b.dataset.kind)));
+  bindTagActions(el);
+  bindTagDrag(el);
 }
 function renderSectionTagList() {
   const el=g('sectionTagList'); if(!el) return;
-  if(!sectionChapterFilter){el.innerHTML='<div style="color:#bbb;font-size:13px;padding:8px 0">請先點擊上方的「章」標籤，再管理節。</div>';return;}
+  if(!sectionChapterFilter){el.innerHTML='<div style="color:#bbb;font-size:13px;padding:8px 0">請先到「章」面板選擇一個章，再管理節。</div>';return;}
   let list=sections.map((item,idx)=>({...item,_idx:idx,_usage:tagUsageCount('section',item.key)}));
   list=list.filter(item=>item.chapter===sectionChapterFilter||item.chapter==='all');
   if(tagSearchQ) list=list.filter(item=>`${item.label} ${chapterByKey(item.chapter).label}`.toLowerCase().includes(tagSearchQ));
@@ -1001,11 +991,43 @@ function renderSectionTagList() {
   if(!list.length){el.innerHTML='<div style="color:#bbb;font-size:13px;padding:8px 0">（無符合條件的節）</div>';return;}
   el.innerHTML=list.map(item=>{
     const chapterLabel=item.chapter==='all'?'全部章':chapterByKey(item.chapter).label;
-    return `<div class="tag-item"><div style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:0;"><span class="tag-item-label">${item.label}</span><span style="font-size:10px;color:#aaa;">${chapterLabel}</span></div><span class="tag-item-meta">${item._usage} 筆</span><button class="tag-move-btn" data-idx="${item._idx}" data-kind="section" data-dir="-1">↑</button><button class="tag-move-btn" data-idx="${item._idx}" data-kind="section" data-dir="1">↓</button><button class="tag-edit-btn" data-idx="${item._idx}" data-kind="section">編輯</button><button class="tag-del-btn" data-idx="${item._idx}" data-kind="section">刪</button></div>`;
+    return `<div class="tag-item" draggable="true" data-draggable-tag="1" data-idx="${item._idx}" data-kind="section"><span class="tag-drag-handle" title="拖曳排序">⋮⋮</span><div style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:0;"><span class="tag-item-label">${item.label}</span><span class="tag-item-sub">${chapterLabel}</span></div><span class="tag-item-meta">${item._usage} 筆</span><div class="tag-actions"><button class="tag-icon-btn" title="上移" data-idx="${item._idx}" data-kind="section" data-dir="-1">↑</button><button class="tag-icon-btn" title="下移" data-idx="${item._idx}" data-kind="section" data-dir="1">↓</button><button class="tag-icon-btn" title="編輯" data-idx="${item._idx}" data-kind="section" data-edit="1">✎</button><button class="tag-icon-btn delete" title="刪除" data-idx="${item._idx}" data-kind="section" data-del="1">🗑</button></div></div>`;
   }).join('');
-  el.querySelectorAll('.tag-move-btn').forEach(b=>b.addEventListener('click',()=>moveTag(parseInt(b.dataset.idx),b.dataset.kind,parseInt(b.dataset.dir,10))));
-  el.querySelectorAll('.tag-edit-btn').forEach(b=>b.addEventListener('click',()=>editTag(parseInt(b.dataset.idx),b.dataset.kind)));
-  el.querySelectorAll('.tag-del-btn').forEach(b=>b.addEventListener('click',()=>deleteTag(parseInt(b.dataset.idx),b.dataset.kind)));
+  bindTagActions(el);
+  bindTagDrag(el);
+}
+function bindTagActions(root){
+  root.querySelectorAll('.tag-icon-btn[data-dir]').forEach(b=>b.addEventListener('click',()=>moveTag(parseInt(b.dataset.idx,10),b.dataset.kind,parseInt(b.dataset.dir,10))));
+  root.querySelectorAll('.tag-icon-btn[data-edit]').forEach(b=>b.addEventListener('click',()=>editTag(parseInt(b.dataset.idx,10),b.dataset.kind)));
+  root.querySelectorAll('.tag-icon-btn[data-del]').forEach(b=>b.addEventListener('click',()=>deleteTag(parseInt(b.dataset.idx,10),b.dataset.kind)));
+}
+function bindTagDrag(root){
+  root.querySelectorAll('.tag-item[data-draggable-tag]').forEach(row=>{
+    row.addEventListener('dragstart',ev=>{
+      row.classList.add('dragging');
+      ev.dataTransfer.effectAllowed='move';
+      ev.dataTransfer.setData('text/plain',JSON.stringify({idx:Number(row.dataset.idx),kind:row.dataset.kind}));
+    });
+    row.addEventListener('dragend',()=>row.classList.remove('dragging'));
+    row.addEventListener('dragover',ev=>ev.preventDefault());
+    row.addEventListener('drop',ev=>{
+      ev.preventDefault();
+      const raw=ev.dataTransfer.getData('text/plain');
+      if(!raw) return;
+      let data=null;
+      try{ data=JSON.parse(raw); }catch(_e){ return; }
+      const toIdx=Number(row.dataset.idx), fromIdx=Number(data.idx), kind=row.dataset.kind;
+      if(!Number.isFinite(fromIdx)||!Number.isFinite(toIdx)||kind!==data.kind||fromIdx===toIdx) return;
+      reorderTagByIndex(kind,fromIdx,toIdx);
+    });
+  });
+}
+function reorderTagByIndex(kind,fromIdx,toIdx){
+  const arr=kind==='type'?types:(kind==='sub'?subjects:(kind==='section'?sections:chapters));
+  if(!arr[fromIdx]||!arr[toIdx]) return;
+  const [item]=arr.splice(fromIdx,1);
+  arr.splice(toIdx,0,item);
+  saveData();renderTagLists();rebuildUI();render();
 }
 function moveTag(idx,kind,dir){
   const arr=kind==='type'?types:(kind==='sub'?subjects:(kind==='section'?sections:chapters));
@@ -1785,6 +1807,7 @@ window.addEventListener('load',()=>{
   on('tagSearchInput','input',debounce(()=>{tagSearchQ=(val('tagSearchInput')||'').toLowerCase().trim();renderTagLists();},150));
   on('tagUnusedOnly','change',()=>{tagUnusedOnly=!!g('tagUnusedOnly').checked;renderTagLists();});
   on('clearUnusedTagsBtn','click',clearUnusedTags);
+  on('tagSettingsBtn','click',()=>g('tagGlobalOptions')?.classList.toggle('open'));
   g('addTypeBtn').addEventListener('click',()=>addTag('type'));g('addSubBtn').addEventListener('click',()=>addTag('sub'));g('addChapterBtn').addEventListener('click',()=>addTag('chapter'));g('addSectionBtn').addEventListener('click',()=>addTag('section'));
   on('panelDirBtn','click',togglePanelDir);
   on('addTypeFieldBtn','click',addTypeFieldForCurrentType);

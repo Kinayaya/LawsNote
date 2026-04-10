@@ -108,7 +108,10 @@ const noteSections = n => noteScopeKeys(n,'sections','section');
 const noteSubjectText = n => noteSubjects(n).join(' ');
 const noteChapterText = n => noteChapters(n).join(' ');
 const noteSectionText = n => noteSections(n).join(' ');
+const mapHasTaxonomyFilter = () => mapFilter.sub!=='all'||mapFilter.chapter!=='all'||mapFilter.section!=='all';
 const intersects = (arr1,arr2) => arr1.some(x=>arr2.includes(x));
+const TAG_COLLECTIONS = {type:()=>types, sub:()=>subjects, subject:()=>subjects, chapter:()=>chapters, section:()=>sections};
+const tagCollection = kind => (TAG_COLLECTIONS[kind]||(()=>[]))();
 const tagUsageCount = (kind,key) => {
   if(kind==='type') return notes.filter(n=>n.type===key).length;
   if(kind==='sub') return notes.filter(n=>noteSubjects(n).includes(key)).length;
@@ -933,11 +936,7 @@ function renderTagLists() {
   if(sel) sel.innerHTML='<option value="all">全部科目</option>'+subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join('');
   const secSel=g('newSectionChapter');
   if(secSel) secSel.innerHTML='<option value="all">全部章</option>'+chapters.map(ch=>`<option value="${ch.key}">${ch.label}</option>`).join('');
-  g('tagCategoryNav')?.querySelectorAll('.tag-nav-btn').forEach(btn=>{
-    const active=btn.dataset.category===activeTagCategory;
-    btn.classList.toggle('active',active);
-    btn.onclick=()=>{ activeTagCategory=btn.dataset.category||'type'; renderTagLists(); };
-  });
+  g('tagCategoryNav')?.querySelectorAll('.tag-nav-btn').forEach(btn=>btn.classList.toggle('active',btn.dataset.category===activeTagCategory));
   g('tp')?.querySelectorAll('.tag-category-panel').forEach(panel=>{
     panel.classList.toggle('active',panel.dataset.categoryPanel===activeTagCategory);
   });
@@ -1023,14 +1022,14 @@ function bindTagDrag(root){
   });
 }
 function reorderTagByIndex(kind,fromIdx,toIdx){
-  const arr=kind==='type'?types:(kind==='sub'?subjects:(kind==='section'?sections:chapters));
+  const arr=tagCollection(kind);
   if(!arr[fromIdx]||!arr[toIdx]) return;
   const [item]=arr.splice(fromIdx,1);
   arr.splice(toIdx,0,item);
   saveData();renderTagLists();rebuildUI();render();
 }
 function moveTag(idx,kind,dir){
-  const arr=kind==='type'?types:(kind==='sub'?subjects:(kind==='section'?sections:chapters));
+  const arr=tagCollection(kind);
   const target=idx+dir;
   if(!arr[idx]||target<0||target>=arr.length) return;
   [arr[idx],arr[target]]=[arr[target],arr[idx]];
@@ -1087,7 +1086,7 @@ function editSectionTag(idx){
   saveData();renderTagLists();rebuildUI();render();showToast('節已更新');
 }
 function deleteTag(idx,kind) {
-  const arr=kind==='type'?types:(kind==='sub'?subjects:(kind==='section'?sections:chapters));
+  const arr=tagCollection(kind);
   if(kind==='chapter'){
     const removed=arr[idx]; if(!removed) return;
     if(!confirm(`確定刪除章「${removed.label}」？已使用此章的筆記會改為未分類。`)) return;
@@ -1525,13 +1524,19 @@ function redrawLines(affectedId){
 function visibleNotes(){
   const q=(mapFilter.q||'').toLowerCase(),linkedIds={};
   if(mapLinkedOnly)links.forEach(l=>{linkedIds[l.from]=true;linkedIds[l.to]=true;});
-  const filtered=notes.filter(n=>{
+  const baseFiltered=notes.filter(n=>{
     const subs=noteSubjects(n),chs=noteChapters(n),secs=noteSections(n);
     return (mapFilter.sub==='all'||subs.includes(mapFilter.sub))
       &&(mapFilter.chapter==='all'||chs.includes(mapFilter.chapter))
       &&(mapFilter.section==='all'||secs.includes(mapFilter.section))
       &&(!q||`${n.title}${subs.join('')}${chs.join('')}${secs.join('')}${noteTags(n).join('')}`.toLowerCase().includes(q));
   });
+  const shouldExpandLinked=scopeLinkedEnabled&&mapHasTaxonomyFilter();
+  let filtered=baseFiltered;
+  if(shouldExpandLinked){
+    const expandedIds=expandWithLinkedNotes(new Set(baseFiltered.map(n=>n.id)));
+    filtered=notes.filter(n=>expandedIds.has(n.id)&&noteMatchesSearch(n,q));
+  }
   let base=filtered.filter(n=>!mapLinkedOnly||linkedIds[n.id]);
   if(mapLinkedOnly&&!base.length&&filtered.length){
     mapLinkedOnly=false;setMapLinkedOnlyBtnStyle();
@@ -1767,6 +1772,15 @@ function bindCoreButtons(){
   bind('dpClose',closeDetail);bind('fpClose',closeForm);bind('fpCancel',closeForm);
   bind('fpSave',saveNote);bind('delBtn',deleteNote);
 }
+function bindTagManagerNav(){
+  g('tagCategoryNav')?.addEventListener('click',ev=>{
+    const btn=ev.target.closest('.tag-nav-btn');
+    if(!btn) return;
+    activeTagCategory=btn.dataset.category||'type';
+    renderTagLists();
+  });
+  on('tagSettingsBtn','click',()=>g('tagGlobalOptions')?.classList.toggle('open'));
+}
 
 // ==================== AI 功能 ====================
 function requireAiKey(action){ const k=getAiKey();if(k){action(k);return;}_aiPendingAction=action;g('aiKeyInput').value='';const sel=g('aiModelSel');if(sel)sel.innerHTML=AI_MODELS.map(m=>`<option value="${m.id}"${m.id===getAiModel()?' selected':''}>${m.label}</option>`).join('');g('aiKeyModal').classList.add('open'); }
@@ -1802,12 +1816,12 @@ window.addEventListener('load',()=>{
   si.addEventListener('input',debounce(()=>{searchQ=si.value;gridPage=1;sc.style.display=searchQ?'block':'none';render();},250));
   sc.addEventListener('click',()=>{si.value='';searchQ='';gridPage=1;sc.style.display='none';render();si.focus();});
   bindCoreButtons();
+  bindTagManagerNav();
   g('exportBtn').addEventListener('click',exportData);
   g('tpClose').addEventListener('click',()=>{g('tp').classList.remove('open');syncSidePanelState();});
   on('tagSearchInput','input',debounce(()=>{tagSearchQ=(val('tagSearchInput')||'').toLowerCase().trim();renderTagLists();},150));
   on('tagUnusedOnly','change',()=>{tagUnusedOnly=!!g('tagUnusedOnly').checked;renderTagLists();});
   on('clearUnusedTagsBtn','click',clearUnusedTags);
-  on('tagSettingsBtn','click',()=>g('tagGlobalOptions')?.classList.toggle('open'));
   g('addTypeBtn').addEventListener('click',()=>addTag('type'));g('addSubBtn').addEventListener('click',()=>addTag('sub'));g('addChapterBtn').addEventListener('click',()=>addTag('chapter'));g('addSectionBtn').addEventListener('click',()=>addTag('section'));
   on('panelDirBtn','click',togglePanelDir);
   on('addTypeFieldBtn','click',addTypeFieldForCurrentType);

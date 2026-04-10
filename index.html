@@ -55,7 +55,11 @@
   <summary>進階篩選</summary>
   <div id="chapterbar"></div>
   <div id="sectionbar"></div>
-  <div id="sortBar"><label>排序：</label><select id="sortSelect"><option value="date_desc">最新優先</option><option value="date_asc">最舊優先</option><option value="title_asc">標題 A-Z</option><option value="title_desc">標題 Z-A</option><option value="subject">依科目</option><option value="chapter">依章</option><option value="type">依類型</option></select></div>
+  <div id="sortBar">
+    <label>排序：</label>
+    <select id="sortSelect"><option value="date_desc">最新優先</option><option value="date_asc">最舊優先</option><option value="title_asc">標題 A-Z</option><option value="title_desc">標題 Z-A</option><option value="subject">依科目</option><option value="chapter">依章</option><option value="type">依類型</option></select>
+    <label class="scope-link-toggle"><input type="checkbox" id="scopeLinkedToggle"> 同步顯示關聯筆記</label>
+  </div>
   <div id="search-results-bar"></div>
 </details>
 

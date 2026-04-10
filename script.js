@@ -17,6 +17,7 @@ const DEFAULTS = {
   sections: []
 };
 const LINK_COLOR = '#378ADD', SKEY = 'legal_notes_v4', PAGE_SIZE = 24;
+const SCOPE_LINKED_TOGGLE_KEY = 'klaws_scope_linked_toggle_v1';
 const SYNC_KEY = 'klaws_sync_v1', SYNC_FILE = 'klaws_data.json';
 const AI_MODELS = [
   {id:'openrouter/free', label:'🔀 自動選最佳免費模型（推薦）'},
@@ -46,6 +47,7 @@ const DEFAULT_NORMAL_FIELD_KEYS = ['body','detail','tags'];
 let notes=[], links=[], nid=10, lid=10, types=[], subjects=[], chapters=[], sections=[];
 let cv='all', cs='all', cch='all', csec='all', searchQ='', openId=null, editMode=false;
 let selectedSubjects=[], selectedChapters=[], selectedSections=[];
+let scopeLinkedEnabled = localStorage.getItem(SCOPE_LINKED_TOGGLE_KEY)==='1';
 let formLinkSelections={}, tagSearchQ='', tagUnusedOnly=false;
 let chapterSubjectFilter='', sectionChapterFilter='';
 let tagChapterTab='chapter';
@@ -513,19 +515,44 @@ function buildFormSelects() {
 }
 function rebuildUI() { buildTypeRow();buildSubRow();buildChapterRow();buildSectionRow();buildFormSelects(); }
 
+function hasTaxonomyFilter() {
+  return !!(selectedSubjects.length||selectedChapters.length||selectedSections.length);
+}
+function baseScopeMatch(note) {
+  const subs=noteSubjects(note), chs=noteChapters(note), secs=noteSections(note);
+  return (cv==='all'||note.type===cv)
+    &&(!selectedSubjects.length||intersects(selectedSubjects,subs))
+    &&(!selectedChapters.length||intersects(selectedChapters,chs))
+    &&(!selectedSections.length||intersects(selectedSections,secs));
+}
+function noteMatchesSearch(note, q) {
+  if(!q) return true;
+  const subs=noteSubjects(note), chs=noteChapters(note), secs=noteSections(note);
+  return `${note.title} ${note.body} ${subs.join(' ')} ${chs.join(' ')} ${secs.join(' ')} ${noteTags(note).join(' ')}`.toLowerCase().includes(q);
+}
+function expandWithLinkedNotes(seedIds) {
+  const expanded=new Set(seedIds);
+  links.forEach(l=>{
+    if(expanded.has(l.from)) expanded.add(l.to);
+    if(expanded.has(l.to)) expanded.add(l.from);
+  });
+  return expanded;
+}
+
 // ==================== 渲染 ====================
 function render() {
   const q=searchQ.trim().toLowerCase();
-  const filtered=sortedNotes(notes).filter(n=>{
-    const subs=noteSubjects(n), chs=noteChapters(n), secs=noteSections(n);
-    return (cv==='all'||n.type===cv)
-      &&(!selectedSubjects.length||intersects(selectedSubjects,subs))
-      &&(!selectedChapters.length||intersects(selectedChapters,chs))
-      &&(!selectedSections.length||intersects(selectedSections,secs))
-      &&(!q||`${n.title} ${n.body} ${subs.join(' ')} ${chs.join(' ')} ${secs.join(' ')} ${noteTags(n).join(' ')}`.toLowerCase().includes(q));
-  });
+  const seedIds=new Set(notes.filter(n=>baseScopeMatch(n)).map(n=>n.id));
+  const shouldExpand=scopeLinkedEnabled&&hasTaxonomyFilter();
+  const visibleIds=shouldExpand?expandWithLinkedNotes(seedIds):seedIds;
+  const filtered=sortedNotes(notes).filter(n=>visibleIds.has(n.id)&&noteMatchesSearch(n,q));
   const sb=g('search-results-bar');
-  if(q){sb.style.display='block';sb.textContent=`搜尋「${searchQ}」：找到 ${filtered.length} 筆筆記`;}else sb.style.display='none';
+  if(q){sb.style.display='block';sb.textContent=`搜尋「${searchQ}」：找到 ${filtered.length} 筆筆記`;}
+  else if(shouldExpand){
+    const linkedCount=Math.max(0,filtered.length-seedIds.size);
+    sb.style.display='block';
+    sb.textContent=linkedCount>0?`已額外顯示 ${linkedCount} 筆跨科目關聯筆記`:'已啟用跨科目關聯顯示（目前無新增筆記）';
+  }else sb.style.display='none';
   const grid=g('grid');
   const pager=g('gridPager'); if(pager) pager.remove();
   if(!filtered.length){grid.innerHTML='<div class="empty">沒有符合的筆記</div>';return;}
@@ -538,8 +565,9 @@ function render() {
     const chapterChips=chs.map(chk=>`<span class="chip">${chapterByKey(chk).label}</span>`).join('');
     const sectionChips=secs.map(sk=>`<span class="chip">${sectionByKey(sk).label}</span>`).join('');
     const tags=noteTags(n).slice(0,1).map(t=>`<span class="chip">${hl(t,q)}</span>`).join('');
+    const linkedChip=(shouldExpand&&!seedIds.has(n.id))?'<span class="chip" style="background:#EAF3DE;color:#3B6D11;border-color:#97C459">跨科關聯</span>':'';
     const displayDate=formatDate(n.date);
-    return `<div class="card" data-id="${n.id}"><div class="sel-check"></div><div class="cbar" style="background:${tp.color}"></div><div class="ctop"><span class="ctag" style="background:${tp.color}">${tp.label}</span><span class="cdate">${displayDate}</span></div><div class="ctitle">${hl(n.title,q)}</div><div class="cbody">${n.body}</div><div class="cfoot">${subChips}${chapterChips}${sectionChips}${tags}</div></div>`;
+    return `<div class="card" data-id="${n.id}"><div class="sel-check"></div><div class="cbar" style="background:${tp.color}"></div><div class="ctop"><span class="ctag" style="background:${tp.color}">${tp.label}</span><span class="cdate">${displayDate}</span></div><div class="ctitle">${hl(n.title,q)}</div><div class="cbody">${n.body}</div><div class="cfoot">${subChips}${chapterChips}${sectionChips}${tags}${linkedChip}</div></div>`;
   }).join('');
   grid.querySelectorAll('.card').forEach(c=>{
     const id=parseInt(c.dataset.id);
@@ -1728,6 +1756,17 @@ window.addEventListener('load',()=>{
   loadData();rebuildUI();
   initMoreMenu();
   g('sortSelect').value=sortMode;g('sortSelect').addEventListener('change',()=>{sortMode=g('sortSelect').value;gridPage=1;render();saveData();});
+  const scopeLinkedToggle=g('scopeLinkedToggle');
+  if(scopeLinkedToggle){
+    scopeLinkedToggle.checked=scopeLinkedEnabled;
+    scopeLinkedToggle.addEventListener('change',()=>{
+      scopeLinkedEnabled=!!scopeLinkedToggle.checked;
+      localStorage.setItem(SCOPE_LINKED_TOGGLE_KEY,scopeLinkedEnabled?'1':'0');
+      gridPage=1;
+      render();
+      showToast(scopeLinkedEnabled?'已啟用跨科目關聯顯示':'已關閉跨科目關聯顯示');
+    });
+  }
   g('multiSelBtn').addEventListener('click',()=>multiSelMode?exitMultiSel():enterMultiSel());
   g('selAllBtn').addEventListener('click',selectAll);g('selDeleteBtn').addEventListener('click',deleteSelected);g('selCancelBtn').addEventListener('click',exitMultiSel);
   on('statsBtn','click',openStats);

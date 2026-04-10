@@ -246,9 +246,10 @@ const getMapCardBox = id => {
   const scale=Math.max(0.7,Math.min(2.3,getNodeRadius(id)/MAP_NODE_RADIUS_DEFAULT));
   const width=Math.round(210*scale);
   const note=noteById(id)||{};
-  const bodyText=safeStr(note.body).replace(/\s+/g,' ').trim();
+  const bodyText=safeStr(note.body).trim();
   const charsPerLine=Math.max(9,Math.floor((width-24)/10));
-  const bodyLines=Math.max(2,Math.ceil((bodyText.length||6)/charsPerLine));
+  const manualLines=bodyText?bodyText.split('\n'):[];
+  const bodyLines=Math.max(2,(manualLines.length?manualLines:[bodyText||'']).reduce((sum,line)=>sum+Math.max(1,Math.ceil((line.length||1)/charsPerLine)),0));
   const height=96+bodyLines*18;
   return {width,height,bodyLines};
 };
@@ -1679,10 +1680,9 @@ function drawMap(){
     cardBody.setAttribute('x',String(pos.x-halfW));cardBody.setAttribute('y',String(pos.y-halfH));
     cardBody.setAttribute('width',String(box.width));cardBody.setAttribute('height',String(box.height));
     cardBody.style.pointerEvents='none';
-    const bodyPreview=safeStr(n.body).replace(/\s+/g,' ').trim()||'（尚無摘要）';
+    const bodyPreview=safeStr(n.body).trim()||'（尚無摘要）';
     cardBody.innerHTML=`<div xmlns="http://www.w3.org/1999/xhtml" class="map-card-inner">
-      <div class="map-card-head"><span class="map-card-type" style="background:${lightC(type.color)};color:${darkC(type.color)}">${type.label}</span><span class="map-card-date">${formatDate(n.date)||''}</span></div>
-      <div class="map-card-title">${escapeHtml(n.title||'（未命名）')}</div>
+      <div class="map-card-head"><span class="map-card-type" style="background:${lightC(type.color)};color:${darkC(type.color)}">${type.label}</span><span class="map-card-title">${escapeHtml(n.title||'（未命名）')}</span></div>
       <div class="map-card-body-text">${escapeHtml(bodyPreview)}</div>
     </div>`;
     const hasChildren=links.some(l=>l.from===n.id&&noteById(l.to));

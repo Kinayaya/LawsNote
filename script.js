@@ -245,7 +245,10 @@ const splitMapTitleLines = (title,max=8) => { const s=String(title||'').trim(); 
 const getMapCardBox = id => {
   const scale=Math.max(0.7,Math.min(2.3,getNodeRadius(id)/MAP_NODE_RADIUS_DEFAULT));
   const width=Math.round(210*scale);
-  const bodyLines=Math.max(2,Math.min(5,Math.round(2+scale)));
+  const note=noteById(id)||{};
+  const bodyText=safeStr(note.body).replace(/\s+/g,' ').trim();
+  const charsPerLine=Math.max(9,Math.floor((width-24)/10));
+  const bodyLines=Math.max(2,Math.ceil((bodyText.length||6)/charsPerLine));
   const height=96+bodyLines*18;
   return {width,height,bodyLines};
 };
@@ -1466,7 +1469,7 @@ function forceLayout() {
     return layoutNotes.reduce((max,n)=>linkCount[n.id]>linkCount[max.id]?n:max,layoutNotes[0]).id;
   })();
   const laneCfg=getLaneConfig(),laneCount=laneCfg.names.length;
-  const ROW_GAP_Y=92,TOP_PAD=72,BOT_PAD=40;
+  const LANE_CARD_GAP_Y=34,TOP_PAD=72,BOT_PAD=40;
   const laneLeft=Math.max(80,mapW*.1),laneRight=Math.min(mapW-80,mapW*.9);
   const laneGapX=laneCount>1?(laneRight-laneLeft)/(laneCount-1):0;
   const adj={};layoutNotes.forEach(n=>adj[n.id]=[]);visLinks.forEach(lk=>{if(adj[lk.from])adj[lk.from].push(lk.to);if(adj[lk.to])adj[lk.to].push(lk.from);});
@@ -1491,9 +1494,19 @@ function forceLayout() {
   for(let lane=0;lane<laneCount;lane++){
     const arr=laneOrder[lane]||[],x=laneLeft+lane*laneGapX;
     const usableHeight=Math.max(120,mapH-TOP_PAD-BOT_PAD);
-    const gap=arr.length>1?Math.min(ROW_GAP_Y,usableHeight/(arr.length-1)):0;
-    const totalHeight=Math.max(0,(arr.length-1)*gap),startY=TOP_PAD+(usableHeight-totalHeight)/2;
-    arr.forEach((nodeId,idx)=>{const y=startY+idx*gap;nodePos[nodeId]={x,y};mapNodeMeta[nodeId]={lane,order:idx};clampNodeToCanvas(nodeId);});
+    const boxes=arr.map(nodeId=>getMapCardBox(nodeId));
+    const totalCardsHeight=boxes.reduce((sum,box)=>sum+box.height,0);
+    const totalGap=Math.max(0,(arr.length-1)*LANE_CARD_GAP_Y);
+    const requiredHeight=totalCardsHeight+totalGap;
+    let yCursor=TOP_PAD+(requiredHeight<usableHeight?(usableHeight-requiredHeight)/2:0);
+    arr.forEach((nodeId,idx)=>{
+      const cardH=boxes[idx].height;
+      const y=yCursor+cardH/2;
+      nodePos[nodeId]={x,y};
+      mapNodeMeta[nodeId]={lane,order:idx};
+      clampNodeToCanvas(nodeId);
+      yCursor+=cardH+LANE_CARD_GAP_Y;
+    });
   }
   saveDataDeferred();
 }
@@ -1667,13 +1680,10 @@ function drawMap(){
     cardBody.setAttribute('width',String(box.width));cardBody.setAttribute('height',String(box.height));
     cardBody.style.pointerEvents='none';
     const bodyPreview=safeStr(n.body).replace(/\s+/g,' ').trim()||'（尚無摘要）';
-    const tagText=noteTags(n).slice(0,2).join(' · ');
-    const subs=noteSubjects(n).join('、')||'未分類科目';
     cardBody.innerHTML=`<div xmlns="http://www.w3.org/1999/xhtml" class="map-card-inner">
       <div class="map-card-head"><span class="map-card-type" style="background:${lightC(type.color)};color:${darkC(type.color)}">${type.label}</span><span class="map-card-date">${formatDate(n.date)||''}</span></div>
       <div class="map-card-title">${escapeHtml(n.title||'（未命名）')}</div>
-      <div class="map-card-body-text" style="-webkit-line-clamp:${box.bodyLines};">${escapeHtml(bodyPreview)}</div>
-      <div class="map-card-foot">${escapeHtml(subs)}${tagText?` · ${escapeHtml(tagText)}`:''}</div>
+      <div class="map-card-body-text">${escapeHtml(bodyPreview)}</div>
     </div>`;
     const hasChildren=links.some(l=>l.from===n.id&&noteById(l.to));
     grp.appendChild(card);grp.appendChild(cardBody);

@@ -559,6 +559,13 @@ function expandWithLinkedNotes(seedIds) {
   });
   return expanded;
 }
+function expandWithChildLinkedNotes(seedIds) {
+  const expanded=new Set(seedIds);
+  links.forEach(l=>{
+    if(expanded.has(l.from)) expanded.add(l.to);
+  });
+  return expanded;
+}
 
 // ==================== 渲染 ====================
 function render() {
@@ -1556,7 +1563,7 @@ function visibleNotes(){
   const shouldExpandLinked=scopeLinkedEnabled&&mapHasTaxonomyFilter();
   let filtered=baseFiltered;
   if(shouldExpandLinked){
-    const expandedIds=expandWithLinkedNotes(new Set(baseFiltered.map(n=>n.id)));
+    const expandedIds=expandWithChildLinkedNotes(new Set(baseFiltered.map(n=>n.id)));
     filtered=notes.filter(n=>expandedIds.has(n.id)&&noteMatchesSearch(n,q));
   }
   let base=filtered.filter(n=>!mapLinkedOnly||linkedIds[n.id]);

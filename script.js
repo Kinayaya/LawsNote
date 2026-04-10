@@ -411,9 +411,8 @@ function saveData() { try { localStorage.setItem(SKEY,JSON.stringify(getPayload(
 // ==================== UI 建構 ====================
 function buildTypeRow() {
   const row=g('typeRow');
-  row.innerHTML=`<button class="tab ${cv==='all'?'on':''}" data-v="all">全部</button>`+types.map(t=>`<button class="tab ${cv===t.key?'on':''}" data-v="${t.key}" style="${cv===t.key?`background:${t.color};`:''}">${t.label}</button>`).join('')+`<button class="tag-mgr-btn" id="tagMgrBtn">管理</button>`;
+  row.innerHTML=`<button class="tab ${cv==='all'?'on':''}" data-v="all">全部</button>`+types.map(t=>`<button class="tab ${cv===t.key?'on':''}" data-v="${t.key}" style="${cv===t.key?`background:${t.color};`:''}">${t.label}</button>`).join('');
   row.querySelectorAll('.tab[data-v]').forEach(btn=>btn.addEventListener('click',()=>{cv=btn.dataset.v;gridPage=1;buildTypeRow();render();}));
-  on('tagMgrBtn','click',openTagMgr);
 }
 function buildSubRow() {
   normalizeFilterSelections();
@@ -509,25 +508,31 @@ function syncChapterSelect(subjectKeys, selected=[]) {
   const fc=g('fc'); if(!fc) return;
   const keys=Array.isArray(subjectKeys)?subjectKeys.filter(Boolean):(subjectKeys?[subjectKeys]:[]);
   const available=keys.length?chaptersBySubjects(keys):chapters.slice();
-  fc.innerHTML=available.map(ch=>`<option value="${ch.key}">${ch.label}</option>`).join('');
+  fc.innerHTML=`<option value="">無</option>`+available.map(ch=>`<option value="${ch.key}">${ch.label}</option>`).join('');
   const selectedKeys=(Array.isArray(selected)?selected.filter(Boolean):(selected?[selected]:[])).slice(0,1);
   const validSelected=selectedKeys.filter(k=>available.some(ch=>ch.key===k));
-  setSelectedValues('fc',validSelected);
+  if(validSelected.length) setSelectedValues('fc',validSelected);
+  else fc.value='';
 }
-function syncSectionSelect(chapterKeys, selected=[]){
+function syncSectionSelect(chapterKeys, selected=[], subjectKeys=[]){
   const sec=g('fsec'); if(!sec) return;
-  const keys=Array.isArray(chapterKeys)?chapterKeys.filter(Boolean):(chapterKeys?[chapterKeys]:[]);
-  const available=keys.length?sectionsByChapters(keys):sections.slice();
-  sec.innerHTML=available.map(item=>`<option value="${item.key}">${item.label}</option>`).join('');
+  const chKeys=Array.isArray(chapterKeys)?chapterKeys.filter(Boolean):(chapterKeys?[chapterKeys]:[]);
+  const subKeys=Array.isArray(subjectKeys)?subjectKeys.filter(Boolean):(subjectKeys?[subjectKeys]:[]);
+  const availableChapterKeys=chKeys.length
+    ? chKeys
+    : (subKeys.length?chaptersBySubjects(subKeys).map(ch=>ch.key):chapters.map(ch=>ch.key));
+  const available=availableChapterKeys.length?sectionsByChapters(availableChapterKeys):[];
+  sec.innerHTML=`<option value="">無</option>`+available.map(item=>`<option value="${item.key}">${item.label}</option>`).join('');
   const selectedKeys=(Array.isArray(selected)?selected.filter(Boolean):(selected?[selected]:[])).slice(0,1);
   const validSelected=selectedKeys.filter(k=>available.some(item=>item.key===k));
-  setSelectedValues('fsec',validSelected);
+  if(validSelected.length) setSelectedValues('fsec',validSelected);
+  else sec.value='';
 }
 function buildFormSelects() {
   g('ft').innerHTML=types.map(t=>`<option value="${t.key}">${t.label}</option>`).join('');
-  g('fs2').innerHTML=subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join('');
+  g('fs2').innerHTML=`<option value="">無</option>`+subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join('');
   syncChapterSelect(selectedValues('fs2'));
-  syncSectionSelect(selectedValues('fc'));
+  syncSectionSelect(selectedValues('fc'),[],selectedValues('fs2'));
 }
 function rebuildUI() { buildTypeRow();buildSubRow();buildChapterRow();buildSectionRow();buildFormSelects(); }
 
@@ -680,14 +685,14 @@ function openForm(isEdit) {
   if(editMode) {
     const n=noteById(openId); if(!n) return;
     g('form-title').textContent='編輯筆記';
-    g('ft').value=n.type;setSelectedValues('fs2',noteSubjects(n));syncChapterSelect(noteSubjects(n),noteChapters(n));syncSectionSelect(noteChapters(n),noteSections(n));g('fti').value=n.title;
+    g('ft').value=n.type;setSelectedValues('fs2',noteSubjects(n));syncChapterSelect(noteSubjects(n),noteChapters(n));syncSectionSelect(noteChapters(n),noteSections(n),noteSubjects(n));g('fti').value=n.title;
     renderDynamicFields(n.type,n);
   } else {
     g('form-title').textContent='新增筆記';
   ['fti'].forEach(id=>{const el=g(id);if(el)el.value='';});
     const defaultSub=subjects[0]?subjects[0].key:null;
-    if(defaultSub){setSelectedValues('fs2',[defaultSub]);syncChapterSelect([defaultSub],[]);syncSectionSelect([],[]);}
-    else{setSelectedValues('fs2',[]);syncChapterSelect([],[]);syncSectionSelect([],[]);}
+    if(defaultSub){setSelectedValues('fs2',[defaultSub]);syncChapterSelect([defaultSub],[]);syncSectionSelect([],[],[defaultSub]);}
+    else{setSelectedValues('fs2',[]);syncChapterSelect([],[]);syncSectionSelect([],[],[]);}
     renderDynamicFields(g('ft').value,null);
   }
   buildInlineLinksPanel();
@@ -1302,8 +1307,6 @@ function toggleMapView(open) {
     const mapSearch=g('mapSearchInput');if(mapSearch)mapSearch.value=mapFilter.q||'';
     g('zoomLabel').textContent=Math.round(mapScale*100)+'%';
     setMapLinkedOnlyBtnStyle();
-    const focusBtn=g('mapFocusBtn');
-    if(focusBtn){focusBtn.style.background=mapFocusMode?'#0C447C':'#f0f7ff';focusBtn.style.color=mapFocusMode?'#fff':'#0C447C';focusBtn.textContent=`🎯 焦點模式：${mapFocusMode?'開':'關'}`;}
     setTimeout(()=>{const hadNodePos=Object.keys(nodePos).length>0;initNodePos();drawMap();if(!hadNodePos)saveData();},80);
   } else { closeLanePanel();closeMapPopup(); }
 }
@@ -1828,15 +1831,16 @@ window.addEventListener('load',()=>{
   on('ft','change',()=>renderDynamicFields(g('ft').value,editMode&&openId?noteById(openId):null));
   on('fs2','change',()=>{
     syncChapterSelect(selectedValues('fs2'),selectedValues('fc'));
-    syncSectionSelect(selectedValues('fc'),selectedValues('fsec'));
+    syncSectionSelect(selectedValues('fc'),selectedValues('fsec'),selectedValues('fs2'));
   });
-  on('fc','change',()=>syncSectionSelect(selectedValues('fc'),selectedValues('fsec')));
+  on('fc','change',()=>syncSectionSelect(selectedValues('fc'),selectedValues('fsec'),selectedValues('fs2')));
   const si=g('searchInput'),sc=g('searchClear');
   si.addEventListener('input',debounce(()=>{searchQ=si.value;gridPage=1;sc.style.display=searchQ?'block':'none';render();},250));
   sc.addEventListener('click',()=>{si.value='';searchQ='';gridPage=1;sc.style.display='none';render();si.focus();});
   const compactDefault=localStorage.getItem(COMPACT_FILTER_KEY);
   applyCompactFilterMode(compactDefault===null?true:compactDefault==='1');
   on('compactToggleBtn','click',()=>applyCompactFilterMode(!document.body.classList.contains('compact-filters')));
+  on('tagMgrBtn','click',openTagMgr);
   bindCoreButtons();
   bindTagManagerNav();
   g('exportBtn').addEventListener('click',exportData);
@@ -1895,8 +1899,8 @@ window.addEventListener('load',()=>{
   on('mapFilterChapter','change',()=>{mapFilter.chapter=g('mapFilterChapter').value;buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
   on('mapFilterSection','change',()=>{mapFilter.section=g('mapFilterSection').value;nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
   on('mapAdvancedToggleBtn','click',()=>setMapAdvanced(!mapAdvancedOpen));
-  on('mapDepthSel','change',()=>{mapDepth=g('mapDepthSel').value;nodePos={};forceLayout();drawMap();saveDataDeferred();});
-  on('mapFocusBtn','click',()=>{mapFocusMode=!mapFocusMode;const btn=g('mapFocusBtn');if(btn){btn.style.background=mapFocusMode?'#0C447C':'#f0f7ff';btn.style.color=mapFocusMode?'#fff':'#0C447C';btn.textContent=`🎯 焦點模式：${mapFocusMode?'開':'關'}`;}applyFocusStyles();saveDataDeferred();});
+  mapDepth='all';
+  mapFocusMode=false;
   const setZoom=z=>{mapScale=Math.max(.15,Math.min(3.5,z));g('zoomLabel').textContent=Math.round(mapScale*100)+'%';drawMap();};
   on('zoomIn','click',()=>setZoom(mapScale+.15));on('zoomOut','click',()=>setZoom(mapScale-.15));
   on('zoomFit','click',()=>{if(!notes.length)return;const xs=notes.map(n=>nodePos[n.id]?nodePos[n.id].x:mapW/2),ys=notes.map(n=>nodePos[n.id]?nodePos[n.id].y:mapH/2);const minX=Math.min(...xs)-40,maxX=Math.max(...xs)+40,minY=Math.min(...ys)-40,maxY=Math.max(...ys)+40;const sc=Math.min(mapW/(maxX-minX||1),mapH/(maxY-minY||1),2.5);mapScale=sc;mapOffX=-minX*sc+(mapW-(maxX-minX)*sc)/2;mapOffY=-minY*sc+(mapH-(maxY-minY)*sc)/2;g('zoomLabel').textContent=Math.round(sc*100)+'%';drawMap();});

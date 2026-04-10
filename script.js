@@ -96,9 +96,13 @@ const subByKey = k => subjects.find(s=>s.key===k)||{key:k,label:k,color:'#888'};
 const chapterByKey = k => chapters.find(c=>c.key===k)||{key:k,label:k,subject:'all'};
 const sectionByKey = k => sections.find(s=>s.key===k)||{key:k,label:k,chapter:'all'};
 const uniq = arr => [...new Set((Array.isArray(arr)?arr:[]).filter(Boolean))];
-const noteSubjects = n => uniq(Array.isArray(n&&n.subjects)?n.subjects:(n&&n.subject?[n.subject]:[]));
-const noteChapters = n => uniq(Array.isArray(n&&n.chapters)?n.chapters:(n&&n.chapter?[n.chapter]:[]));
-const noteSections = n => uniq(Array.isArray(n&&n.sections)?n.sections:(n&&n.section?[n.section]:[]));
+const noteScopeKeys = (n,arrKey,singleKey) => {
+  const arr=Array.isArray(n&&n[arrKey])?n[arrKey].filter(Boolean):[];
+  return uniq(arr.length?arr:((n&&n[singleKey])?[n[singleKey]]:[]));
+};
+const noteSubjects = n => noteScopeKeys(n,'subjects','subject');
+const noteChapters = n => noteScopeKeys(n,'chapters','chapter');
+const noteSections = n => noteScopeKeys(n,'sections','section');
 const noteSubjectText = n => noteSubjects(n).join(' ');
 const noteChapterText = n => noteChapters(n).join(' ');
 const noteSectionText = n => noteSections(n).join(' ');
@@ -149,7 +153,7 @@ const saveSyncConfigFromInputs = () => {
   const autoPull=!!g('syncAutoPull')?.checked;
   if(token&&gistId) saveSyncConfig({token,gistId,autoPush,autoPull});
 };
-const getMapCenterContextKey = () => `${mapFilter.sub||'all'}::${mapFilter.chapter||'all'}`;
+const getMapCenterContextKey = () => `${mapFilter.sub||'all'}::${mapFilter.chapter||'all'}::${mapFilter.section||'all'}`;
 const getMapCenterFromScopes = () => {
   const key=getMapCenterContextKey();
   const scopedId=mapCenterNodeIds[key];

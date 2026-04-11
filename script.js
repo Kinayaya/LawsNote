@@ -702,7 +702,7 @@ function render() {
     const linkedChip=(shouldExpand&&!seedIds.has(n.id))?'<span class="chip" style="background:#EAF3DE;color:#3B6D11;border-color:#97C459">跨科關聯</span>':'';
     const displayDate=relativeDateLabel(n.date)||formatDate(n.date);
     const hasContent=noteHasVisibleContent(n);
-    return `<div class="card ${hasContent?'':'card-empty-content'}" data-id="${n.id}" style="--type-color:${tp.color}"><div class="sel-check"></div><div class="ctop"><span class="ctag">${tp.label}</span><span class="cdate">${displayDate}</span></div><div class="ctitle">${hl(n.title,q)}</div>${hasContent?`<div class="cbody">${n.body}</div>`:''}<div class="cfoot">${subChips}${chapterChips}${sectionChips}${tags}${linkedChip}</div></div>`;
+    return `<div class="card ${hasContent?'':'card-empty-content'}" data-id="${n.id}" style="--type-color:${tp.color}"><button class="sel-check" type="button" aria-label="勾選筆記"></button><div class="ctop"><span class="ctag">${tp.label}</span><span class="cdate">${displayDate}</span></div><div class="ctitle">${hl(n.title,q)}</div>${hasContent?`<div class="cbody">${n.body}</div>`:''}<div class="cfoot">${subChips}${chapterChips}${sectionChips}${tags}${linkedChip}</div></div>`;
   }).join('');
   grid.querySelectorAll('.card').forEach(c=>{
     const id=parseInt(c.dataset.id);
@@ -1476,6 +1476,7 @@ function selectAll() {
 }
 function deleteSelected() { const ids=Object.keys(selectedIds);if(!ids.length)return;if(!confirm(`確定刪除這 ${ids.length} 筆筆記？此操作無法復原。`))return;const idNums=ids.map(Number);links=links.filter(l=>!idNums.includes(l.from)&&!idNums.includes(l.to));notes=notes.filter(n=>!selectedIds[n.id]);saveData();exitMultiSel();showToast(`已刪除 ${ids.length} 筆筆記`); }
 function bindCardInteractions(card,id){
+  const checkBtn=card.querySelector('.sel-check');
   let pressTimer=null;
   let longPressed=false;
   const clearPress=()=>{ if(pressTimer){clearTimeout(pressTimer);pressTimer=null;} };
@@ -1493,9 +1494,19 @@ function bindCardInteractions(card,id){
   card.addEventListener('mouseleave',clearPress);
   card.addEventListener('touchend',clearPress,{passive:true});
   card.addEventListener('touchcancel',clearPress,{passive:true});
+  if(checkBtn){
+    const stopCardEvent=(e)=>{e.stopPropagation();};
+    checkBtn.addEventListener('mousedown',stopCardEvent);
+    checkBtn.addEventListener('touchstart',stopCardEvent,{passive:true});
+    checkBtn.addEventListener('click',e=>{
+      e.stopPropagation();
+      if(!multiSelMode) return;
+      toggleCardSelect(id);
+    });
+  }
   card.addEventListener('click',()=>{
     if(longPressed) return;
-    multiSelMode?toggleCardSelect(id):openNote(id);
+    openNote(id);
   });
 }
 

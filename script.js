@@ -17,6 +17,7 @@ const DEFAULTS = {
   sections: []
 };
 const LINK_COLOR = '#378ADD', SKEY = 'legal_notes_v4', PAGE_SIZE = 24;
+const ARCHIVES_KEY = 'klaws_archives_v1';
 const SCOPE_LINKED_TOGGLE_KEY = 'klaws_scope_linked_toggle_v1';
 const COMPACT_FILTER_KEY = 'klaws_compact_filters_v1';
 const SYNC_KEY = 'klaws_sync_v1', SYNC_FILE = 'klaws_data.json';
@@ -64,7 +65,9 @@ let mapRedrawTimer=null, mapResizeObserver=null, mapCenterNodeId=null, mapCenter
 let mapTimer=null, currentView='notes';
 let mapAdvancedOpen=false;
 let mapCollapsed={};
+let mapSubpages={}, mapPageStack=[];
 let typeFieldConfigs={}, customFieldDefs={};
+let undoSnapshotRaw='', lastSavedPayloadRaw='', isUndoApplying=false;
 
 // ==================== 工具函數 ====================
 const g = id => document.getElementById(id);
@@ -121,6 +124,7 @@ const tagUsageCount = (kind,key) => {
 };
 const noteById = id => notes.find(n=>n.id===id);
 const noteTags = n => Array.isArray(n&&n.tags)?n.tags:[];
+const noteHasVisibleContent = n => !!(safeStr(n.body).trim()||safeStr(n.detail).trim()||noteTags(n).length||(Array.isArray(n.todos)&&n.todos.length));
 const noteExtraFields = n => (n&&n.extraFields&&typeof n.extraFields==='object'&&!Array.isArray(n.extraFields))?n.extraFields:{};
 const getFieldDef = key => BUILTIN_FIELD_DEFS[key]||customFieldDefs[key]||{key,label:key,kind:'text',placeholder:''};
 const getTypeFieldKeys = typeKey => {
@@ -161,6 +165,11 @@ const saveSyncConfigFromInputs = () => {
   if(token&&gistId) saveSyncConfig({token,gistId,autoPush,autoPull});
 };
 const getMapCenterContextKey = () => `${mapFilter.sub||'all'}::${mapFilter.chapter||'all'}::${mapFilter.section||'all'}`;
+const mapSubpageContextKey = () => `${mapFilter.sub||'all'}::${mapFilter.chapter||'all'}::${mapFilter.section||'all'}`;
+const mapSubpageKey = noteId => `${mapSubpageContextKey()}::${noteId}`;
+const hasSubpageForNode = noteId => !!mapSubpages[mapSubpageKey(noteId)];
+const currentSubpageRootId = () => mapPageStack.length?mapPageStack[mapPageStack.length-1]:null;
+const isInMapSubpage = () => !!currentSubpageRootId();
 const getMapCenterFromScopes = () => {
   const key=getMapCenterContextKey();
   const scopedId=mapCenterNodeIds[key];
@@ -172,7 +181,7 @@ const setMapCenterForCurrentScope = id => {
   mapCenterNodeIds[getMapCenterContextKey()]=id;
   mapCenterNodeId=id;
 };
-const getPayload = () => ({notes,links,nid,lid,types,subjects,chapters,sections,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,typeFieldConfigs,customFieldDefs,panelDir:getPanelDir(),updatedAt:new Date().toISOString()});
+const getPayload = () => ({notes,links,nid,lid,types,subjects,chapters,sections,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,mapSubpages,typeFieldConfigs,customFieldDefs,panelDir:getPanelDir(),updatedAt:new Date().toISOString()});
 const parseUpdatedAt = raw => {
   const n=Date.parse(raw||'');
   return Number.isFinite(n)?n:0;
@@ -390,6 +399,7 @@ function loadData() {
       if(typeof d.mapFocusMode==='boolean') mapFocusMode=d.mapFocusMode;
       mapLaneConfigs=(d.mapLaneConfigs&&typeof d.mapLaneConfigs==='object'&&!Array.isArray(d.mapLaneConfigs))?d.mapLaneConfigs:{};
       mapCollapsed=(d.mapCollapsed&&typeof d.mapCollapsed==='object'&&!Array.isArray(d.mapCollapsed))?d.mapCollapsed:{};
+      mapSubpages=(d.mapSubpages&&typeof d.mapSubpages==='object'&&!Array.isArray(d.mapSubpages))?d.mapSubpages:{};
       customFieldDefs=(d.customFieldDefs&&typeof d.customFieldDefs==='object'&&!Array.isArray(d.customFieldDefs))?d.customFieldDefs:{};
       Object.keys(customFieldDefs).forEach(key=>{
         const item=customFieldDefs[key]||{};
@@ -410,7 +420,9 @@ function loadData() {
       });
       if(normalizeNoteIds(true)) repaired=true;
       if(repaired||chapterMigrated) saveData();
+      mapPageStack=[];
       applyPanelDir(d.panelDir||getPanelDir());
+      lastSavedPayloadRaw=JSON.stringify(getPayload());
     } else {
       notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());saveData();
     }
@@ -418,7 +430,79 @@ function loadData() {
     notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());
   }
 }
-function saveData() { try { localStorage.setItem(SKEY,JSON.stringify(getPayload())); autoPushIfEnabled(); } catch(e){} }
+function saveData() {
+  try {
+    const nextRaw=JSON.stringify(getPayload());
+    if(!isUndoApplying&&lastSavedPayloadRaw&&lastSavedPayloadRaw!==nextRaw) undoSnapshotRaw=lastSavedPayloadRaw;
+    localStorage.setItem(SKEY,nextRaw);
+    lastSavedPayloadRaw=nextRaw;
+    autoPushIfEnabled();
+  } catch(e){}
+}
+function applySnapshotRaw(raw){
+  if(!raw) return false;
+  try{
+    isUndoApplying=true;
+    localStorage.setItem(SKEY,raw);
+    loadData();
+    rebuildUI();
+    render();
+    if(isMapOpen){buildMapFilters();forceLayout();drawMap();}
+    return true;
+  }catch(e){
+    return false;
+  }finally{
+    isUndoApplying=false;
+  }
+}
+function undoLastAction(){
+  if(!undoSnapshotRaw){showToast('目前沒有可恢復的上一步');return;}
+  const currentRaw=lastSavedPayloadRaw||localStorage.getItem(SKEY)||'';
+  if(applySnapshotRaw(undoSnapshotRaw)){
+    undoSnapshotRaw=currentRaw;
+    showToast('已恢復上一步');
+  }else showToast('恢復失敗');
+}
+function loadArchives(){
+  try{
+    const arr=JSON.parse(localStorage.getItem(ARCHIVES_KEY)||'[]');
+    return Array.isArray(arr)?arr:[];
+  }catch(e){return [];}
+}
+function saveArchives(arr){
+  localStorage.setItem(ARCHIVES_KEY,JSON.stringify(Array.isArray(arr)?arr:[]));
+}
+function manageArchives(){
+  const action=prompt('存檔管理：輸入 save（儲存目前資料）/ load（載入存檔）/ delete（刪除存檔）','save');
+  if(!action) return;
+  const op=action.trim().toLowerCase();
+  const archives=loadArchives();
+  if(op==='save'){
+    const name=(prompt('請輸入存檔名稱：',`存檔 ${new Date().toLocaleString('zh-TW')}`)||'').trim();
+    if(!name){showToast('存檔名稱不可空白');return;}
+    archives.unshift({id:Date.now(),name,createdAt:new Date().toISOString(),payload:getPayload()});
+    saveArchives(archives.slice(0,30));
+    showToast('已儲存存檔');
+    return;
+  }
+  if(!archives.length){showToast('目前沒有存檔');return;}
+  const list=archives.map((a,i)=>`${i+1}. ${a.name}`).join('\n');
+  const idxRaw=prompt(`請輸入編號：\n${list}`,'1');
+  if(!idxRaw) return;
+  const idx=Math.max(1,parseInt(idxRaw,10)||0)-1;
+  const picked=archives[idx];
+  if(!picked){showToast('找不到該存檔');return;}
+  if(op==='delete'){
+    archives.splice(idx,1);saveArchives(archives);showToast('已刪除存檔');return;
+  }
+  if(op==='load'){
+    if(!confirm(`確定載入「${picked.name}」？\n載入後會完整取代目前所有筆記資料。`)) return;
+    if(applySnapshotRaw(JSON.stringify(picked.payload||{}))) showToast('已載入存檔');
+    else showToast('載入存檔失敗');
+    return;
+  }
+  showToast('不支援的操作');
+}
 
 // ==================== UI 建構 ====================
 function buildTypeRow() {
@@ -607,7 +691,8 @@ function render() {
     const tags=noteTags(n).slice(0,1).map(t=>`<span class="chip">${hl(t,q)}</span>`).join('');
     const linkedChip=(shouldExpand&&!seedIds.has(n.id))?'<span class="chip" style="background:#EAF3DE;color:#3B6D11;border-color:#97C459">跨科關聯</span>':'';
     const displayDate=relativeDateLabel(n.date)||formatDate(n.date);
-    return `<div class="card" data-id="${n.id}" style="--type-color:${tp.color}"><div class="sel-check"></div><div class="ctop"><span class="ctag">${tp.label}</span><span class="cdate">${displayDate}</span></div><div class="ctitle">${hl(n.title,q)}</div><div class="cbody">${n.body}</div><div class="cfoot">${subChips}${chapterChips}${sectionChips}${tags}${linkedChip}</div></div>`;
+    const hasContent=noteHasVisibleContent(n);
+    return `<div class="card ${hasContent?'':'card-empty-content'}" data-id="${n.id}" style="--type-color:${tp.color}"><div class="sel-check"></div><div class="ctop"><span class="ctag">${tp.label}</span><span class="cdate">${displayDate}</span></div><div class="ctitle">${hl(n.title,q)}</div>${hasContent?`<div class="cbody">${n.body}</div>`:''}<div class="cfoot">${subChips}${chapterChips}${sectionChips}${tags}${linkedChip}</div></div>`;
   }).join('');
   grid.querySelectorAll('.card').forEach(c=>{
     const id=parseInt(c.dataset.id);
@@ -1190,7 +1275,7 @@ function addTag(kind) {
 
 // ==================== 匯入/匯出 ====================
 function exportData() {
-  const json=JSON.stringify({notes,links,nid,lid,types,subjects,chapters,sections,nodeSizes,mapCenterNodeId,mapCenterNodeIds,mapCollapsed,exported:new Date().toISOString()},null,2);
+  const json=JSON.stringify({notes,links,nid,lid,types,subjects,chapters,sections,nodeSizes,mapCenterNodeId,mapCenterNodeIds,mapCollapsed,mapSubpages,exported:new Date().toISOString()},null,2);
   const blob=new Blob([json],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
   const d=new Date();
   a.download=`法律筆記備份_${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}.json`;
@@ -1218,6 +1303,7 @@ function importData(file) {
         // ★ 覆蓋模式：不覆蓋 types/subjects/chapters
         notes=d.notes;links=d.links||[];
         nodeSizes=d.nodeSizes||{};mapCenterNodeId=d.mapCenterNodeId||null;mapCenterNodeIds=(d.mapCenterNodeIds&&typeof d.mapCenterNodeIds==='object')?d.mapCenterNodeIds:{};mapCollapsed=(d.mapCollapsed&&typeof d.mapCollapsed==='object')?d.mapCollapsed:{};
+        mapSubpages=(d.mapSubpages&&typeof d.mapSubpages==='object')?d.mapSubpages:{};
         nid=d.nid||notes.length+100;lid=d.lid||10;notes.sort((a,b)=>b.id-a.id);
         normalizeNoteIds(true);
         saveData();rebuildUI();render();showToast(`已覆蓋，共 ${notes.length} 筆筆記`);
@@ -1229,6 +1315,7 @@ function importData(file) {
         if(d.nodeSizes)nodeSizes={...nodeSizes,...d.nodeSizes};if(d.mapCenterNodeId)mapCenterNodeId=d.mapCenterNodeId;
         if(d.mapCenterNodeIds&&typeof d.mapCenterNodeIds==='object') mapCenterNodeIds={...mapCenterNodeIds,...d.mapCenterNodeIds};
         if(d.mapCollapsed&&typeof d.mapCollapsed==='object') mapCollapsed={...mapCollapsed,...d.mapCollapsed};
+        if(d.mapSubpages&&typeof d.mapSubpages==='object') mapSubpages={...mapSubpages,...d.mapSubpages};
         notes.sort((a,b)=>b.id-a.id);normalizeNoteIds(true);saveData();rebuildUI();render();showToast(`已合併，新增 ${added} 筆`);
       }
     } catch(ex){showToast('匯入失敗，請確認檔案格式');}
@@ -1318,6 +1405,7 @@ function toggleMapView(open) {
   const advanced=g('filterAdvanced');
   if(advanced) advanced.style.display=open?'none':'block';
   if(open){
+    mapPageStack=[];
     setMapAdvanced(false);
     if(cch!=='all') mapFilter.chapter=cch;
     else if(selectedChapters.length) mapFilter.chapter=selectedChapters[0];
@@ -1326,8 +1414,9 @@ function toggleMapView(open) {
     const mapSearch=g('mapSearchInput');if(mapSearch)mapSearch.value=mapFilter.q||'';
     g('zoomLabel').textContent=Math.round(mapScale*100)+'%';
     setMapLinkedOnlyBtnStyle();
+    updateMapPagePath();
     setTimeout(()=>{const hadNodePos=Object.keys(nodePos).length>0;initNodePos();drawMap();if(!hadNodePos)saveData();},80);
-  } else { closeLanePanel();closeMapPopup(); }
+  } else { mapPageStack=[];updateMapPagePath();closeLanePanel();closeMapPopup(); }
 }
 
 // ==================== 統計 ====================
@@ -1337,7 +1426,7 @@ function openStats() {
   const total=notes.length,byT={},byS={};
   notes.forEach(n=>{byT[n.type]=(byT[n.type]||0)+1;noteSubjects(n).forEach(sk=>{byS[sk]=(byS[sk]||0)+1;});});
   const lnk={};links.forEach(l=>{lnk[l.from]=true;lnk[l.to]=true;});const lc=Object.keys(lnk).length;
-  let html=`<div class="stats-grid"><div class="stat-card"><div class="stat-num">${total}</div><div class="stat-lbl">筆記總數</div></div><div class="stat-card"><div class="stat-num">${links.length}</div><div class="stat-lbl">關聯數量</div></div><div class="stat-card"><div class="stat-num">${lc}</div><div class="stat-lbl">有關聯筆記</div></div><div class="stat-card"><div class="stat-num">${subjects.length}</div><div class="stat-lbl">科目數</div></div></div><div style="font-size:11px;font-weight:700;color:#888;margin-bottom:8px;">各科目筆記數</div>`;
+  let html=`<div class="stats-grid"><div class="stat-card"><div class="stat-num">${total}</div><div class="stat-lbl">筆記總數</div></div><div class="stat-card"><div class="stat-num">${lc}</div><div class="stat-lbl">有關聯筆記</div></div><div class="stat-card"><div class="stat-num">${subjects.length}</div><div class="stat-lbl">科目數</div></div></div><div style="font-size:11px;font-weight:700;color:#888;margin-bottom:8px;">各科目筆記數</div>`;
   Object.keys(byS).sort((a,b)=>byS[b]-byS[a]).forEach(sk=>{const s=subByKey(sk),c=byS[sk],p=Math.round(c/total*100);html+=`<div class="stats-bar-row"><span class="stats-bar-label">${s.label}</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${p}%;background:${s.color}"></div></div><span class="stats-bar-count">${c}</span></div>`;});
   html+=`<div style="font-size:11px;font-weight:700;color:#888;margin:12px 0 8px;">各類型筆記數</div>`;
   Object.keys(byT).sort((a,b)=>byT[b]-byT[a]).forEach(tk=>{const t=typeByKey(tk),c=byT[tk],p=Math.round(c/total*100);html+=`<div class="stats-bar-row"><span class="stats-bar-label">${t.label}</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${p}%;background:${t.color}"></div></div><span class="stats-bar-count">${c}</span></div>`;});
@@ -1512,6 +1601,46 @@ function forceLayout() {
   saveDataDeferred();
 }
 function visibleLinks(visIds){ return links.filter(lk=>visIds[lk.from]&&visIds[lk.to]); }
+function getDescendantIds(rootId,limitIds=null){
+  const seen=new Set([rootId]),queue=[rootId];
+  while(queue.length){
+    const current=queue.shift();
+    links.forEach(lk=>{
+      if(lk.from!==current) return;
+      if(limitIds&& !limitIds[lk.to]) return;
+      if(seen.has(lk.to)) return;
+      seen.add(lk.to);queue.push(lk.to);
+    });
+  }
+  return seen;
+}
+function updateMapPagePath(){
+  const el=g('mapPagePath'); if(!el) return;
+  if(!mapPageStack.length){el.textContent='主頁';return;}
+  const labels=mapPageStack.map(id=>noteById(id)?.title||`筆記#${id}`);
+  el.textContent=`主頁 / ${labels.join(' / ')}`;
+}
+function enterMapSubpage(rootId){
+  if(!noteById(rootId)) return;
+  if(mapPageStack[mapPageStack.length-1]===rootId) return;
+  mapPageStack.push(rootId);
+  setMapCenterForCurrentScope(rootId);
+  nodePos={};
+  updateMapPagePath();
+  forceLayout();
+  drawMap();
+  saveDataDeferred();
+}
+function leaveMapSubpage(){
+  if(!mapPageStack.length) return false;
+  mapPageStack.pop();
+  nodePos={};
+  updateMapPagePath();
+  forceLayout();
+  drawMap();
+  saveDataDeferred();
+  return true;
+}
 function buildLinkCurveOffsets(visLinks){
   if(MAP_LIGHT_BUNDLING_STRENGTH<=0) return {};
   const groups={},spacing=12,laneOrder2=idx=>idx===0?0:(idx%2===1?(idx+1)/2:-(idx/2));
@@ -1599,6 +1728,22 @@ function visibleNotes(){
     filtered=notes.filter(n=>expandedIds.has(n.id)&&noteMatchesSearch(n,q));
   }
   let base=filtered.filter(n=>!mapLinkedOnly||linkedIds[n.id]);
+  if(isInMapSubpage()){
+    const rootId=currentSubpageRootId();
+    const allowed=getDescendantIds(rootId);
+    base=base.filter(n=>allowed.has(n.id));
+  }else{
+    const baseIds0={};base.forEach(n=>baseIds0[n.id]=true);
+    Object.keys(mapSubpages||{}).forEach(key=>{
+      const [ctx,nidRaw]=key.split('::').slice(-2);
+      const ctxKey=key.slice(0,key.lastIndexOf('::'));
+      const nid=parseInt(nidRaw,10);
+      if(ctxKey!==mapSubpageContextKey()||!baseIds0[nid]) return;
+      const hidden=getDescendantIds(nid,baseIds0);
+      hidden.delete(nid);
+      base=base.filter(item=>!hidden.has(item.id));
+    });
+  }
   if(mapLinkedOnly&&!base.length&&filtered.length){
     mapLinkedOnly=false;setMapLinkedOnlyBtnStyle();
     showToast('目前沒有關聯節點，已自動顯示全部節點');saveDataDeferred();base=filtered;
@@ -1680,10 +1825,10 @@ function drawMap(){
     cardBody.setAttribute('x',String(pos.x-halfW));cardBody.setAttribute('y',String(pos.y-halfH));
     cardBody.setAttribute('width',String(box.width));cardBody.setAttribute('height',String(box.height));
     cardBody.style.pointerEvents='none';
-    const bodyPreview=safeStr(n.body).trim()||'（尚無摘要）';
+    const bodyPreview=safeStr(n.body).trim();
     cardBody.innerHTML=`<div xmlns="http://www.w3.org/1999/xhtml" class="map-card-inner">
       <div class="map-card-head"><span class="map-card-type" style="background:${lightC(type.color)};color:${darkC(type.color)}">${type.label}</span><span class="map-card-title">${escapeHtml(n.title||'（未命名）')}</span></div>
-      <div class="map-card-body-text">${escapeHtml(bodyPreview)}</div>
+      ${bodyPreview?`<div class="map-card-body-text">${escapeHtml(bodyPreview)}</div>`:''}
     </div>`;
     const hasChildren=links.some(l=>l.from===n.id&&noteById(l.to));
     grp.appendChild(card);grp.appendChild(cardBody);
@@ -1708,7 +1853,11 @@ function drawMap(){
       foldSign.addEventListener('click',toggleFold);
       grp.appendChild(foldBtn);grp.appendChild(foldSign);
     }
-    grp.addEventListener('click',e=>{e.stopPropagation();showMapInfo(n.id);openMapPopup(n.id);highlightNode(n.id);});
+    grp.addEventListener('click',e=>{
+      e.stopPropagation();
+      if(!isInMapSubpage()&&hasSubpageForNode(n.id)){enterMapSubpage(n.id);return;}
+      showMapInfo(n.id);openMapPopup(n.id);highlightNode(n.id);
+    });
     grp.addEventListener('mousedown',e=>startDrag(e,n.id));grp.addEventListener('touchstart',e=>startDragTouch(e,n.id),{passive:true});
     nodesLayer.appendChild(grp);nodeEls[n.id]=grp;
   });
@@ -1745,7 +1894,25 @@ function showMapInfo(id){
   setCenterBtn.style.cssText='width:100%;padding:8px;margin:8px 0 4px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ddd;'+(currentCenterId===id?'background:#EAF3DE;color:#3B6D11;border-color:#97C459;':'background:#f5f5f5;color:#555;');
   setCenterBtn.onclick=()=>{setMapCenterForCurrentScope(id);nodePos={};forceLayout();drawMap();saveData();closeMapPopup();showToast(`已將「${n.title}」設為核心節點（僅此科目/章）`);};
   const goBtn=g('mpGoto');
-  if(goBtn&&goBtn.parentNode){const oldBtn=goBtn.parentNode.querySelector('.mp-set-center');if(oldBtn)oldBtn.remove();goBtn.parentNode.insertBefore(setCenterBtn,goBtn);}
+  const hasSubpage=hasSubpageForNode(id);
+  const subpageBtn=document.createElement('button');
+  subpageBtn.className='mp-subpage-btn';
+  subpageBtn.textContent=hasSubpage?'📄 進入子頁面':'📄 建立子頁面';
+  subpageBtn.style.cssText='width:100%;padding:8px;margin:4px 0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ddd;background:#f5f5f5;color:#555;';
+  subpageBtn.onclick=()=>{
+    if(!hasSubpage){
+      mapSubpages[mapSubpageKey(id)]={rootId:id,createdAt:new Date().toISOString()};
+      saveData();
+      showToast('已建立子頁面');
+    }
+    closeMapPopup();
+    enterMapSubpage(id);
+  };
+  if(goBtn&&goBtn.parentNode){
+    goBtn.parentNode.querySelectorAll('.mp-set-center,.mp-subpage-btn').forEach(el=>el.remove());
+    goBtn.parentNode.insertBefore(setCenterBtn,goBtn);
+    if(!isInMapSubpage()) goBtn.parentNode.insertBefore(subpageBtn,goBtn);
+  }
   const linksEl=g('mpLinks');
   if(!related.length){linksEl.innerHTML='<span class="mp-no-links">尚無關聯</span>';}
   else{
@@ -1894,6 +2061,8 @@ window.addEventListener('load',()=>{
   bindCoreButtons();
   bindTagManagerNav();
   g('exportBtn').addEventListener('click',exportData);
+  on('undoBtn','click',undoLastAction);
+  on('archiveBtn','click',manageArchives);
   g('tpClose').addEventListener('click',()=>{g('tp').classList.remove('open');syncSidePanelState();});
   on('tagSearchInput','input',debounce(()=>{tagSearchQ=(val('tagSearchInput')||'').toLowerCase().trim();renderTagLists();},150));
   on('tagUnusedOnly','change',()=>{tagUnusedOnly=!!g('tagUnusedOnly').checked;renderTagLists();});
@@ -1942,12 +2111,13 @@ window.addEventListener('load',()=>{
     if(now-lastTouchEndTs<320) e.preventDefault();
     lastTouchEndTs=now;
   },{passive:false});
-  g('mapToggleBtn').addEventListener('click',()=>toggleMapView(true));g('mapBackBtn').addEventListener('click',()=>toggleMapView(false));
+  g('mapToggleBtn').addEventListener('click',()=>toggleMapView(true));
+  g('mapBackBtn').addEventListener('click',()=>{if(isMapOpen&&leaveMapSubpage())return;toggleMapView(false);});
   on('mapAddNoteBtn','click',()=>openForm(false));
   on('mapSearchInput','input',debounce(()=>{mapFilter.q=g('mapSearchInput').value;saveDataDeferred();if(isMapOpen)drawMap();},250));
-  on('mapFilterSub','change',()=>{mapFilter.sub=g('mapFilterSub').value;buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
-  on('mapFilterChapter','change',()=>{mapFilter.chapter=g('mapFilterChapter').value;buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
-  on('mapFilterSection','change',()=>{mapFilter.section=g('mapFilterSection').value;nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
+  on('mapFilterSub','change',()=>{mapFilter.sub=g('mapFilterSub').value;mapPageStack=[];updateMapPagePath();buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
+  on('mapFilterChapter','change',()=>{mapFilter.chapter=g('mapFilterChapter').value;mapPageStack=[];updateMapPagePath();buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
+  on('mapFilterSection','change',()=>{mapFilter.section=g('mapFilterSection').value;mapPageStack=[];updateMapPagePath();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
   on('mapAdvancedToggleBtn','click',()=>setMapAdvanced(!mapAdvancedOpen));
   mapDepth='all';
   mapFocusMode=false;

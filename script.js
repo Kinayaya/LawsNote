@@ -71,6 +71,8 @@ let typeFieldConfigs={}, customFieldDefs={};
 let undoSnapshotRaw='', lastSavedPayloadRaw='', isUndoApplying=false;
 let calendarEvents=[], calendarSettings={emails:[]}, calendarCursor=new Date(), activeCalendarDate='';
 let reminderTimer=null, reminderSent={};
+let reminderDismissed={};
+let editingCalendarEventId=null;
 
 // ==================== 工具函數 ====================
 const g = id => document.getElementById(id);
@@ -330,6 +332,25 @@ const formatDate = raw => {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   } catch(e) { return raw; }
 };
+
+const parseSearchDateVariants = raw => {
+  const q=safeStr(raw).trim();
+  if(!q) return null;
+  const t=q.replace(/\./g,'/').replace(/-/g,'/');
+  const iso=t.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+  if(iso){
+    const y=+iso[1],m=+iso[2],d=+iso[3];
+    if(m>=1&&m<=12&&d>=1&&d<=31) return `${y}-${pad2(m)}-${pad2(d)}`;
+  }
+  const us=t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+  if(us){
+    const y=2000+(+us[3]),m=+us[1],d=+us[2];
+    if(m>=1&&m<=12&&d>=1&&d<=31) return `${y}-${pad2(m)}-${pad2(d)}`;
+  }
+  return null;
+};
+const dueTimeText = ev => `${pad2(ev.dueHour||0)}:${pad2(ev.dueMinute||0)}`;
+
 const relativeDateLabel = raw => {
   if(!raw) return '';
   const d=new Date(raw);
@@ -452,6 +473,9 @@ function loadData() {
       calendarEvents=Array.isArray(d.calendarEvents)?d.calendarEvents:[];
       calendarSettings=(d.calendarSettings&&typeof d.calendarSettings==='object'&&!Array.isArray(d.calendarSettings))?d.calendarSettings:{emails:[]};
       if(!Array.isArray(calendarSettings.emails)) calendarSettings.emails=[];
+      if(typeof calendarSettings.smtpToken!=='string') calendarSettings.smtpToken='';
+      if(typeof calendarSettings.emailFrom!=='string') calendarSettings.emailFrom='';
+      calendarEvents=calendarEvents.map(ev=>({ ...ev, dueHour:Math.min(23,Math.max(0,parseInt(ev.dueHour,10)||9)), dueMinute:Math.min(59,Math.max(0,parseInt(ev.dueMinute,10)||0)) }));
       Object.keys(customFieldDefs).forEach(key=>{
         const item=customFieldDefs[key]||{};
         customFieldDefs[key]={key,label:item.label||key,kind:item.kind==='text'?'text':'textarea',placeholder:item.placeholder||''};
@@ -693,10 +717,11 @@ function baseScopeMatch(note) {
     &&(!selectedChapters.length||intersects(selectedChapters,chs))
     &&(!selectedSections.length||intersects(selectedSections,secs));
 }
-function noteMatchesSearch(note, q) {
+function noteMatchesSearch(note, q, normalizedDate='') {
   if(!q) return true;
   const subs=noteSubjects(note), chs=noteChapters(note), secs=noteSections(note);
-  return `${note.title} ${note.body} ${subs.join(' ')} ${chs.join(' ')} ${secs.join(' ')} ${noteTags(note).join(' ')}`.toLowerCase().includes(q);
+  const hay=`${note.title} ${note.body} ${subs.join(' ')} ${chs.join(' ')} ${secs.join(' ')} ${noteTags(note).join(' ')} ${note.date||''}`.toLowerCase();
+  return hay.includes(q)||(normalizedDate&&formatDate(note.date)===normalizedDate);
 }
 function expandWithLinkedNotes(seedIds) {
   const expanded=new Set(seedIds);
@@ -717,10 +742,11 @@ function expandWithChildLinkedNotes(seedIds) {
 // ==================== 渲染 ====================
 function render() {
   const q=searchQ.trim().toLowerCase();
+  const normalizedDate=parseSearchDateVariants(searchQ);
   const seedIds=new Set(notes.filter(n=>baseScopeMatch(n)).map(n=>n.id));
   const shouldExpand=scopeLinkedEnabled&&hasTaxonomyFilter();
   const visibleIds=shouldExpand?expandWithLinkedNotes(seedIds):seedIds;
-  const filtered=sortedNotes(notes).filter(n=>visibleIds.has(n.id)&&noteMatchesSearch(n,q));
+  const filtered=sortedNotes(notes).filter(n=>visibleIds.has(n.id)&&noteMatchesSearch(n,q,normalizedDate));
   const sb=g('search-results-bar');
   if(q){sb.style.display='block';sb.textContent=`搜尋「${searchQ}」：找到 ${filtered.length} 筆筆記`;}
   else if(shouldExpand){
@@ -730,29 +756,40 @@ function render() {
   }else sb.style.display='none';
   const grid=g('grid');
   const pager=g('gridPager'); if(pager) pager.remove();
-  if(!filtered.length){grid.innerHTML='<div class="empty">沒有符合的筆記</div>';return;}
-  const maxPg=Math.ceil(filtered.length/PAGE_SIZE);
+  const reminderHits=(q||normalizedDate)?calendarEvents.filter(ev=>{
+    if(ev.type!=='reminder') return false;
+    const hay=`${ev.title||''} ${ev.body||''} ${ev.date||''}`.toLowerCase();
+    return hay.includes(q)||(normalizedDate&&formatDate(ev.date)===normalizedDate);
+  }).map(ev=>({__isReminder:true,id:`r_${ev.id}`,title:ev.title||'未命名提醒',body:ev.body||'',date:ev.date,type:'reminder',eventId:ev.id,dueHour:ev.dueHour||0,dueMinute:ev.dueMinute||0})) : [];
+  const mixed=[...filtered,...reminderHits];
+  if(!mixed.length){grid.innerHTML='<div class="empty">沒有符合的筆記</div>';return;}
+  const maxPg=Math.ceil(mixed.length/PAGE_SIZE)||1;
   if(gridPage>maxPg) gridPage=maxPg;
-  const pgF=filtered.slice((gridPage-1)*PAGE_SIZE,gridPage*PAGE_SIZE);
+  const pgF=mixed.slice((gridPage-1)*PAGE_SIZE,gridPage*PAGE_SIZE);
   grid.innerHTML=pgF.map(n=>{
-    const tp=typeByKey(n.type),subs=noteSubjects(n),chs=noteChapters(n),secs=noteSections(n);
+    const isReminder=!!n.__isReminder;
+    const tp=isReminder?{label:'提醒',color:'#b91c1c'}:typeByKey(n.type),subs=isReminder?[]:noteSubjects(n),chs=isReminder?[]:noteChapters(n),secs=isReminder?[]:noteSections(n);
     const subChips=subs.map(sk=>{const sb2=subByKey(sk);return `<span class="chip" style="background:${lightC(sb2.color)};color:${darkC(sb2.color)}">${sb2.label}</span>`;}).join('');
     const chapterChips=chs.map(chk=>`<span class="chip">${chapterByKey(chk).label}</span>`).join('');
     const sectionChips=secs.map(sk=>`<span class="chip">${sectionByKey(sk).label}</span>`).join('');
-    const tags=noteTags(n).slice(0,1).map(t=>`<span class="chip">${hl(t,q)}</span>`).join('');
+    const tags=(isReminder?[`到期 ${dueTimeText(n)}`]:noteTags(n).slice(0,1)).map(t=>`<span class="chip">${hl(t,q)}</span>`).join('');
     const linkedChip=(shouldExpand&&!seedIds.has(n.id))?'<span class="chip" style="background:#EAF3DE;color:#3B6D11;border-color:#97C459">跨科關聯</span>':'';
-    const displayDate=relativeDateLabel(n.date)||formatDate(n.date);
-    const hasContent=noteHasVisibleContent(n);
-    return `<div class="card ${hasContent?'':'card-empty-content'}" data-id="${n.id}" style="--type-color:${tp.color}"><button class="sel-check" type="button" aria-label="勾選筆記"></button><div class="ctop"><span class="ctag">${tp.label}</span><span class="cdate">${displayDate}</span></div><div class="ctitle">${hl(n.title,q)}</div>${hasContent?`<div class="cbody">${n.body}</div>`:''}<div class="cfoot">${subChips}${chapterChips}${sectionChips}${tags}${linkedChip}</div></div>`;
+    const hasContent=isReminder?!!safeStr(n.body):noteHasVisibleContent(n);
+    return `<div class="card ${hasContent?'':'card-empty-content'} ${isReminder?'calendar-reminder-card':''}" data-id="${n.id}" data-reminder-id="${isReminder?n.eventId:''}" style="--type-color:${tp.color}"><button class="sel-check" type="button" aria-label="勾選筆記"></button><div class="ctop"><span class="ctag">${tp.label}</span><div class="ctitle-inline">${hl(n.title,q)}</div></div>${hasContent?`<div class="cbody">${escapeHtml(n.body)}</div>`:''}<div class="cfoot">${subChips}${chapterChips}${sectionChips}${tags}${linkedChip}</div></div>`;
   }).join('');
   grid.querySelectorAll('.card').forEach(c=>{
+    const rid=c.dataset.reminderId?parseInt(c.dataset.reminderId,10):0;
     const id=parseInt(c.dataset.id);
+    if(rid){
+      c.addEventListener('click',()=>{const ev=calendarEvents.find(e=>e.id===rid);if(ev) openCalendarEventModal(ev.date,ev);});
+      return;
+    }
     if(multiSelMode) c.classList.add('selectable');
     if(selectedIds[id]){c.classList.add('selected');c.querySelector('.sel-check').textContent='✓';}
     bindCardInteractions(c,id);
   });
-  if(filtered.length>PAGE_SIZE){
-    const totalPg=Math.ceil(filtered.length/PAGE_SIZE),pager=document.createElement('div');
+  if(mixed.length>PAGE_SIZE){
+    const totalPg=Math.ceil(mixed.length/PAGE_SIZE),pager=document.createElement('div');
     pager.id='gridPager';pager.style.cssText='display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 14px 28px;';
     if(gridPage>1){const pb=document.createElement('button');pb.className='tool-btn';pb.textContent='← 上一頁';pb.onclick=()=>{gridPage--;render();window.scrollTo(0,0);};pager.appendChild(pb);}
     const pi=document.createElement('span');pi.style.cssText='font-size:12px;color:#7b8492;';pi.textContent=`${gridPage} / ${totalPg}`;pager.appendChild(pi);
@@ -1527,24 +1564,45 @@ function renderCalendar(){
     list.push(`<div class="calendar-cell ${muted?'muted':''} ${key===todayKey?'today':''}" data-date="${key}"><div class="calendar-day">${dayNum}</div>${items.map(ev=>`<span class="calendar-event-chip ${ev.type==='reminder'?'reminder':''}">${ev.type==='diary'?'📝':'⏰'} ${escapeHtml(ev.title||'未命名')}</span>`).join('')}</div>`);
   }
   grid.innerHTML=list.join('');
-  grid.querySelectorAll('.calendar-cell').forEach(cell=>cell.addEventListener('click',()=>openCalendarEventModal(cell.dataset.date)));
+  grid.querySelectorAll('.calendar-cell').forEach(cell=>cell.addEventListener('click',()=>toggleCalendarDayDetail(cell.dataset.date)));
 }
-function openCalendarEventModal(dateKey){
+function toggleCalendarDayDetail(dateKey){
+  const box=g('calendarDayDetail');
+  if(!box) return;
+  const entries=calendarEvents.filter(e=>e.date===dateKey);
+  if(!entries.length){
+    openCalendarEventModal(dateKey);
+    return;
+  }
+  box.classList.add('open');
+  box.innerHTML=`<div class="calendar-day-title">${dateKey}（${entries.length} 筆）</div>`+entries.map(ev=>`<div class="calendar-day-item"><div class="calendar-day-item-head"><span class="calendar-day-item-type">${ev.type==='diary'?'📝 日記':'⏰ 提醒（到期 '+dueTimeText(ev)+'）'}</span><button data-eid="${ev.id}">編輯</button></div><div style="font-weight:700;margin-bottom:4px;">${escapeHtml(ev.title||'未命名')}</div><pre>${escapeHtml(ev.body||'（無內容）')}</pre></div>`).join('')+`<button class="tool-btn" id="calendarAddNewBtn">+ 新增</button>`;
+  box.querySelectorAll('button[data-eid]').forEach(btn=>btn.addEventListener('click',()=>{
+    const ev=calendarEvents.find(e=>String(e.id)===btn.dataset.eid);
+    if(ev) openCalendarEventModal(dateKey,ev);
+  }));
+  const addBtn=g('calendarAddNewBtn');
+  if(addBtn) addBtn.addEventListener('click',()=>openCalendarEventModal(dateKey));
+}
+function openCalendarEventModal(dateKey, eventItem=null){
   activeCalendarDate=dateKey;
+  editingCalendarEventId=eventItem?eventItem.id:null;
   g('calendarEventDateLabel').textContent=`日期：${dateKey}`;
-  g('calendarEventType').value='diary';
-  g('calendarEventName').value='';
-  g('calendarEventBody').value='';
-  g('remindDays').value='0';g('remindHours').value='0';g('remindMinutes').value='10';
-  g('remindPopup').checked=true;g('remindEmail').checked=true;
-  g('calendarReminderWrap').style.display='none';
+  g('calendarEventType').value=eventItem?.type||'diary';
+  g('calendarEventName').value=eventItem?.title||'';
+  g('calendarEventBody').value=eventItem?.body||'';
+  g('remindDays').value=eventItem?.remindBefore?.days??0;g('remindHours').value=eventItem?.remindBefore?.hours??0;g('remindMinutes').value=eventItem?.remindBefore?.minutes??10;
+  g('dueHour').value=eventItem?.dueHour??9;g('dueMinute').value=eventItem?.dueMinute??0;
+  g('remindPopup').checked=eventItem?.channels?.popup??true;g('remindEmail').checked=eventItem?.channels?.email??false;
+  g('calendarReminderWrap').style.display=g('calendarEventType').value==='reminder'?'block':'none';
   g('calendarEventModal').classList.add('open');
 }
 function saveCalendarEvent(){
   const type=g('calendarEventType').value,title=(g('calendarEventName').value||'').trim(),body=(g('calendarEventBody').value||'').trim();
   if(!title){showToast('請輸入標題');return;}
-  const ev={id:Date.now()+Math.random(),date:activeCalendarDate,type,title,body};
+  const ev={id:editingCalendarEventId||Date.now()+Math.random(),date:activeCalendarDate,type,title,body};
   if(type==='reminder'){
+    ev.dueHour=Math.min(23,Math.max(0,parseInt(g('dueHour').value,10)||0));
+    ev.dueMinute=Math.min(59,Math.max(0,parseInt(g('dueMinute').value,10)||0));
     ev.remindBefore={
       days:Math.max(0,parseInt(g('remindDays').value,10)||0),
       hours:Math.max(0,parseInt(g('remindHours').value,10)||0),
@@ -1552,31 +1610,59 @@ function saveCalendarEvent(){
     };
     ev.channels={popup:!!g('remindPopup').checked,email:!!g('remindEmail').checked};
   }
-  calendarEvents.push(ev);
-  if(type==='diary'){
+  const idx=calendarEvents.findIndex(x=>x.id===ev.id);
+  if(idx>=0) calendarEvents[idx]=ev;
+  else calendarEvents.push(ev);
+  if(type==='diary'&&idx<0){
     const d=activeCalendarDate;
     notes.unshift({id:nid++,type:'diary',subject:'',subjects:[],chapter:'',chapters:[],section:'',sections:[],title,body,detail:body,tags:['日記'],date:d,todos:[],extraFields:{}});
   }
-  saveData();rebuildUI();renderCalendar();g('calendarEventModal').classList.remove('open');showToast('已新增日程');
+  saveData();rebuildUI();renderCalendar();g('calendarEventModal').classList.remove('open');
+  const dayBox=g('calendarDayDetail');if(dayBox?.classList.contains('open')) toggleCalendarDayDetail(activeCalendarDate);
+  showToast(editingCalendarEventId?'已更新日程':'已新增日程');
+  editingCalendarEventId=null;
+}
+async function sendReminderEmail(ev){
+  const to=(calendarSettings.emails||[]).join(',');
+  if(!to) return false;
+  const token=safeStr(calendarSettings.smtpToken||'').trim();
+  const from=safeStr(calendarSettings.emailFrom||'').trim();
+  const title=`KLaws 提醒：${ev.title}`;
+  const content=`提醒事項：${ev.title}\n到期日：${ev.date} ${dueTimeText(ev)}\n內容：${ev.body||''}`;
+  if(token&&from&&window.Email&&window.Email.send){
+    try{
+      await window.Email.send({SecureToken:token,To:to,From:from,Subject:title,Body:content.replace(/\n/g,'<br>')});
+      return true;
+    }catch(e){console.warn('smtp send fail',e);}
+  }
+  try{
+    window.location.href=`mailto:${to}?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(content)}`;
+    return true;
+  }catch(e){
+    return false;
+  }
 }
 function checkReminders(){
   const now=Date.now();
-  calendarEvents.filter(e=>e.type==='reminder').forEach(e=>{
-    const due=new Date(`${e.date}T09:00:00`).getTime();
+  calendarEvents.filter(e=>e.type==='reminder').forEach(async e=>{
+    const due=new Date(`${e.date}T${pad2(e.dueHour||9)}:${pad2(e.dueMinute||0)}:00`).getTime();
     const before=e.remindBefore||{days:0,hours:0,minutes:0};
     const remindAt=due-(before.days*86400000+before.hours*3600000+before.minutes*60000);
-    if(now<remindAt||reminderSent[e.id]) return;
+    if(now<remindAt||reminderSent[e.id]||reminderDismissed[e.id]) return;
     const channels=e.channels||{};
     if(channels.popup!==false){
       const pop=g('reminderPopup');
-      pop.innerHTML=`<button id="reminderCloseBtn">✕</button><div style="font-weight:700;margin-bottom:4px;">提醒：${escapeHtml(e.title)}</div><div style="font-size:12px;color:#d1d5db;">到期日 ${e.date}</div>`;
+      pop.innerHTML=`<button id="reminderCloseBtn">✕</button><div style="font-weight:700;margin-bottom:10px;">提醒：${escapeHtml(e.title)}</div><div style="font-size:.45em;color:#d1d5db;">到期 ${e.date} ${dueTimeText(e)}</div><div style="font-size:.5em;margin-top:8px;">${escapeHtml(e.body||'')}</div>`;
       pop.classList.add('open');
-      g('reminderCloseBtn').onclick=()=>pop.classList.remove('open');
+      g('reminderCloseBtn').onclick=()=>{
+        pop.classList.remove('open');
+        reminderDismissed[e.id]=true;
+        localStorage.setItem('klaws_reminder_dismissed_v1',JSON.stringify(reminderDismissed));
+      };
     }
     if(channels.email&&calendarSettings.emails.length){
-      const subject=encodeURIComponent(`KLaws 提醒：${e.title}`);
-      const body=encodeURIComponent(`提醒事項：${e.title}\n到期日：${e.date}\n內容：${e.body||''}`);
-      window.open(`mailto:${calendarSettings.emails.join(',')}?subject=${subject}&body=${body}`,'_blank');
+      const ok=await sendReminderEmail(e);
+      if(!ok) showToast('Email 提醒寄送失敗，已改用 mailto');
     }
     reminderSent[e.id]=true;
   });
@@ -2234,8 +2320,7 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
     });
   }
   g('selAllBtn').addEventListener('click',selectAll);g('selDeleteBtn').addEventListener('click',deleteSelected);g('selCancelBtn').addEventListener('click',exitMultiSel);
-  on('statsBtn','click',openStats);
-  on('calendarBtn','click',()=>toggleCalendarView(true));
+    on('calendarBtn','click',()=>toggleCalendarView(true));
   on('ft','change',()=>renderDynamicFields(g('ft').value,editMode&&openId?noteById(openId):null));
   on('fs2','change',()=>{
     syncChapterSelect(selectedValues('fs2'),selectedValues('fc'));
@@ -2323,11 +2408,11 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   on('calendarPrevBtn','click',()=>{calendarCursor=new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()-1,1);renderCalendar();});
   on('calendarNextBtn','click',()=>{calendarCursor=new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()+1,1);renderCalendar();});
   on('calendarTodayBtn','click',()=>{calendarCursor=new Date();renderCalendar();});
-  on('calendarSettingsBtn','click',()=>{g('calendarEmailsInput').value=(calendarSettings.emails||[]).join('\n');g('calendarSettingsModal').classList.add('open');});
+  on('calendarSettingsBtn','click',()=>{g('calendarEmailsInput').value=(calendarSettings.emails||[]).join('\n');g('calendarSmtpToken').value=calendarSettings.smtpToken||'';g('calendarEmailFrom').value=calendarSettings.emailFrom||'';g('calendarSettingsModal').classList.add('open');});
   on('calendarSettingsCancel','click',()=>g('calendarSettingsModal').classList.remove('open'));
   on('calendarSettingsSave','click',()=>{
     const emails=(g('calendarEmailsInput').value||'').split('\n').map(v=>v.trim()).filter(Boolean);
-    calendarSettings.emails=emails;saveData();g('calendarSettingsModal').classList.remove('open');showToast(`已儲存 ${emails.length} 個 Email`);
+    calendarSettings.emails=emails;calendarSettings.smtpToken=(g('calendarSmtpToken').value||'').trim();calendarSettings.emailFrom=(g('calendarEmailFrom').value||'').trim();saveData();g('calendarSettingsModal').classList.remove('open');showToast(`已儲存 ${emails.length} 個 Email`);
   });
   on('calendarEventType','change',()=>{g('calendarReminderWrap').style.display=g('calendarEventType').value==='reminder'?'block':'none';});
   on('calendarEventCancel','click',()=>g('calendarEventModal').classList.remove('open'));
@@ -2379,6 +2464,8 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
     catch(e){showToast('載入失敗：'+e.message);}
   });
   autoPullIfNeeded();
+  try{reminderDismissed=JSON.parse(localStorage.getItem('klaws_reminder_dismissed_v1')||'{}')||{};}catch(e){reminderDismissed={};}
+  if(!window.Email){const sc=document.createElement('script');sc.src='https://smtpjs.com/v3/smtp.js';document.head.appendChild(sc);}
   clearInterval(reminderTimer); reminderTimer=setInterval(checkReminders,30000); checkReminders();
   render();
   setTimeout(()=>toggleMapView(true),120);

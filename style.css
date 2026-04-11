@@ -247,6 +247,8 @@ body.compact-filters .filter-row,body.compact-filters #subbar,body.compact-filte
 .stats-bar-bg{flex:1;height:7px;background:#eee;border-radius:4px;overflow:hidden}
 .stats-bar-fill{height:7px;border-radius:4px}
 .stats-bar-count{font-size:11px;color:#888;min-width:22px;text-align:right}
+#tagStatsPanel{background:#f8fafc;border:1px solid #edf2f7;border-radius:10px;padding:10px;margin-bottom:10px}
+.usage-time{font-size:13px;font-weight:700;color:#0C447C;margin-top:6px}
 
 /* Dispute section */
 .dispute-section{background:#f8f8f8;border-radius:10px;padding:10px 12px;margin-bottom:8px;border-left:3px solid #007AFF}
@@ -330,6 +332,28 @@ body.compact-filters .filter-row,body.compact-filters #subbar,body.compact-filte
 .exam-item-del{padding:4px 8px;border-radius:6px;border:1px solid #FFCDD2;background:#FFF0F0;font-size:11px;color:#D92B2B;cursor:pointer}
 #examResult{display:none;flex-direction:column;gap:12px;padding:14px;max-width:800px;margin:0 auto;width:100%}
 #examResult.open{display:flex}
+
+/* Calendar */
+#calendarView{display:none;padding:12px 14px 18px}
+#calendarView.open{display:block}
+.calendar-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid #e6ebf2;border-radius:12px;padding:10px;margin-bottom:8px}
+#calendarTitle{font-size:20px;font-weight:800;color:#1f2937;margin-right:auto}
+.calendar-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;color:#6b7280;font-size:12px;text-align:center}
+#calendarGrid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.calendar-cell{background:#fff;border:1px solid #e6ebf2;border-radius:10px;min-height:96px;padding:8px;cursor:pointer}
+.calendar-cell.today{border-color:#007AFF;box-shadow:inset 0 0 0 1px rgba(0,122,255,.2)}
+.calendar-cell.muted{opacity:.45}
+.calendar-day{font-size:13px;font-weight:700}
+.calendar-event-chip{display:block;margin-top:5px;background:#eef6ff;border-radius:8px;padding:2px 6px;font-size:10px;color:#0C447C;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.calendar-event-chip.reminder{background:#fff1f2;color:#9f1239}
+#calendarEventModal,#calendarSettingsModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:510;align-items:center;justify-content:center}
+#calendarEventModal.open,#calendarSettingsModal.open{display:flex}
+#calendarEventBox,#calendarSettingsBox{background:#fff;width:min(420px,94vw);border-radius:14px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,.2)}
+.calendar-reminder-row{display:flex;align-items:center;gap:6px}
+.calendar-reminder-row .fi{width:72px}
+#reminderPopup{display:none;position:fixed;right:14px;bottom:14px;z-index:520;background:#111827;color:#fff;border-radius:12px;padding:12px 14px;max-width:300px;border:1px solid #374151}
+#reminderPopup.open{display:block}
+#reminderPopup button{position:absolute;right:8px;top:6px;background:none;border:none;color:#fff;font-size:16px;cursor:pointer}
 
 /* Toast & hints */
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;padding:8px 18px;border-radius:99px;font-size:13px;z-index:999;display:none}

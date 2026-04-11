@@ -20,6 +20,7 @@ const LINK_COLOR = '#378ADD', SKEY = 'legal_notes_v4', PAGE_SIZE = 24;
 const ARCHIVES_KEY = 'klaws_archives_v1';
 const SCOPE_LINKED_TOGGLE_KEY = 'klaws_scope_linked_toggle_v1';
 const COMPACT_FILTER_KEY = 'klaws_compact_filters_v1';
+const USAGE_START_KEY = 'klaws_usage_start_v1';
 const SYNC_KEY = 'klaws_sync_v1', SYNC_FILE = 'klaws_data.json';
 const AI_MODELS = [
   {id:'openrouter/free', label:'🔀 自動選最佳免費模型（推薦）'},
@@ -68,6 +69,8 @@ let mapCollapsed={};
 let mapSubpages={}, mapPageStack=[];
 let typeFieldConfigs={}, customFieldDefs={};
 let undoSnapshotRaw='', lastSavedPayloadRaw='', isUndoApplying=false;
+let calendarEvents=[], calendarSettings={emails:[]}, calendarCursor=new Date(), activeCalendarDate='';
+let reminderTimer=null, reminderSent={};
 
 // ==================== 工具函數 ====================
 const g = id => document.getElementById(id);
@@ -149,6 +152,8 @@ const hexRgb = hex => { if(hex.length===4) hex='#'+hex[1]+hex[1]+hex[2]+hex[2]+h
 const lightC = hex => `rgba(${hexRgb(hex).join(',')},0.12)`;
 const darkC = hex => { let r=hexRgb(hex); return `rgb(${Math.round(r[0]*.55)},${Math.round(r[1]*.55)},${Math.round(r[2]*.55)})`; };
 const safeStr = v => typeof v==='string'?v:'';
+const pad2 = n => String(n).padStart(2,'0');
+const fmtDateKey = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
 const escapeHtml = txt => safeStr(txt).replace(/[&<>"']/g,ch=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[ch]||ch));
 const hl = (text,q) => { const s=safeStr(text); return !q?s:s.replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`,'gi'),'<span class="hl">$1</span>'); };
 const getAiKey = () => localStorage.getItem('klaws_ai_key')||'';
@@ -190,7 +195,7 @@ const setMapCenterForCurrentScope = id => {
   mapCenterNodeIds[getMapCenterContextKey()]=id;
   mapCenterNodeId=id;
 };
-const getPayload = () => ({notes,links,nid,lid,types,subjects,chapters,sections,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,mapSubpages,typeFieldConfigs,customFieldDefs,panelDir:getPanelDir(),updatedAt:new Date().toISOString()});
+const getPayload = () => ({notes,links,nid,lid,types,subjects,chapters,sections,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,mapSubpages,typeFieldConfigs,customFieldDefs,calendarEvents,calendarSettings,panelDir:getPanelDir(),updatedAt:new Date().toISOString()});
 const parseUpdatedAt = raw => {
   const n=Date.parse(raw||'');
   return Number.isFinite(n)?n:0;
@@ -278,6 +283,39 @@ const renderTodoHtml = todos => {
   const list=(Array.isArray(todos)?todos:[]).filter(t=>t&&t.text);
   if(!list.length) return '<span style="font-size:12px;color:#bbb">尚無待辦項目</span>';
   return `<div class="todo-list">${list.map(t=>`<div class="todo-item ${t.done?'done':''}"><span class="todo-item-check">${t.done?'✅':'⬜'}</span><span class="todo-item-text">${t.text}</span></div>`).join('')}</div>`;
+};
+const ensureUsageStart = () => {
+  const raw=localStorage.getItem(USAGE_START_KEY);
+  if(raw&&Number.isFinite(Date.parse(raw))) return raw;
+  const now=new Date().toISOString();
+  localStorage.setItem(USAGE_START_KEY,now);
+  return now;
+};
+const formatUsageDuration = (startRaw,endRaw=new Date()) => {
+  const start=new Date(startRaw),end=new Date(endRaw);
+  if(!Number.isFinite(start.getTime())||!Number.isFinite(end.getTime())||end<start) return '0分鐘';
+  const mins=Math.floor((end-start)/60000);
+  if(mins<60) return `${mins}分鐘`;
+  const years=end.getFullYear()-start.getFullYear();
+  const months=end.getMonth()-start.getMonth();
+  const days=end.getDate()-start.getDate();
+  const hours=end.getHours()-start.getHours();
+  const minutes=end.getMinutes()-start.getMinutes();
+  let y=years,m=months,d=days,h=hours,min=minutes;
+  if(min<0){min+=60;h--;}
+  if(h<0){h+=24;d--;}
+  if(d<0){
+    const prevMonthEnd=new Date(end.getFullYear(),end.getMonth(),0).getDate();
+    d+=prevMonthEnd;m--;
+  }
+  if(m<0){m+=12;y--;}
+  const parts=[];
+  if(y>0) parts.push(`${y}年`);
+  if(m>0) parts.push(`${m}月`);
+  if(d>0) parts.push(`${d}天`);
+  if(!parts.length&&h>0) parts.push(`${h}小時`);
+  if(!parts.length&&min>=0) parts.push(`${min}分鐘`);
+  return parts.join('');
 };
 
 // ★ 修復日期：將 ISO timestamp 格式化為 YYYY-MM-DD
@@ -411,6 +449,9 @@ function loadData() {
       mapCollapsed=(d.mapCollapsed&&typeof d.mapCollapsed==='object'&&!Array.isArray(d.mapCollapsed))?d.mapCollapsed:{};
       mapSubpages=(d.mapSubpages&&typeof d.mapSubpages==='object'&&!Array.isArray(d.mapSubpages))?d.mapSubpages:{};
       customFieldDefs=(d.customFieldDefs&&typeof d.customFieldDefs==='object'&&!Array.isArray(d.customFieldDefs))?d.customFieldDefs:{};
+      calendarEvents=Array.isArray(d.calendarEvents)?d.calendarEvents:[];
+      calendarSettings=(d.calendarSettings&&typeof d.calendarSettings==='object'&&!Array.isArray(d.calendarSettings))?d.calendarSettings:{emails:[]};
+      if(!Array.isArray(calendarSettings.emails)) calendarSettings.emails=[];
       Object.keys(customFieldDefs).forEach(key=>{
         const item=customFieldDefs[key]||{};
         customFieldDefs[key]={key,label:item.label||key,kind:item.kind==='text'?'text':'textarea',placeholder:item.placeholder||''};
@@ -434,10 +475,10 @@ function loadData() {
       applyPanelDir(d.panelDir||getPanelDir());
       lastSavedPayloadRaw=JSON.stringify(getPayload());
     } else {
-      notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());saveData();
+      notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};calendarEvents=[];calendarSettings={emails:[]};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());saveData();
     }
   } catch(e) {
-    notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());
+    notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};calendarEvents=[];calendarSettings={emails:[]};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());
   }
 }
 function saveData() {
@@ -1071,7 +1112,20 @@ function openTagMgr() {
   g('tp').classList.add('open');
   ['dp','fp'].forEach(p=>g(p).classList.remove('open'));
   renderTagLists();
+  renderTagStats();
   syncSidePanelState();
+}
+function renderTagStats(){
+  const box=g('tagStatsPanel');
+  if(!box) return;
+  const total=notes.length,byT={},byS={};
+  notes.forEach(n=>{byT[n.type]=(byT[n.type]||0)+1;noteSubjects(n).forEach(sk=>{byS[sk]=(byS[sk]||0)+1;});});
+  const lnk={};links.forEach(l=>{lnk[l.from]=true;lnk[l.to]=true;});
+  const usageText=formatUsageDuration(ensureUsageStart());
+  let html=`<div class="stats-grid"><div class="stat-card"><div class="stat-num">${total}</div><div class="stat-lbl">筆記總數</div></div><div class="stat-card"><div class="stat-num">${Object.keys(lnk).length}</div><div class="stat-lbl">有關聯筆記</div></div><div class="stat-card"><div class="stat-num">${subjects.length}</div><div class="stat-lbl">科目數</div></div></div><div class="usage-time">已使用 KLaws：${usageText}</div>`;
+  html+=`<div style="font-size:11px;font-weight:700;color:#888;margin:10px 0 6px;">各科目筆記數</div>`;
+  Object.keys(byS).sort((a,b)=>byS[b]-byS[a]).forEach(sk=>{const s=subByKey(sk),c=byS[sk],p=total?Math.round(c/total*100):0;html+=`<div class="stats-bar-row"><span class="stats-bar-label">${s.label}</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${p}%;background:${s.color}"></div></div><span class="stats-bar-count">${c}</span></div>`;});
+  box.innerHTML=html;
 }
 function renderTagLists() {
   renderTagList('typeTagList',types,'type');
@@ -1420,6 +1474,7 @@ function setMapAdvanced(open){
 function toggleMapView(open) {
   isMapOpen=open;currentView=open?'map':'notes';
   g('notesView').style.display=open?'none':'block';
+  g('calendarView')?.classList.remove('open');
   g('mapView').classList.toggle('open',open);
   g('subbar').style.display=open?'none':'flex';
   const advanced=g('filterAdvanced');
@@ -1441,16 +1496,90 @@ function toggleMapView(open) {
 
 // ==================== 統計 ====================
 function openStats() {
-  const sp=g('statsPanel');
-  if(sp.classList.contains('open')){sp.classList.remove('open');return;}
-  const total=notes.length,byT={},byS={};
-  notes.forEach(n=>{byT[n.type]=(byT[n.type]||0)+1;noteSubjects(n).forEach(sk=>{byS[sk]=(byS[sk]||0)+1;});});
-  const lnk={};links.forEach(l=>{lnk[l.from]=true;lnk[l.to]=true;});const lc=Object.keys(lnk).length;
-  let html=`<div class="stats-grid"><div class="stat-card"><div class="stat-num">${total}</div><div class="stat-lbl">筆記總數</div></div><div class="stat-card"><div class="stat-num">${lc}</div><div class="stat-lbl">有關聯筆記</div></div><div class="stat-card"><div class="stat-num">${subjects.length}</div><div class="stat-lbl">科目數</div></div></div><div style="font-size:11px;font-weight:700;color:#888;margin-bottom:8px;">各科目筆記數</div>`;
-  Object.keys(byS).sort((a,b)=>byS[b]-byS[a]).forEach(sk=>{const s=subByKey(sk),c=byS[sk],p=Math.round(c/total*100);html+=`<div class="stats-bar-row"><span class="stats-bar-label">${s.label}</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${p}%;background:${s.color}"></div></div><span class="stats-bar-count">${c}</span></div>`;});
-  html+=`<div style="font-size:11px;font-weight:700;color:#888;margin:12px 0 8px;">各類型筆記數</div>`;
-  Object.keys(byT).sort((a,b)=>byT[b]-byT[a]).forEach(tk=>{const t=typeByKey(tk),c=byT[tk],p=Math.round(c/total*100);html+=`<div class="stats-bar-row"><span class="stats-bar-label">${t.label}</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${p}%;background:${t.color}"></div></div><span class="stats-bar-count">${c}</span></div>`;});
-  sp.innerHTML=html;sp.classList.add('open');setTimeout(()=>sp.scrollIntoView({behavior:'smooth',block:'nearest'}),60);
+  openTagMgr();
+  setTimeout(()=>g('tagStatsPanel')?.scrollIntoView({behavior:'smooth',block:'nearest'}),60);
+}
+
+function toggleCalendarView(open){
+  currentView=open?'calendar':'notes';
+  g('notesView').style.display=open?'none':'block';
+  g('mapView').classList.remove('open');
+  ['dp','fp','tp'].forEach(id=>g(id)?.classList.remove('open'));
+  g('calendarView').classList.toggle('open',open);
+  if(open) renderCalendar();
+}
+function renderCalendar(){
+  const y=calendarCursor.getFullYear(),m=calendarCursor.getMonth();
+  g('calendarTitle').textContent=`${y}年${m+1}月`;
+  const grid=g('calendarGrid');
+  const first=new Date(y,m,1), startOffset=(first.getDay()+6)%7;
+  const days=new Date(y,m+1,0).getDate();
+  const prevDays=new Date(y,m,0).getDate();
+  const todayKey=fmtDateKey(new Date());
+  const list=[];
+  for(let i=0;i<42;i++){
+    let dayNum=0,cellDate=null,muted=false;
+    if(i<startOffset){ dayNum=prevDays-startOffset+i+1; cellDate=new Date(y,m-1,dayNum); muted=true; }
+    else if(i>=startOffset+days){ dayNum=i-(startOffset+days)+1; cellDate=new Date(y,m+1,dayNum); muted=true; }
+    else { dayNum=i-startOffset+1; cellDate=new Date(y,m,dayNum); }
+    const key=fmtDateKey(cellDate);
+    const items=calendarEvents.filter(e=>e.date===key).slice(0,2);
+    list.push(`<div class="calendar-cell ${muted?'muted':''} ${key===todayKey?'today':''}" data-date="${key}"><div class="calendar-day">${dayNum}</div>${items.map(ev=>`<span class="calendar-event-chip ${ev.type==='reminder'?'reminder':''}">${ev.type==='diary'?'📝':'⏰'} ${escapeHtml(ev.title||'未命名')}</span>`).join('')}</div>`);
+  }
+  grid.innerHTML=list.join('');
+  grid.querySelectorAll('.calendar-cell').forEach(cell=>cell.addEventListener('click',()=>openCalendarEventModal(cell.dataset.date)));
+}
+function openCalendarEventModal(dateKey){
+  activeCalendarDate=dateKey;
+  g('calendarEventDateLabel').textContent=`日期：${dateKey}`;
+  g('calendarEventType').value='diary';
+  g('calendarEventName').value='';
+  g('calendarEventBody').value='';
+  g('remindDays').value='0';g('remindHours').value='0';g('remindMinutes').value='10';
+  g('remindPopup').checked=true;g('remindEmail').checked=true;
+  g('calendarReminderWrap').style.display='none';
+  g('calendarEventModal').classList.add('open');
+}
+function saveCalendarEvent(){
+  const type=g('calendarEventType').value,title=(g('calendarEventName').value||'').trim(),body=(g('calendarEventBody').value||'').trim();
+  if(!title){showToast('請輸入標題');return;}
+  const ev={id:Date.now()+Math.random(),date:activeCalendarDate,type,title,body};
+  if(type==='reminder'){
+    ev.remindBefore={
+      days:Math.max(0,parseInt(g('remindDays').value,10)||0),
+      hours:Math.max(0,parseInt(g('remindHours').value,10)||0),
+      minutes:Math.max(0,parseInt(g('remindMinutes').value,10)||0)
+    };
+    ev.channels={popup:!!g('remindPopup').checked,email:!!g('remindEmail').checked};
+  }
+  calendarEvents.push(ev);
+  if(type==='diary'){
+    const d=activeCalendarDate;
+    notes.unshift({id:nid++,type:'diary',subject:'',subjects:[],chapter:'',chapters:[],section:'',sections:[],title,body,detail:body,tags:['日記'],date:d,todos:[],extraFields:{}});
+  }
+  saveData();rebuildUI();renderCalendar();g('calendarEventModal').classList.remove('open');showToast('已新增日程');
+}
+function checkReminders(){
+  const now=Date.now();
+  calendarEvents.filter(e=>e.type==='reminder').forEach(e=>{
+    const due=new Date(`${e.date}T09:00:00`).getTime();
+    const before=e.remindBefore||{days:0,hours:0,minutes:0};
+    const remindAt=due-(before.days*86400000+before.hours*3600000+before.minutes*60000);
+    if(now<remindAt||reminderSent[e.id]) return;
+    const channels=e.channels||{};
+    if(channels.popup!==false){
+      const pop=g('reminderPopup');
+      pop.innerHTML=`<button id="reminderCloseBtn">✕</button><div style="font-weight:700;margin-bottom:4px;">提醒：${escapeHtml(e.title)}</div><div style="font-size:12px;color:#d1d5db;">到期日 ${e.date}</div>`;
+      pop.classList.add('open');
+      g('reminderCloseBtn').onclick=()=>pop.classList.remove('open');
+    }
+    if(channels.email&&calendarSettings.emails.length){
+      const subject=encodeURIComponent(`KLaws 提醒：${e.title}`);
+      const body=encodeURIComponent(`提醒事項：${e.title}\n到期日：${e.date}\n內容：${e.body||''}`);
+      window.open(`mailto:${calendarSettings.emails.join(',')}?subject=${subject}&body=${body}`,'_blank');
+    }
+    reminderSent[e.id]=true;
+  });
 }
 
 // ==================== 多選 ====================
@@ -2087,8 +2216,9 @@ function requireAiKey(action){ const k=getAiKey();if(k){action(k);return;}_aiPen
 function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModelSel');if(sel)sel.innerHTML=AI_MODELS.map(m=>`<option value="${m.id}"${m.id===getAiModel()?' selected':''}>${m.label}</option>`).join('');_aiPendingAction=null;g('aiKeyModal').classList.add('open'); }
 
 // ==================== 初始化 ====================
-window.addEventListener('load',()=>{
+  window.addEventListener('load',()=>{
   detachSidePanelsFromNotesView();
+  ensureUsageStart();
   loadData();rebuildUI();
   initMoreMenu();
   g('sortSelect').value=sortMode;g('sortSelect').addEventListener('change',()=>{sortMode=g('sortSelect').value;gridPage=1;render();saveData();});
@@ -2105,6 +2235,7 @@ window.addEventListener('load',()=>{
   }
   g('selAllBtn').addEventListener('click',selectAll);g('selDeleteBtn').addEventListener('click',deleteSelected);g('selCancelBtn').addEventListener('click',exitMultiSel);
   on('statsBtn','click',openStats);
+  on('calendarBtn','click',()=>toggleCalendarView(true));
   on('ft','change',()=>renderDynamicFields(g('ft').value,editMode&&openId?noteById(openId):null));
   on('fs2','change',()=>{
     syncChapterSelect(selectedValues('fs2'),selectedValues('fc'));
@@ -2188,6 +2319,19 @@ window.addEventListener('load',()=>{
   on('mapLinkedOnlyBtn','click',()=>{mapLinkedOnly=!mapLinkedOnly;setMapLinkedOnlyBtnStyle();nodePos={};forceLayout();drawMap();saveDataDeferred();showToast(mapLinkedOnly?`顯示 ${visibleNotes().length} 個有關聯節點`:'顯示全部節點');});
   on('mapAutoBtn','click',()=>{const btn=g('mapAutoBtn'),orig=btn.textContent;btn.textContent='排列中...';btn.disabled=true;setTimeout(()=>{nodePos={};mapScale=1;mapOffX=mapOffY=0;forceLayout();drawMap();saveDataDeferred();g('zoomLabel').textContent='100%';btn.textContent=orig;btn.disabled=false;showToast('已自動排列（保留核心節點）');},30);});
   on('mapLaneBtn','click',()=>{const panel=ensureLanePanel();if(!panel){showToast('泳道面板載入失敗');return;}if(panel.classList.contains('open'))closeLanePanel();else openLanePanel();});
+  on('calendarBackBtn','click',()=>toggleCalendarView(false));
+  on('calendarPrevBtn','click',()=>{calendarCursor=new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()-1,1);renderCalendar();});
+  on('calendarNextBtn','click',()=>{calendarCursor=new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()+1,1);renderCalendar();});
+  on('calendarTodayBtn','click',()=>{calendarCursor=new Date();renderCalendar();});
+  on('calendarSettingsBtn','click',()=>{g('calendarEmailsInput').value=(calendarSettings.emails||[]).join('\n');g('calendarSettingsModal').classList.add('open');});
+  on('calendarSettingsCancel','click',()=>g('calendarSettingsModal').classList.remove('open'));
+  on('calendarSettingsSave','click',()=>{
+    const emails=(g('calendarEmailsInput').value||'').split('\n').map(v=>v.trim()).filter(Boolean);
+    calendarSettings.emails=emails;saveData();g('calendarSettingsModal').classList.remove('open');showToast(`已儲存 ${emails.length} 個 Email`);
+  });
+  on('calendarEventType','change',()=>{g('calendarReminderWrap').style.display=g('calendarEventType').value==='reminder'?'block':'none';});
+  on('calendarEventCancel','click',()=>g('calendarEventModal').classList.remove('open'));
+  on('calendarEventSave','click',saveCalendarEvent);
   on('lanePanelClose','click',closeLanePanel);on('laneSaveBtn','click',saveLanePanel);on('laneResetBtn','click',resetLanePanel);
   const canvas=g('mapCanvas');let panStart=null,panOffXStart=0,panOffYStart=0;
   const onDragMove=(x,y)=>{
@@ -2235,6 +2379,7 @@ window.addEventListener('load',()=>{
     catch(e){showToast('載入失敗：'+e.message);}
   });
   autoPullIfNeeded();
+  clearInterval(reminderTimer); reminderTimer=setInterval(checkReminders,30000); checkReminders();
   render();
   setTimeout(()=>toggleMapView(true),120);
 });

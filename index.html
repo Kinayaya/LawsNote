@@ -28,7 +28,7 @@
     <div class="tool-btns">
       <div class="primary-tools">
         <button class="tool-btn" id="compactToggleBtn" title="切換分類列顯示">&#9776; 分類</button>
-        <button class="tool-btn" id="tagMgrBtn">管理標籤</button>
+        <button class="tool-btn" id="tagMgrBtn">管理</button>
         <button class="tool-btn" id="calendarBtn">日曆</button>
         <button class="map-btn" id="mapToggleBtn">&#128279; 體系圖</button>
         <button class="tool-btn" id="panelDirBtn" title="切換筆記展開方向">&#8646; 面板方向</button>
@@ -45,7 +45,7 @@
           <button class="tool-btn sync-btn-style more-menu-item" id="syncBtn">&#9729; 同步</button>
           <button class="tool-btn more-menu-item" id="exportBtn">&#8593; 匯出</button>
           <label class="tool-btn more-menu-item" for="importFile" style="cursor:pointer;display:inline-block;">&#8595; 匯入</label>
-          <button class="tool-btn more-menu-item" id="statsBtn">&#128202; 標籤＋統計</button>
+          
         </div>
       </div>
       <input type="file" id="importFile" accept=".json" style="display:none">
@@ -380,15 +380,20 @@
       <textarea id="calendarEventBody" class="ft" style="min-height:90px;" placeholder="輸入內容"></textarea>
     </div>
     <div id="calendarReminderWrap" style="display:none;">
+      <label class="flbl">到期時間（當天）</label>
+      <div class="calendar-reminder-row">
+        <input id="dueHour" type="number" min="0" max="23" value="9" class="fi"><span>時</span>
+        <input id="dueMinute" type="number" min="0" max="59" value="0" class="fi"><span>分</span>
+      </div>
       <label class="flbl">提醒時間（到期前）</label>
       <div class="calendar-reminder-row">
         <input id="remindDays" type="number" min="0" value="0" class="fi"><span>天</span>
         <input id="remindHours" type="number" min="0" value="0" class="fi"><span>小時</span>
         <input id="remindMinutes" type="number" min="0" value="10" class="fi"><span>分鐘</span>
       </div>
-      <label class="flbl">提醒方式</label>
+      <label class="flbl">提醒方式（可自由勾選）</label>
       <label><input type="checkbox" id="remindPopup" checked> 筆記內彈窗提醒</label>
-      <label style="margin-left:10px;"><input type="checkbox" id="remindEmail" checked> Email 提醒</label>
+      <label style="margin-left:10px;"><input type="checkbox" id="remindEmail"> Email 提醒</label>
     </div>
     <div class="frow">
       <button class="fbtn bcl" id="calendarEventCancel">取消</button>
@@ -400,7 +405,9 @@
 <div id="calendarSettingsModal">
   <div id="calendarSettingsBox">
     <h3>提醒 Email 設定</h3>
-    <p>輸入一個或多個 Email（每行一個）。</p>
+    <p>輸入一個或多個 Email（每行一個）。若要自動寄送，請填寫 SMTP Secure Token 與寄件者。</p>
+    <input id="calendarSmtpToken" class="fi" placeholder="SMTP Secure Token（例如 SMTPJS）">
+    <input id="calendarEmailFrom" class="fi" style="margin-top:8px;" placeholder="寄件者 Email（From）">
     <textarea id="calendarEmailsInput" class="ft" style="min-height:130px;" placeholder="example@gmail.com"></textarea>
     <div class="frow">
       <button class="fbtn bcl" id="calendarSettingsCancel">取消</button>
@@ -408,6 +415,9 @@
     </div>
   </div>
 </div>
+
+
+<div id="calendarDayDetail" class="calendar-day-detail"></div>
 
 <div id="reminderPopup"></div>
 

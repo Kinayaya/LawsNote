@@ -392,11 +392,14 @@
         <input id="remindMinutes" type="number" min="0" value="10" class="fi"><span>分鐘</span>
       </div>
       <label class="flbl">提醒方式（可自由勾選）</label>
-      <label><input type="checkbox" id="remindPopup" checked> 筆記內彈窗提醒</label>
-      <label style="margin-left:10px;"><input type="checkbox" id="remindEmail"> Email 提醒</label>
+      <div class="calendar-reminder-channels">
+        <label><input type="checkbox" id="remindPopup" checked> 筆記內彈窗提醒</label>
+        <label><input type="checkbox" id="remindEmail"> Email 提醒</label>
+      </div>
     </div>
     <div class="frow">
       <button class="fbtn bcl" id="calendarEventCancel">取消</button>
+      <button class="fbtn" id="calendarEventDelete" style="display:none;background:#fff1f2;color:#b91c1c;border:1px solid #fecaca;">刪除</button>
       <button class="fbtn bsv" id="calendarEventSave">儲存</button>
     </div>
   </div>

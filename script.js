@@ -1567,6 +1567,7 @@ function renderCalendar(){
   grid.querySelectorAll('.calendar-cell').forEach(cell=>cell.addEventListener('click',()=>toggleCalendarDayDetail(cell.dataset.date)));
 }
 function toggleCalendarDayDetail(dateKey){
+  activeCalendarDate=dateKey;
   const box=g('calendarDayDetail');
   if(!box) return;
   const entries=calendarEvents.filter(e=>e.date===dateKey);
@@ -1575,10 +1576,14 @@ function toggleCalendarDayDetail(dateKey){
     return;
   }
   box.classList.add('open');
-  box.innerHTML=`<div class="calendar-day-title">${dateKey}（${entries.length} 筆）</div>`+entries.map(ev=>`<div class="calendar-day-item"><div class="calendar-day-item-head"><span class="calendar-day-item-type">${ev.type==='diary'?'📝 日記':'⏰ 提醒（到期 '+dueTimeText(ev)+'）'}</span><button data-eid="${ev.id}">編輯</button></div><div style="font-weight:700;margin-bottom:4px;">${escapeHtml(ev.title||'未命名')}</div><pre>${escapeHtml(ev.body||'（無內容）')}</pre></div>`).join('')+`<button class="tool-btn" id="calendarAddNewBtn">+ 新增</button>`;
+  box.innerHTML=`<div class="calendar-day-title">${dateKey}（${entries.length} 筆）</div>`+entries.map(ev=>`<div class="calendar-day-item"><div class="calendar-day-item-head"><span class="calendar-day-item-type">${ev.type==='diary'?'📝 日記':'⏰ 提醒（到期 '+dueTimeText(ev)+'）'}</span><div class="calendar-day-item-actions"><button data-eid="${ev.id}">編輯</button><button class="calendar-delete-btn" data-delete-eid="${ev.id}">刪除</button></div></div><div style="font-weight:700;margin-bottom:4px;">${escapeHtml(ev.title||'未命名')}</div><pre>${escapeHtml(ev.body||'（無內容）')}</pre></div>`).join('')+`<button class="tool-btn" id="calendarAddNewBtn">+ 新增</button>`;
   box.querySelectorAll('button[data-eid]').forEach(btn=>btn.addEventListener('click',()=>{
     const ev=calendarEvents.find(e=>String(e.id)===btn.dataset.eid);
     if(ev) openCalendarEventModal(dateKey,ev);
+  }));
+  box.querySelectorAll('button[data-delete-eid]').forEach(btn=>btn.addEventListener('click',()=>{
+    const ev=calendarEvents.find(e=>String(e.id)===btn.dataset.deleteEid);
+    if(ev) deleteCalendarEvent(ev.id);
   }));
   const addBtn=g('calendarAddNewBtn');
   if(addBtn) addBtn.addEventListener('click',()=>openCalendarEventModal(dateKey));
@@ -1593,8 +1598,22 @@ function openCalendarEventModal(dateKey, eventItem=null){
   g('remindDays').value=eventItem?.remindBefore?.days??0;g('remindHours').value=eventItem?.remindBefore?.hours??0;g('remindMinutes').value=eventItem?.remindBefore?.minutes??10;
   g('dueHour').value=eventItem?.dueHour??9;g('dueMinute').value=eventItem?.dueMinute??0;
   g('remindPopup').checked=eventItem?.channels?.popup??true;g('remindEmail').checked=eventItem?.channels?.email??false;
+  g('calendarEventDelete').style.display=eventItem?'inline-flex':'none';
   g('calendarReminderWrap').style.display=g('calendarEventType').value==='reminder'?'block':'none';
   g('calendarEventModal').classList.add('open');
+}
+function deleteCalendarEvent(eventId){
+  const idx=calendarEvents.findIndex(e=>e.id===eventId);
+  if(idx<0) return;
+  const ev=calendarEvents[idx];
+  if(!confirm(`確定刪除這筆${ev.type==='diary'?'日記':'提醒'}？`)) return;
+  calendarEvents.splice(idx,1);
+  saveData();rebuildUI();renderCalendar();
+  const dayBox=g('calendarDayDetail');
+  if(dayBox?.classList.contains('open')) toggleCalendarDayDetail(activeCalendarDate);
+  g('calendarEventModal').classList.remove('open');
+  editingCalendarEventId=null;
+  showToast('已刪除日程');
 }
 function saveCalendarEvent(){
   const type=g('calendarEventType').value,title=(g('calendarEventName').value||'').trim(),body=(g('calendarEventBody').value||'').trim();
@@ -2417,6 +2436,7 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   on('calendarEventType','change',()=>{g('calendarReminderWrap').style.display=g('calendarEventType').value==='reminder'?'block':'none';});
   on('calendarEventCancel','click',()=>g('calendarEventModal').classList.remove('open'));
   on('calendarEventSave','click',saveCalendarEvent);
+  on('calendarEventDelete','click',()=>{ if(editingCalendarEventId!=null) deleteCalendarEvent(editingCalendarEventId); });
   on('lanePanelClose','click',closeLanePanel);on('laneSaveBtn','click',saveLanePanel);on('laneResetBtn','click',resetLanePanel);
   const canvas=g('mapCanvas');let panStart=null,panOffXStart=0,panOffYStart=0;
   const onDragMove=(x,y)=>{

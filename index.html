@@ -29,6 +29,7 @@
       <div class="primary-tools">
         <button class="tool-btn" id="compactToggleBtn" title="切換分類列顯示">&#9776; 分類</button>
         <button class="tool-btn" id="tagMgrBtn">管理標籤</button>
+        <button class="tool-btn" id="calendarBtn">日曆</button>
         <button class="map-btn" id="mapToggleBtn">&#128279; 體系圖</button>
         <button class="tool-btn" id="panelDirBtn" title="切換筆記展開方向">&#8646; 面板方向</button>
         <button class="tool-btn ai-btn-style" id="aiSettingsBtn">&#129302; AI</button>
@@ -44,7 +45,7 @@
           <button class="tool-btn sync-btn-style more-menu-item" id="syncBtn">&#9729; 同步</button>
           <button class="tool-btn more-menu-item" id="exportBtn">&#8593; 匯出</button>
           <label class="tool-btn more-menu-item" for="importFile" style="cursor:pointer;display:inline-block;">&#8595; 匯入</label>
-          <button class="tool-btn more-menu-item" id="statsBtn">&#128202; 統計</button>
+          <button class="tool-btn more-menu-item" id="statsBtn">&#128202; 標籤＋統計</button>
         </div>
       </div>
       <input type="file" id="importFile" accept=".json" style="display:none">
@@ -138,6 +139,7 @@
     <label><input type="checkbox" id="tagUnusedOnly"> 只看未使用</label>
     <button class="tool-btn" id="clearUnusedTagsBtn">&#128465; 清理未使用</button>
   </div>
+  <div id="tagStatsPanel"></div>
   <div class="tag-manager-layout">
     <div class="tag-category-nav" id="tagCategoryNav">
       <button class="tag-nav-btn active" data-category="type">類型</button>
@@ -188,6 +190,22 @@
     </div>
   </div>
   </div>
+</div>
+
+<!-- Calendar View -->
+<div id="calendarView">
+  <div class="calendar-head">
+    <button class="tool-btn" id="calendarPrevBtn">←</button>
+    <div id="calendarTitle">2026年4月</div>
+    <button class="tool-btn" id="calendarNextBtn">→</button>
+    <button class="tool-btn" id="calendarTodayBtn">今天</button>
+    <button class="tool-btn" id="calendarSettingsBtn">⚙️ Email</button>
+    <button class="tool-btn map-primary-action" id="calendarBackBtn">← 返回筆記</button>
+  </div>
+  <div class="calendar-weekdays">
+    <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+  </div>
+  <div id="calendarGrid"></div>
 </div>
 
 <!-- Map View -->
@@ -345,6 +363,53 @@
     <div style="margin-top:10px;font-size:11px;color:#bbb;text-align:center;">Key 僅存於您的本機，不會上傳至任何伺服器</div>
   </div>
 </div>
+
+<div id="calendarEventModal">
+  <div id="calendarEventBox">
+    <h3 id="calendarEventTitle">新增日程</h3>
+    <p id="calendarEventDateLabel"></p>
+    <label class="flbl">類型</label>
+    <select id="calendarEventType" class="fs">
+      <option value="diary">日記</option>
+      <option value="reminder">提醒</option>
+    </select>
+    <label class="flbl">標題</label>
+    <input id="calendarEventName" class="fi" placeholder="輸入標題">
+    <div id="calendarEventBodyWrap">
+      <label class="flbl">內容</label>
+      <textarea id="calendarEventBody" class="ft" style="min-height:90px;" placeholder="輸入內容"></textarea>
+    </div>
+    <div id="calendarReminderWrap" style="display:none;">
+      <label class="flbl">提醒時間（到期前）</label>
+      <div class="calendar-reminder-row">
+        <input id="remindDays" type="number" min="0" value="0" class="fi"><span>天</span>
+        <input id="remindHours" type="number" min="0" value="0" class="fi"><span>小時</span>
+        <input id="remindMinutes" type="number" min="0" value="10" class="fi"><span>分鐘</span>
+      </div>
+      <label class="flbl">提醒方式</label>
+      <label><input type="checkbox" id="remindPopup" checked> 筆記內彈窗提醒</label>
+      <label style="margin-left:10px;"><input type="checkbox" id="remindEmail" checked> Email 提醒</label>
+    </div>
+    <div class="frow">
+      <button class="fbtn bcl" id="calendarEventCancel">取消</button>
+      <button class="fbtn bsv" id="calendarEventSave">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div id="calendarSettingsModal">
+  <div id="calendarSettingsBox">
+    <h3>提醒 Email 設定</h3>
+    <p>輸入一個或多個 Email（每行一個）。</p>
+    <textarea id="calendarEmailsInput" class="ft" style="min-height:130px;" placeholder="example@gmail.com"></textarea>
+    <div class="frow">
+      <button class="fbtn bcl" id="calendarSettingsCancel">取消</button>
+      <button class="fbtn bsv" id="calendarSettingsSave">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div id="reminderPopup"></div>
 
 <script src="script.js"></script>
 </body>

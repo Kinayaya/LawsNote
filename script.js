@@ -164,12 +164,21 @@ const saveSyncConfigFromInputs = () => {
   const autoPull=!!g('syncAutoPull')?.checked;
   if(token&&gistId) saveSyncConfig({token,gistId,autoPush,autoPull});
 };
-const getMapCenterContextKey = () => `${mapFilter.sub||'all'}::${mapFilter.chapter||'all'}::${mapFilter.section||'all'}`;
+const getMapCenterContextKey = () => {
+  const pageRoot=mapPageStack.length?mapPageStack[mapPageStack.length-1]:'root';
+  return `${mapFilter.sub||'all'}::${mapFilter.chapter||'all'}::${mapFilter.section||'all'}::${pageRoot}`;
+};
 const mapSubpageContextKey = () => `${mapFilter.sub||'all'}::${mapFilter.chapter||'all'}::${mapFilter.section||'all'}`;
 const mapSubpageKey = noteId => `${mapSubpageContextKey()}::${noteId}`;
 const hasSubpageForNode = noteId => !!mapSubpages[mapSubpageKey(noteId)];
 const currentSubpageRootId = () => mapPageStack.length?mapPageStack[mapPageStack.length-1]:null;
 const isInMapSubpage = () => !!currentSubpageRootId();
+const mapTitleMarkers = noteId => {
+  const marks=[];
+  if(getMapCenterFromScopes()===noteId) marks.push('⭐️');
+  if(hasSubpageForNode(noteId)) marks.push('△');
+  return marks.join('');
+};
 const getMapCenterFromScopes = () => {
   const key=getMapCenterContextKey();
   const scopedId=mapCenterNodeIds[key];
@@ -256,6 +265,7 @@ const getMapCardBox = id => {
   const width=Math.round(210*scale);
   const note=noteById(id)||{};
   const bodyText=safeStr(note.body).trim();
+  if(!bodyText) return {width,height:86,bodyLines:0};
   const charsPerLine=Math.max(9,Math.floor((width-24)/10));
   const manualLines=bodyText?bodyText.split('\n'):[];
   const bodyLines=Math.max(2,(manualLines.length?manualLines:[bodyText||'']).reduce((sum,line)=>sum+Math.max(1,Math.ceil((line.length||1)/charsPerLine)),0));
@@ -698,7 +708,7 @@ function render() {
     const id=parseInt(c.dataset.id);
     if(multiSelMode) c.classList.add('selectable');
     if(selectedIds[id]){c.classList.add('selected');c.querySelector('.sel-check').textContent='✓';}
-    c.addEventListener('click',()=>multiSelMode?toggleCardSelect(id):openNote(id));
+    bindCardInteractions(c,id);
   });
   if(filtered.length>PAGE_SIZE){
     const totalPg=Math.ceil(filtered.length/PAGE_SIZE),pager=document.createElement('div');
@@ -965,7 +975,17 @@ function saveNote() {
   const primarySection=selectedSecs[0]||'';
   if(editMode&&openId) {
     const idx=notes.findIndex(n=>n.id===openId);
-  if(idx!==-1) Object.assign(notes[idx],{type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,body:fieldData.body,detail:fieldData.detail,tags:fieldData.tags,todos:fieldData.todos,extraFields:fieldData.extraFields});
+    const selectedIdNums=Object.keys(selectedIds||{}).map(Number).filter(id=>selectedIds[id]);
+    const shouldSyncMeta=multiSelMode&&selectedIds[openId]&&selectedIdNums.length>1;
+    if(idx!==-1) Object.assign(notes[idx],{type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,body:fieldData.body,detail:fieldData.detail,tags:fieldData.tags,todos:fieldData.todos,extraFields:fieldData.extraFields});
+    if(shouldSyncMeta){
+      selectedIdNums.forEach(id=>{
+        if(id===openId) return;
+        const target=noteById(id);
+        if(!target) return;
+        Object.assign(target,{type:typeKey,subject:primarySubject,subjects:[...selectedSubs],chapter:primaryChapter,chapters:[...selectedChs],section:primarySection,sections:[...selectedSecs],tags:[...fieldData.tags]});
+      });
+    }
     saveData();closeForm();render();showToast('筆記已更新！');
     setTimeout(()=>openNote(openId),150);
   } else {
@@ -1437,18 +1457,47 @@ function openStats() {
 function enterMultiSel() {
   multiSelMode=true;selectedIds={};
   g('selectBar').classList.add('open');
-  g('multiSelBtn').style.background='#1a1a2e';
-  g('multiSelBtn').style.color='#fff';
   ['dp','fp'].forEach(p=>g(p).classList.remove('open'));
   syncSidePanelState();
   updateSelBar();
   render();
 }
-function exitMultiSel() { multiSelMode=false;selectedIds={};g('selectBar').classList.remove('open');g('multiSelBtn').style.background='#f0f0f0';g('multiSelBtn').style.color='';render(); }
+function exitMultiSel() { multiSelMode=false;selectedIds={};g('selectBar').classList.remove('open');render(); }
 function updateSelBar() { const cnt=Object.keys(selectedIds).length;g('selectCount').textContent=`已選 ${cnt} 筆`;g('selDeleteBtn').disabled=cnt===0;g('selDeleteBtn').style.opacity=cnt===0?'0.4':'1'; }
 function toggleCardSelect(id) { selectedIds[id]?delete selectedIds[id]:selectedIds[id]=true;updateSelBar();const c=g('grid').querySelector(`.card[data-id="${id}"]`);if(c){if(selectedIds[id]){c.classList.add('selected');c.querySelector('.sel-check').textContent='✓';}else{c.classList.remove('selected');c.querySelector('.sel-check').textContent='';}} }
-function selectAll() { const cards=g('grid').querySelectorAll('.card'),allSel=Object.keys(selectedIds).length===cards.length;if(allSel)selectedIds={};else cards.forEach(c=>{const cid=parseInt(c.dataset.id);selectedIds[cid]=true;c.classList.add('selected');c.querySelector('.sel-check').textContent='✓';});updateSelBar(); }
+function selectAll() {
+  const cards=[...g('grid').querySelectorAll('.card')];
+  const cardIds=cards.map(c=>parseInt(c.dataset.id));
+  const allCurrentPageSelected=cardIds.length>0&&cardIds.every(id=>selectedIds[id]);
+  if(allCurrentPageSelected) cardIds.forEach(id=>delete selectedIds[id]);
+  else cardIds.forEach(id=>{selectedIds[id]=true;});
+  updateSelBar();
+  render();
+}
 function deleteSelected() { const ids=Object.keys(selectedIds);if(!ids.length)return;if(!confirm(`確定刪除這 ${ids.length} 筆筆記？此操作無法復原。`))return;const idNums=ids.map(Number);links=links.filter(l=>!idNums.includes(l.from)&&!idNums.includes(l.to));notes=notes.filter(n=>!selectedIds[n.id]);saveData();exitMultiSel();showToast(`已刪除 ${ids.length} 筆筆記`); }
+function bindCardInteractions(card,id){
+  let pressTimer=null;
+  let longPressed=false;
+  const clearPress=()=>{ if(pressTimer){clearTimeout(pressTimer);pressTimer=null;} };
+  const triggerLongPress=()=>{
+    if(multiSelMode) return;
+    longPressed=true;
+    enterMultiSel();
+    selectedIds[id]=true;
+    updateSelBar();
+    render();
+  };
+  card.addEventListener('mousedown',()=>{longPressed=false;clearPress();pressTimer=setTimeout(triggerLongPress,450);});
+  card.addEventListener('touchstart',()=>{longPressed=false;clearPress();pressTimer=setTimeout(triggerLongPress,450);},{passive:true});
+  card.addEventListener('mouseup',clearPress);
+  card.addEventListener('mouseleave',clearPress);
+  card.addEventListener('touchend',clearPress,{passive:true});
+  card.addEventListener('touchcancel',clearPress,{passive:true});
+  card.addEventListener('click',()=>{
+    if(longPressed) return;
+    multiSelMode?toggleCardSelect(id):openNote(id);
+  });
+}
 
 // ==================== 申論測驗 ====================
 function loadExams() { try{const r=localStorage.getItem('klaws_exams_v1');if(r){examList=JSON.parse(r);examList.forEach(e=>{if(/^tag_s_|^tag_t_/.test(e.subject))e.subject=subByKey(e.subject).label;});saveExams();}}catch(e){examList=[];} }
@@ -1826,8 +1875,9 @@ function drawMap(){
     cardBody.setAttribute('width',String(box.width));cardBody.setAttribute('height',String(box.height));
     cardBody.style.pointerEvents='none';
     const bodyPreview=safeStr(n.body).trim();
+    const markedTitle=`${mapTitleMarkers(n.id)}${n.title||'（未命名）'}`;
     cardBody.innerHTML=`<div xmlns="http://www.w3.org/1999/xhtml" class="map-card-inner">
-      <div class="map-card-head"><span class="map-card-type" style="background:${lightC(type.color)};color:${darkC(type.color)}">${type.label}</span><span class="map-card-title">${escapeHtml(n.title||'（未命名）')}</span></div>
+      <div class="map-card-head"><span class="map-card-type" style="background:${lightC(type.color)};color:${darkC(type.color)}">${type.label}</span><span class="map-card-title">${escapeHtml(markedTitle)}</span></div>
       ${bodyPreview?`<div class="map-card-body-text">${escapeHtml(bodyPreview)}</div>`:''}
     </div>`;
     const hasChildren=links.some(l=>l.from===n.id&&noteById(l.to));
@@ -2042,7 +2092,6 @@ window.addEventListener('load',()=>{
       showToast(scopeLinkedEnabled?'已啟用跨科目關聯顯示':'已關閉跨科目關聯顯示');
     });
   }
-  g('multiSelBtn').addEventListener('click',()=>multiSelMode?exitMultiSel():enterMultiSel());
   g('selAllBtn').addEventListener('click',selectAll);g('selDeleteBtn').addEventListener('click',deleteSelected);g('selCancelBtn').addEventListener('click',exitMultiSel);
   on('statsBtn','click',openStats);
   on('ft','change',()=>renderDynamicFields(g('ft').value,editMode&&openId?noteById(openId):null));

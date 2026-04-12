@@ -177,9 +177,33 @@ const getMapCenterContextKey = () => {
   const pageRoot=mapPageStack.length?mapPageStack[mapPageStack.length-1]:'root';
   return `${mapFilter.sub||'all'}::${mapFilter.chapter||'all'}::${mapFilter.section||'all'}::${pageRoot}`;
 };
-const mapSubpageContextKey = () => `${mapFilter.sub||'all'}::${mapFilter.chapter||'all'}::${mapFilter.section||'all'}`;
+const mapSubpageContextKey = () => 'global';
 const mapSubpageKey = noteId => `${mapSubpageContextKey()}::${noteId}`;
-const hasSubpageForNode = noteId => !!mapSubpages[mapSubpageKey(noteId)];
+const findSubpageKeyByNoteId = noteId => {
+  const exactKey=mapSubpageKey(noteId);
+  if(mapSubpages[exactKey]) return exactKey;
+  const suffix=`::${noteId}`;
+  return Object.keys(mapSubpages||{}).find(key=>key.endsWith(suffix))||null;
+};
+const hasSubpageForNode = noteId => !!findSubpageKeyByNoteId(noteId);
+const removeSubpageForNode = noteId => {
+  const key=findSubpageKeyByNoteId(noteId);
+  if(!key) return false;
+  delete mapSubpages[key];
+  return true;
+};
+const normalizeMapSubpages = raw => {
+  const src=(raw&&typeof raw==='object'&&!Array.isArray(raw))?raw:{}, next={};
+  Object.keys(src).forEach(key=>{
+    const noteId=parseInt(String(key).split('::').pop(),10);
+    if(!Number.isFinite(noteId)) return;
+    const item=(src[key]&&typeof src[key]==='object'&&!Array.isArray(src[key]))?src[key]:{};
+    const normalizedKey=mapSubpageKey(noteId);
+    if(next[normalizedKey]) return;
+    next[normalizedKey]={...item,rootId:noteId,createdAt:item.createdAt||new Date().toISOString()};
+  });
+  return next;
+};
 const currentSubpageRootId = () => mapPageStack.length?mapPageStack[mapPageStack.length-1]:null;
 const isInMapSubpage = () => !!currentSubpageRootId();
 const mapTitleMarkers = noteId => {
@@ -387,7 +411,8 @@ function loadData() {
       if(typeof d.mapFocusMode==='boolean') mapFocusMode=d.mapFocusMode;
       mapLaneConfigs=(d.mapLaneConfigs&&typeof d.mapLaneConfigs==='object'&&!Array.isArray(d.mapLaneConfigs))?d.mapLaneConfigs:{};
       mapCollapsed=(d.mapCollapsed&&typeof d.mapCollapsed==='object'&&!Array.isArray(d.mapCollapsed))?d.mapCollapsed:{};
-      mapSubpages=(d.mapSubpages&&typeof d.mapSubpages==='object'&&!Array.isArray(d.mapSubpages))?d.mapSubpages:{};
+      const rawMapSubpages=(d.mapSubpages&&typeof d.mapSubpages==='object'&&!Array.isArray(d.mapSubpages))?d.mapSubpages:{};
+      mapSubpages=normalizeMapSubpages(rawMapSubpages);
       customFieldDefs=(d.customFieldDefs&&typeof d.customFieldDefs==='object'&&!Array.isArray(d.customFieldDefs))?d.customFieldDefs:{};
       calendarEvents=Array.isArray(d.calendarEvents)?d.calendarEvents:[];
       calendarSettings=(d.calendarSettings&&typeof d.calendarSettings==='object'&&!Array.isArray(d.calendarSettings))?d.calendarSettings:{emails:[]};
@@ -402,6 +427,7 @@ function loadData() {
       typeFieldConfigs=(d.typeFieldConfigs&&typeof d.typeFieldConfigs==='object'&&!Array.isArray(d.typeFieldConfigs))?d.typeFieldConfigs:{};
       types.forEach(t=>{ typeFieldConfigs[t.key]=getTypeFieldKeys(t.key); });
       let repaired=false,chapterMigrated=false;
+      if(JSON.stringify(rawMapSubpages)!==JSON.stringify(mapSubpages)) repaired=true;
       types.forEach(t=>{if(/^tag_t_/.test(t.key)){let old=t.key;t.key=t.label;notes.forEach(n=>{if(n.type===old)n.type=t.label;});repaired=true;}});
       subjects.forEach(s=>{if(/^tag_s_/.test(s.key)){let old=s.key;s.key=s.label;notes.forEach(n=>{n.subjects=noteSubjects(n).map(x=>x===old?s.label:x);n.subject=n.subjects[0]||'';});repaired=true;}});
       notes.forEach(n=>{
@@ -2110,21 +2136,38 @@ function showMapInfo(id){
   const hasSubpage=hasSubpageForNode(id);
   const subpageBtn=document.createElement('button');
   subpageBtn.className='mp-subpage-btn';
-  subpageBtn.textContent=hasSubpage?'📄 進入子頁面':'📄 建立子頁面';
+  subpageBtn.textContent=hasSubpage?'📄 進入子頁面':'📄 設定子頁面';
   subpageBtn.style.cssText='width:100%;padding:8px;margin:4px 0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ddd;background:#f5f5f5;color:#555;';
   subpageBtn.onclick=()=>{
     if(!hasSubpage){
       mapSubpages[mapSubpageKey(id)]={rootId:id,createdAt:new Date().toISOString()};
       saveData();
-      showToast('已建立子頁面');
+      drawMap();
+      showToast('已設定子頁面');
+      showMapInfo(id);
+      return;
     }
     closeMapPopup();
     enterMapSubpage(id);
   };
+  const cancelSubpageBtn=document.createElement('button');
+  cancelSubpageBtn.className='mp-subpage-btn mp-subpage-cancel-btn';
+  cancelSubpageBtn.textContent='🗑️ 取消子頁面';
+  cancelSubpageBtn.style.cssText='width:100%;padding:8px;margin:4px 0 8px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #f3c7c7;background:#fff2f2;color:#c43d3d;';
+  cancelSubpageBtn.onclick=()=>{
+    if(!removeSubpageForNode(id)) return;
+    if(currentSubpageRootId()===id) mapPageStack=[];
+    saveData();
+    closeMapPopup();
+    drawMap();
+    updateMapPagePath();
+    showToast('已取消子頁面設定');
+  };
   if(goBtn&&goBtn.parentNode){
-    goBtn.parentNode.querySelectorAll('.mp-set-center,.mp-subpage-btn').forEach(el=>el.remove());
+    goBtn.parentNode.querySelectorAll('.mp-set-center,.mp-subpage-btn,.mp-subpage-cancel-btn').forEach(el=>el.remove());
     goBtn.parentNode.insertBefore(setCenterBtn,goBtn);
     if(!isInMapSubpage()) goBtn.parentNode.insertBefore(subpageBtn,goBtn);
+    if(hasSubpage&&!isInMapSubpage()) goBtn.parentNode.insertBefore(cancelSubpageBtn,goBtn);
   }
   const linksEl=g('mpLinks');
   if(!related.length){linksEl.innerHTML='<span class="mp-no-links">尚無關聯</span>';}

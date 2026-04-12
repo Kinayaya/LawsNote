@@ -1937,6 +1937,19 @@ function moveNodeEl(id,x,y){
     const cy=parseFloat(foldBtn.getAttribute('cy')||String(y-halfH+12))||y-halfH+12;
     foldSign.setAttribute('x',String(cx));foldSign.setAttribute('y',String(cy+1));
   }
+  const subEnterBtn=grp.querySelector('circle.node-sub-enter-btn');
+  const subEnterSign=grp.querySelector('text.node-sub-enter-sign');
+  if(subEnterBtn){
+    const subEnterBtnR=parseFloat(subEnterBtn.getAttribute('r')||'9')||9;
+    const subEnterX=x-halfW+subEnterBtnR+6;
+    const subEnterY=y+halfH-subEnterBtnR-6;
+    subEnterBtn.setAttribute('cx',String(subEnterX));
+    subEnterBtn.setAttribute('cy',String(subEnterY));
+    if(subEnterSign){
+      subEnterSign.setAttribute('x',String(subEnterX));
+      subEnterSign.setAttribute('y',String(subEnterY+1));
+    }
+  }
 }
 function redrawLines(affectedId){
   const visIds={};visibleNotes().forEach(n=>visIds[n.id]=true);
@@ -2092,11 +2105,30 @@ function drawMap(){
       foldSign.addEventListener('click',toggleFold);
       grp.appendChild(foldBtn);grp.appendChild(foldSign);
     }
-    grp.addEventListener('click',e=>{
-      e.stopPropagation();
-      if(!isInMapSubpage()&&hasSubpageForNode(n.id)){enterMapSubpage(n.id);return;}
-      showMapInfo(n.id);openMapPopup(n.id);highlightNode(n.id);
-    });
+    const hasSubpage=hasSubpageForNode(n.id);
+    if(!isInMapSubpage()&&hasSubpage){
+      const subEnterBtnR=9;
+      const subEnterX=pos.x-halfW+subEnterBtnR+6;
+      const subEnterY=pos.y+halfH-subEnterBtnR-6;
+      const subEnterBtn=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      subEnterBtn.classList.add('node-sub-enter-btn');
+      subEnterBtn.setAttribute('cx',String(subEnterX));subEnterBtn.setAttribute('cy',String(subEnterY));subEnterBtn.setAttribute('r',String(subEnterBtnR));
+      subEnterBtn.setAttribute('fill','#ffffff');subEnterBtn.setAttribute('stroke',type.color);subEnterBtn.setAttribute('stroke-width','1.5');
+      subEnterBtn.style.cursor='pointer';
+      const subEnterSign=document.createElementNS('http://www.w3.org/2000/svg','text');
+      subEnterSign.classList.add('node-sub-enter-sign');
+      subEnterSign.setAttribute('x',String(subEnterX));subEnterSign.setAttribute('y',String(subEnterY+1));
+      subEnterSign.setAttribute('text-anchor','middle');subEnterSign.setAttribute('dominant-baseline','middle');
+      subEnterSign.setAttribute('font-size','13');
+      subEnterSign.setAttribute('font-weight','700');subEnterSign.setAttribute('fill',type.color);
+      subEnterSign.style.cursor='pointer';
+      subEnterSign.textContent='↙';
+      const enterSubpage=e=>{e.stopPropagation();closeMapPopup();enterMapSubpage(n.id);};
+      subEnterBtn.addEventListener('click',enterSubpage);
+      subEnterSign.addEventListener('click',enterSubpage);
+      grp.appendChild(subEnterBtn);grp.appendChild(subEnterSign);
+    }
+    grp.addEventListener('click',e=>{e.stopPropagation();showMapInfo(n.id);openMapPopup(n.id);highlightNode(n.id);});
     grp.addEventListener('mousedown',e=>startDrag(e,n.id));grp.addEventListener('touchstart',e=>startDragTouch(e,n.id),{passive:true});
     nodesLayer.appendChild(grp);nodeEls[n.id]=grp;
   });

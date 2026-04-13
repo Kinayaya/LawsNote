@@ -81,6 +81,7 @@ let calendarEvents=[], calendarSettings={emails:[]}, calendarCursor=new Date(), 
 let reminderTimer=null, reminderSent={};
 let reminderDismissed={};
 let editingCalendarEventId=null;
+let focusTimerRemainingSec=1500, focusTimerInterval=null, focusTimerRunning=false;
 
 // ==================== 工具函數 ====================
 const g = id => document.getElementById(id);
@@ -88,6 +89,60 @@ const on = (id, evt, fn) => { const el=g(id); if(el) el.addEventListener(evt,fn)
 const val = id => { const el=g(id); return el?el.value:''; };
 const debounce = (fn,ms) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; };
 const showToast = m => { let t=g('toast'); t.textContent=m; t.style.display='block'; setTimeout(()=>t.style.display='none',2200); };
+function playFocusTimerAlarm(){
+  try{
+    const Ctx=window.AudioContext||window.webkitAudioContext;
+    if(!Ctx) return;
+    const ctx=new Ctx();
+    const now=ctx.currentTime;
+    [0,0.18,0.36].forEach((offset,idx)=>{
+      const osc=ctx.createOscillator(), gain=ctx.createGain();
+      osc.type='sine';osc.frequency.value=idx%2===0?880:660;
+      gain.gain.setValueAtTime(0.0001,now+offset);
+      gain.gain.exponentialRampToValueAtTime(0.18,now+offset+0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001,now+offset+0.15);
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.start(now+offset);osc.stop(now+offset+0.16);
+    });
+    setTimeout(()=>ctx.close(),1200);
+  }catch(e){}
+}
+function updateFocusTimerDisplay(){
+  const m=Math.floor(focusTimerRemainingSec/60),s=focusTimerRemainingSec%60;
+  const display=g('focusTimerDisplay');
+  if(display) display.textContent=`${pad2(m)}:${pad2(s)}`;
+}
+function stopFocusTimer(){
+  clearInterval(focusTimerInterval);
+  focusTimerInterval=null;
+  focusTimerRunning=false;
+}
+function resetFocusTimer(){
+  stopFocusTimer();
+  const min=Math.max(1,Math.min(180,parseInt(g('focusTimerMinutes')?.value,10)||25));
+  focusTimerRemainingSec=min*60;
+  updateFocusTimerDisplay();
+}
+function startFocusTimer(){
+  if(focusTimerRunning) return;
+  if(focusTimerRemainingSec<=0) resetFocusTimer();
+  focusTimerRunning=true;
+  focusTimerInterval=setInterval(()=>{
+    focusTimerRemainingSec--;
+    updateFocusTimerDisplay();
+    if(focusTimerRemainingSec<=0){
+      stopFocusTimer();
+      const alertBox=g('focusTimerAlert');
+      if(alertBox) alertBox.classList.add('open');
+      playFocusTimerAlarm();
+      showToast('⏰ 計時結束');
+    }
+  },1000);
+}
+function openFocusTimer(){
+  resetFocusTimer();
+  g('focusTimerModal')?.classList.add('open');
+}
 const getPanelDir = () => localStorage.getItem('klaws_panel_dir')==='bottom'?'bottom':'side';
 const applyPanelDir = dir => {
   const next=dir==='bottom'?'bottom':'side';
@@ -2360,6 +2415,13 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   on('addTypeFieldBtn','click',addTypeFieldForCurrentType);
   on('removeTypeFieldBtn','click',removeTypeFieldForCurrentType);
   loadExams();on('examBtn','click',openExamPanel);on('examListClose','click',()=>g('examListPanel').classList.remove('open'));
+  on('focusTimerBtn','click',openFocusTimer);
+  on('focusTimerMinutes','change',resetFocusTimer);
+  on('focusTimerStartBtn','click',startFocusTimer);
+  on('focusTimerPauseBtn','click',stopFocusTimer);
+  on('focusTimerResetBtn','click',resetFocusTimer);
+  on('focusTimerCloseBtn','click',()=>{stopFocusTimer();g('focusTimerModal')?.classList.remove('open');});
+  on('focusTimerAlertOkBtn','click',()=>g('focusTimerAlert')?.classList.remove('open'));
   on('examAddBtn','click',()=>{const esel=g('examSubSel');if(esel)esel.innerHTML=subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join('');g('examListPanel').classList.remove('open');g('examAddForm').classList.add('open');setTimeout(()=>g('examAddForm').scrollIntoView({behavior:'smooth',block:'nearest'}),60);});
   on('examFormClose','click',()=>{g('examAddForm').classList.remove('open');openExamPanel();});on('examFCancel','click',()=>{g('examAddForm').classList.remove('open');openExamPanel();});
   on('examFSave','click',()=>{const q=(g('examQInput').value||'').trim();if(!q){showToast('請輸入題目');return;}const iss=(g('examIssInput').value||'').split(',').map(x=>x.trim()).filter(Boolean);const tl=parseInt(g('examTimeInput').value)||30;const sub=g('examSubSel').value||(subjects[0]?subjects[0].key:'all');examList.push({id:Date.now(),subject:sub,question:q,issues:iss,timeLimit:tl});saveExams();g('examQInput').value='';g('examIssInput').value='';g('examTimeInput').value='30';g('examAddForm').classList.remove('open');openExamPanel();showToast('題目已儲存！');});

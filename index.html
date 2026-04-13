@@ -39,6 +39,7 @@
         <button class="tool-btn more-btn" id="moreToolsBtn">&#8942; 更多</button>
         <div class="more-menu" id="moreToolsMenu">
           <button class="tool-btn exam-btn-style more-menu-item" id="examBtn">&#9997; 申論</button>
+          <button class="tool-btn more-menu-item" id="focusTimerBtn">&#9201; 計時器</button>
           <button class="tool-btn more-menu-item" id="shortcutMgrBtn">&#9000; 快捷鍵</button>
           <button class="tool-btn more-menu-item" id="undoBtn">&#8630; 恢復上一步</button>
           <button class="tool-btn more-menu-item" id="archiveBtn">&#128190; 存檔</button>
@@ -423,6 +424,29 @@
 <div id="calendarDayDetail" class="calendar-day-detail"></div>
 
 <div id="reminderPopup"></div>
+<div id="focusTimerModal">
+  <div id="focusTimerBox">
+    <h3>⏱️ 專注計時器</h3>
+    <label class="flbl">倒數分鐘</label>
+    <input id="focusTimerMinutes" class="fi" type="number" min="1" max="180" value="25">
+    <div id="focusTimerDisplay">25:00</div>
+    <div class="focus-timer-actions">
+      <button class="fbtn bsv" id="focusTimerStartBtn">開始</button>
+      <button class="fbtn bcl" id="focusTimerPauseBtn">暫停</button>
+      <button class="fbtn bcl" id="focusTimerResetBtn">重設</button>
+    </div>
+    <div class="frow">
+      <button class="fbtn bcl" id="focusTimerCloseBtn">關閉</button>
+    </div>
+  </div>
+</div>
+<div id="focusTimerAlert">
+  <div id="focusTimerAlertBox">
+    <h3>⏰ 時間到！</h3>
+    <p>計時已結束，請休息或開始下一輪。</p>
+    <button class="fbtn bsv" id="focusTimerAlertOkBtn">我知道了</button>
+  </div>
+</div>
 
 <script src="utility.js"></script>
 <script src="storage.js"></script>

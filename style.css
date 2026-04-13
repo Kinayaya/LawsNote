@@ -360,6 +360,14 @@ body.compact-filters .filter-row,body.compact-filters #subbar,body.compact-filte
 #reminderPopup{display:none;position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:520;background:#111827;color:#fff;border-radius:18px;padding:36px 42px;min-width:min(720px,96vw);max-width:min(900px,96vw);border:1px solid #374151;font-size:36px;line-height:1.45;box-shadow:0 14px 42px rgba(0,0,0,.35)}
 #reminderPopup.open{display:block}
 #reminderPopup button{position:absolute;right:18px;top:12px;background:none;border:none;color:#fff;font-size:34px;cursor:pointer}
+#focusTimerModal,#focusTimerAlert{display:none;position:fixed;inset:0;background:rgba(0,0,0,.48);z-index:530;align-items:center;justify-content:center}
+#focusTimerModal.open,#focusTimerAlert.open{display:flex}
+#focusTimerBox,#focusTimerAlertBox{background:#fff;border-radius:14px;border:1px solid #e5e7eb;padding:16px;width:min(360px,92vw);box-shadow:0 14px 34px rgba(0,0,0,.18)}
+#focusTimerBox h3,#focusTimerAlertBox h3{margin:0 0 10px;font-size:18px}
+#focusTimerDisplay{font-size:42px;font-weight:800;color:#0f172a;text-align:center;margin:10px 0 14px;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.focus-timer-actions{display:flex;gap:8px}
+.focus-timer-actions .fbtn{padding:10px 8px;min-height:40px}
+#focusTimerAlertBox p{margin:0 0 12px;color:#4b5563;font-size:14px}
 
 /* Toast & hints */
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;padding:8px 18px;border-radius:99px;font-size:13px;z-index:999;display:none}

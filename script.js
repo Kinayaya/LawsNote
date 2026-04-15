@@ -279,6 +279,12 @@ const normalizeMapSubpages = raw => {
 };
 const currentSubpageRootId = () => mapPageStack.length?mapPageStack[mapPageStack.length-1]:null;
 const isInMapSubpage = () => !!currentSubpageRootId();
+const isNodeInCurrentSubpage = noteId => {
+  if(!isInMapSubpage()) return true;
+  const currentRoot=currentSubpageRootId();
+  if(!currentRoot) return false;
+  return getDescendantIds(currentRoot).has(noteId);
+};
 const mapTitleMarkers = noteId => {
   const marks=[];
   if(getMapCenterFromScopes()===noteId) marks.push('⭐️');
@@ -2015,6 +2021,12 @@ function leaveMapSubpage(){
   saveDataDeferred();
   return true;
 }
+function removeRootFromPageStack(rootId){
+  const idx=mapPageStack.indexOf(rootId);
+  if(idx===-1) return false;
+  mapPageStack=mapPageStack.slice(0,idx);
+  return true;
+}
 function buildLinkCurveOffsets(visLinks){
   if(MAP_LIGHT_BUNDLING_STRENGTH<=0) return {};
   const groups={},spacing=12,laneOrder2=idx=>idx===0?0:(idx%2===1?(idx+1)/2:-(idx/2));
@@ -2244,7 +2256,7 @@ function drawMap(){
       grp.appendChild(foldBtn);grp.appendChild(foldSign);
     }
     const hasSubpage=hasSubpageForNode(n.id);
-    if(!isInMapSubpage()&&hasSubpage){
+    if(hasSubpage&&isNodeInCurrentSubpage(n.id)){
       const subEnterBtnR=9;
       const subEnterX=pos.x-halfW+subEnterBtnR+6;
       const subEnterY=pos.y+halfH-subEnterBtnR-6;
@@ -2326,7 +2338,7 @@ function showMapInfo(id){
   cancelSubpageBtn.style.cssText='width:100%;padding:8px;margin:4px 0 8px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #f3c7c7;background:#fff2f2;color:#c43d3d;';
   cancelSubpageBtn.onclick=()=>{
     if(!removeSubpageForNode(id)) return;
-    if(currentSubpageRootId()===id) mapPageStack=[];
+    removeRootFromPageStack(id);
     saveData();
     closeMapPopup();
     drawMap();
@@ -2336,8 +2348,8 @@ function showMapInfo(id){
   if(goBtn&&goBtn.parentNode){
     goBtn.parentNode.querySelectorAll('.mp-set-center,.mp-subpage-btn,.mp-subpage-cancel-btn').forEach(el=>el.remove());
     goBtn.parentNode.insertBefore(setCenterBtn,goBtn);
-    if(!isInMapSubpage()) goBtn.parentNode.insertBefore(subpageBtn,goBtn);
-    if(hasSubpage&&!isInMapSubpage()) goBtn.parentNode.insertBefore(cancelSubpageBtn,goBtn);
+    if(isNodeInCurrentSubpage(id)) goBtn.parentNode.insertBefore(subpageBtn,goBtn);
+    if(hasSubpage&&isNodeInCurrentSubpage(id)) goBtn.parentNode.insertBefore(cancelSubpageBtn,goBtn);
   }
   const linksEl=g('mpLinks');
   if(!related.length){linksEl.innerHTML='<span class="mp-no-links">尚無關聯</span>';}

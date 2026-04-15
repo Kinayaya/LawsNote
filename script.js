@@ -21,6 +21,8 @@ const ARCHIVES_KEY = 'klaws_archives_v1';
 const SCOPE_LINKED_TOGGLE_KEY = 'klaws_scope_linked_toggle_v1';
 const COMPACT_FILTER_KEY = 'klaws_compact_filters_v1';
 const USAGE_START_KEY = 'klaws_usage_start_v1';
+const FORM_TAXONOMY_PREF_KEY = 'klaws_form_taxonomy_pref_v1';
+const LAST_VIEW_STATE_KEY = 'klaws_last_view_state_v1';
 const SYNC_KEY = 'klaws_sync_v1', SYNC_FILE = 'klaws_data.json';
 const AI_MODELS = [
   {id:'openrouter/free', label:'🔀 自動選最佳免費模型（推薦）'},
@@ -117,6 +119,57 @@ const on = (id, evt, fn) => { const el=g(id); if(el) el.addEventListener(evt,fn)
 const val = id => { const el=g(id); return el?el.value:''; };
 const debounce = (fn,ms) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; };
 const showToast = m => { let t=g('toast'); t.textContent=m; t.style.display='block'; setTimeout(()=>t.style.display='none',2200); };
+function loadFormTaxonomyPref(){
+  try{
+    const raw=JSON.parse(localStorage.getItem(FORM_TAXONOMY_PREF_KEY)||'{}');
+    const subject=typeof raw.subject==='string'?raw.subject:'';
+    const chapter=typeof raw.chapter==='string'?raw.chapter:'';
+    const section=typeof raw.section==='string'?raw.section:'';
+    return {subject,chapter,section};
+  }catch(e){
+    return {subject:'',chapter:'',section:''};
+  }
+}
+function saveFormTaxonomyPref(subject='', chapter='', section=''){
+  localStorage.setItem(FORM_TAXONOMY_PREF_KEY,JSON.stringify({
+    subject:safeStr(subject),
+    chapter:safeStr(chapter),
+    section:safeStr(section)
+  }));
+}
+function saveLastViewState(){
+  const view=(currentView==='map'||currentView==='calendar'||currentView==='level')?currentView:'notes';
+  const mapStack=(view==='map'&&Array.isArray(mapPageStack))?mapPageStack.filter(id=>noteById(id)).slice(-12):[];
+  localStorage.setItem(LAST_VIEW_STATE_KEY,JSON.stringify({view,mapPageStack:mapStack}));
+}
+function restoreLastViewState(){
+  let state={view:'notes',mapPageStack:[]};
+  try{
+    const raw=JSON.parse(localStorage.getItem(LAST_VIEW_STATE_KEY)||'{}');
+    if(['notes','map','calendar','level'].includes(raw.view)) state.view=raw.view;
+    if(Array.isArray(raw.mapPageStack)) state.mapPageStack=raw.mapPageStack.map(v=>parseInt(v,10)).filter(id=>noteById(id));
+  }catch(e){}
+  if(state.view==='map'){
+    toggleMapView(true);
+    if(state.mapPageStack.length){
+      mapPageStack=state.mapPageStack.slice();
+      updateMapPagePath();
+      nodePos={};
+      forceLayout();
+      drawMap();
+    }
+    return;
+  }
+  if(state.view==='calendar'){
+    toggleCalendarView(true);
+    return;
+  }
+  if(state.view==='level'){
+    toggleLevelSystemView(true);
+    return;
+  }
+  toggleMapView(false);
+}
 function playFocusTimerAlarm(){
   try{
     const Ctx=window.AudioContext||window.webkitAudioContext;
@@ -1120,8 +1173,15 @@ function openForm(isEdit) {
   } else {
     g('form-title').textContent='新增筆記';
   ['fti'].forEach(id=>{const el=g(id);if(el)el.value='';});
-    const defaultSub=subjects[0]?subjects[0].key:null;
-    if(defaultSub){setSelectedValues('fs2',[defaultSub]);syncChapterSelect([defaultSub],[]);syncSectionSelect([],[],[defaultSub]);}
+    const pref=loadFormTaxonomyPref();
+    const defaultSub=(pref.subject&&subjects.some(s=>s.key===pref.subject))?pref.subject:(subjects[0]?subjects[0].key:null);
+    if(defaultSub){
+      setSelectedValues('fs2',[defaultSub]);
+      const defaultChapter=(pref.chapter&&chaptersBySubjects([defaultSub]).some(ch=>ch.key===pref.chapter))?pref.chapter:'';
+      syncChapterSelect([defaultSub],defaultChapter?[defaultChapter]:[]);
+      const defaultSection=(pref.section&&sectionsByChapters(defaultChapter?[defaultChapter]:[]).some(sec=>sec.key===pref.section))?pref.section:'';
+      syncSectionSelect(defaultChapter?[defaultChapter]:[],defaultSection?[defaultSection]:[],[defaultSub]);
+    }
     else{setSelectedValues('fs2',[]);syncChapterSelect([],[]);syncSectionSelect([],[],[]);}
     renderDynamicFields(g('ft').value,null);
   }
@@ -1289,6 +1349,7 @@ function saveNote() {
   const primarySubject=selectedSubs[0]||'';
   const primaryChapter=selectedChs[0]||'';
   const primarySection=selectedSecs[0]||'';
+  saveFormTaxonomyPref(primarySubject,primaryChapter,primarySection);
   if(editMode&&openId) {
     const idx=notes.findIndex(n=>n.id===openId);
     const selectedIdNums=Object.keys(selectedIds||{}).map(Number).filter(id=>selectedIds[id]);
@@ -2042,6 +2103,7 @@ function toggleMapView(open) {
     updateMapPagePath();
     setTimeout(()=>{const hadNodePos=Object.keys(nodePos).length>0;initNodePos();drawMap();if(!hadNodePos)saveData();},80);
   } else { mapPageStack=[];updateMapPagePath();closeLanePanel();closeMapPopup(); }
+  saveLastViewState();
 }
 
 // ==================== 統計 ====================
@@ -2058,6 +2120,7 @@ function toggleCalendarView(open){
   ['dp','fp','tp'].forEach(id=>g(id)?.classList.remove('open'));
   g('calendarView').classList.toggle('open',open);
   if(open) renderCalendar();
+  saveLastViewState();
 }
 function toggleLevelSystemView(open){
   currentView=open?'level':'notes';
@@ -2071,6 +2134,7 @@ function toggleLevelSystemView(open){
   const advanced=g('filterAdvanced');
   if(advanced) advanced.style.display=open?'none':'block';
   if(open) renderLevelSystemPage();
+  saveLastViewState();
 }
 function renderCalendar(){
   const y=calendarCursor.getFullYear(),m=calendarCursor.getMonth();
@@ -2475,6 +2539,7 @@ function enterMapSubpage(rootId){
   forceLayout();
   drawMap();
   saveDataDeferred();
+  saveLastViewState();
 }
 function leaveMapSubpage(){
   if(!mapPageStack.length) return false;
@@ -2484,6 +2549,7 @@ function leaveMapSubpage(){
   forceLayout();
   drawMap();
   saveDataDeferred();
+  saveLastViewState();
   return true;
 }
 function removeRootFromPageStack(rootId){
@@ -3108,5 +3174,5 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   if(!window.Email){const sc=document.createElement('script');sc.src='https://smtpjs.com/v3/smtp.js';document.head.appendChild(sc);}
   clearInterval(reminderTimer); reminderTimer=setInterval(checkReminders,30000); checkReminders();
   render();
-  setTimeout(()=>toggleMapView(true),120);
+  setTimeout(restoreLastViewState,120);
 });

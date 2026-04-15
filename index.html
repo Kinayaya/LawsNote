@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>KLaws</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MiA1MiI+PHJlY3Qgd2lkdGg9IjUyIiBoZWlnaHQ9IjUyIiByeD0iMTQiIGZpbGw9IiMwZjE3MmEiLz48cGF0aCBkPSJNMTQgMTIgTDE0IDQwIEwxOSA0MCBMMTkgMjggTDMyIDQwIEwzOCA0MCBMMjQgMjUgTDM3IDEyIEwzMSAxMiBMMTkgMjQgTDE5IDEyIFoiIGZpbGw9IiM0YTllZmYiLz48Y2lyY2xlIGN4PSI0MCIgY3k9IjEzIiByPSIzIiBmaWxsPSIjOTNjNWZkIiBvcGFjaXR5PSIwLjciLz48L3N2Zz4=">
+<link rel="icon" type="image/svg+xml" href='data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%25" stop-color="%23060c1f"/><stop offset="100%25" stop-color="%230f2a59"/></linearGradient></defs><rect width="52" height="52" rx="14" fill="url(%23g)"/><path d="M15 10V42H21V30L34 42H41L26 26L40 10H33L21 22V10Z" fill="%23e6f0ff"/><path d="M15 10V42H18V10Z" fill="%237eaef8" opacity="0.75"/></svg>'>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -13,9 +13,15 @@
     <div class="brand-wrap">
       <div class="klaws-logo" aria-label="KLaws">
         <svg width="34" height="34" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="52" height="52" rx="14" fill="#0f172a"/>
-          <path d="M14 12 L14 40 L19 40 L19 28 L32 40 L38 40 L24 25 L37 12 L31 12 L19 24 L19 12 Z" fill="#4a9eff"/>
-          <circle cx="40" cy="13" r="3" fill="#93c5fd" opacity="0.7"/>
+          <defs>
+            <linearGradient id="logoBg" x1="4" y1="4" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#060C1F"/>
+              <stop offset="1" stop-color="#0F2A59"/>
+            </linearGradient>
+          </defs>
+          <rect width="52" height="52" rx="14" fill="url(#logoBg)"/>
+          <path d="M15 10V42H21V30L34 42H41L26 26L40 10H33L21 22V10Z" fill="#E6F0FF"/>
+          <path d="M15 10V42H18V10Z" fill="#7EAEF8" opacity="0.75"/>
         </svg>
       </div>
       <div class="brand-text"><span class="brand-name">KLaws</span><span class="brand-by">by Kina</span></div>
@@ -271,7 +277,6 @@
 <!-- Map View -->
 <div id="mapView">
   <div id="mapToolbar">
-    <span style="font-size:13px;font-weight:600;flex-shrink:0;">&#128279; 體系圖</span>
     <button class="tool-btn map-primary-action" id="mapAddNoteBtn">+ 新增筆記</button>
     <div class="map-search-wrap">
       <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:#aaa;font-size:12px;pointer-events:none;">&#128269;</span>
@@ -280,7 +285,6 @@
     <select id="mapFilterSub" class="map-filter-sel"><option value="all">全部科目</option></select>
     <select id="mapFilterChapter" class="map-filter-sel"><option value="all">全部章</option></select>
     <select id="mapFilterSection" class="map-filter-sel"><option value="all">全部節</option></select>
-    <span id="mapPinnedChapter" class="map-pinned-chapter">章：未設定</span>
     <button class="tool-btn" id="mapAdvancedToggleBtn" style="background:#f5f5f5;color:#555;border-color:#ddd;">⚙️ 進階</button>
     <button class="tool-btn" id="mapAutoBtn">&#10024; 自動排列</button>
     <button class="tool-btn map-adv-item" id="mapLinkedOnlyBtn" style="background:#3B6D11;color:#fff;border-color:#3B6D11;">&#128279; 只顯示關聯</button>

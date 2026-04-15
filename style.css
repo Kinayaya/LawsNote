@@ -344,6 +344,13 @@ body.compact-filters .filter-row,body.compact-filters #subbar,body.compact-filte
 /* Calendar */
 #calendarView{display:none;padding:12px 14px 18px}
 #calendarView.open{display:block}
+#levelSystemView{display:none;padding:12px 14px 18px}
+#levelSystemView.open{display:block}
+#levelSystemPanel{background:#f8fafc;border:1px solid #edf2f7;border-radius:10px;padding:10px}
+.level-list-row-actions{display:flex;gap:4px;align-items:center}
+.level-list-row-actions .tool-btn{padding:4px 8px;font-size:11px}
+.level-section-title{font-size:11px;font-weight:700;color:#888;margin:12px 0 6px}
+.level-subtext{font-size:11px;color:#7d8aa0;margin:-3px 0 5px 100px}
 .calendar-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid #e6ebf2;border-radius:12px;padding:10px;margin-bottom:8px}
 #calendarTitle{font-size:20px;font-weight:800;color:#1f2937;margin-right:auto}
 .calendar-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;color:#6b7280;font-size:12px;text-align:center}

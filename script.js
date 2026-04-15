@@ -21,7 +21,6 @@ const ARCHIVES_KEY = 'klaws_archives_v1';
 const SCOPE_LINKED_TOGGLE_KEY = 'klaws_scope_linked_toggle_v1';
 const COMPACT_FILTER_KEY = 'klaws_compact_filters_v1';
 const USAGE_START_KEY = 'klaws_usage_start_v1';
-const ACHIEVEMENT_SCORE_PER_TASK = 2;
 const SYNC_KEY = 'klaws_sync_v1', SYNC_FILE = 'klaws_data.json';
 const AI_MODELS = [
   {id:'openrouter/free', label:'🔀 自動選最佳免費模型（推薦）'},
@@ -83,16 +82,13 @@ let reminderTimer=null, reminderSent={};
 let reminderDismissed={};
 let editingCalendarEventId=null;
 let focusTimerRemainingSec=1500, focusTimerInterval=null, focusTimerRunning=false;
-let achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0};
-
-const ACHIEVEMENT_DEFS=[
-  {id:'task_first',label:'任務啟程',desc:'首次完成任務',type:'task',threshold:1,points:10},
-  {id:'task_ten',label:'十連達成',desc:'累積完成 10 次任務',type:'task',threshold:10,points:30},
-  {id:'task_fifty',label:'任務鍛鍊',desc:'累積完成 50 次任務',type:'task',threshold:50,points:80},
-  {id:'task_two_hundred',label:'高效實戰',desc:'累積完成 200 次任務',type:'task',threshold:200,points:220},
-  {id:'usage_one_hour',label:'專注一小時',desc:'累積使用達 1 小時',type:'usage',threshold:60,points:20},
-  {id:'usage_five_hours',label:'持續學習',desc:'累積使用達 5 小時',type:'usage',threshold:300,points:70},
-  {id:'usage_twenty_hours',label:'長線耕耘',desc:'累積使用達 20 小時',type:'usage',threshold:1200,points:200}
+let achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0}; // backward compatibility for legacy data
+let levelSystem={skills:[],tasks:[],achievements:[],settings:{xpByDifficulty:{E:12,N:22,H:36},inactiveDays:7,decayLevels:1,decayDifficulty:'N'}};
+const LEVEL_STAGES=[
+  {min:0,max:20,rank:'E'},{min:21,max:40,rank:'F'},{min:41,max:50,rank:'D'},
+  {min:51,max:60,rank:'C'},{min:61,max:70,rank:'B'},{min:71,max:80,rank:'B+'},
+  {min:81,max:85,rank:'A'},{min:86,max:90,rank:'A+'},{min:91,max:98,rank:'S'},
+  {min:99,max:99,rank:'SS'},{min:100,max:100,rank:'SSS'}
 ];
 const TITLE_LEVELS=[
   {min:0,name:'初心學徒',effect:'fx-none'},
@@ -302,7 +298,7 @@ const setMapCenterForCurrentScope = id => {
   mapCenterNodeIds[getMapCenterContextKey()]=id;
   mapCenterNodeId=id;
 };
-const getPayload = () => ({notes,links,nid,lid,types,subjects,chapters,sections,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,mapSubpages,typeFieldConfigs,customFieldDefs,calendarEvents,calendarSettings,achievements,panelDir:getPanelDir(),updatedAt:new Date().toISOString()});
+const getPayload = () => ({notes,links,nid,lid,types,subjects,chapters,sections,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,mapSubpages,typeFieldConfigs,customFieldDefs,calendarEvents,calendarSettings,achievements,levelSystem,panelDir:getPanelDir(),updatedAt:new Date().toISOString()});
 const parseUpdatedAt = raw => {
   const n=Date.parse(raw||'');
   return Number.isFinite(n)?n:0;
@@ -413,7 +409,7 @@ const formatUsageDuration = (startRaw,endRaw=new Date()) => {
 const usageMinutesSinceStart = () => Math.max(0,Math.floor((new Date()-new Date(ensureUsageStart()))/60000));
 const doneTodoCount = todos => (Array.isArray(todos)?todos:[]).filter(t=>t&&t.done&&safeStr(t.text).trim()).length;
 function getCurrentTitle(){
-  const pts=Math.max(0,Number(achievements.points)||0);
+  const pts=Math.max(0,Number(getLevelAchievementPoints())||0);
   return TITLE_LEVELS.reduce((pick,lvl)=>pts>=lvl.min?lvl:pick,TITLE_LEVELS[0]);
 }
 function applyBrandTitle(){
@@ -423,6 +419,8 @@ function applyBrandTitle(){
   el.textContent=lvl.name;
   el.classList.remove('fx-glow','fx-spark','fx-aurora');
   if(lvl.effect&&lvl.effect!=='fx-none') el.classList.add(lvl.effect);
+  const header=g('headerAchievementWrap');
+  if(header) header.textContent=`成就點數：${getLevelAchievementPoints()}｜已解鎖：${(levelSystem.achievements||[]).filter(a=>a.unlocked).length}`;
 }
 function normalizeAchievements(){
   const base=(achievements&&typeof achievements==='object')?achievements:{};
@@ -433,26 +431,92 @@ function normalizeAchievements(){
     lastUsageMinuteReward:Math.max(0,parseInt(base.lastUsageMinuteReward,10)||0)
   };
 }
-function unlockAchievement(def){
-  achievements.unlocked[def.id]=true;
-  achievements.points+=def.points;
+const difficultyRank=d=>({E:1,N:2,H:3}[d]||1);
+const skillXpRequired=level=>Math.round(28+Math.max(1,level)*10);
+const getSkillStage=(lvl=0)=>LEVEL_STAGES.find(s=>lvl>=s.min&&lvl<=s.max)?.rank||'E';
+const getLevelAchievementPoints=()=>((levelSystem.achievements||[]).filter(a=>a.unlocked).reduce((sum,a)=>sum+(Number(a.points)||0),0));
+function normalizeLevelSystem(){
+  const base=(levelSystem&&typeof levelSystem==='object')?levelSystem:{};
+  const settings=(base.settings&&typeof base.settings==='object')?base.settings:{};
+  levelSystem={
+    skills:Array.isArray(base.skills)?base.skills:[],
+    tasks:Array.isArray(base.tasks)?base.tasks:[],
+    achievements:Array.isArray(base.achievements)?base.achievements:[],
+    settings:{
+      xpByDifficulty:{
+        E:Math.max(1,parseInt(settings.xpByDifficulty?.E,10)||12),
+        N:Math.max(1,parseInt(settings.xpByDifficulty?.N,10)||22),
+        H:Math.max(1,parseInt(settings.xpByDifficulty?.H,10)||36)
+      },
+      inactiveDays:Math.max(1,parseInt(settings.inactiveDays,10)||7),
+      decayLevels:Math.max(1,parseInt(settings.decayLevels,10)||1),
+      decayDifficulty:['E','N','H'].includes(settings.decayDifficulty)?settings.decayDifficulty:'N'
+    }
+  };
+  levelSystem.skills=levelSystem.skills.map(s=>({id:s.id||Date.now()+Math.random(),name:safeStr(s.name||'未命名技能'),level:Math.max(0,Math.min(100,parseInt(s.level,10)||1)),xp:Math.max(0,parseInt(s.xp,10)||0),lastDoneByDiff:(s.lastDoneByDiff&&typeof s.lastDoneByDiff==='object')?s.lastDoneByDiff:{},lastDecayAt:s.lastDecayAt||new Date().toISOString()}));
+  levelSystem.tasks=levelSystem.tasks.map(t=>({id:t.id||Date.now()+Math.random(),name:safeStr(t.name||'未命名任務'),difficulty:['E','N','H'].includes(t.difficulty)?t.difficulty:'N',completions:Math.max(0,parseInt(t.completions,10)||0),lastCompletedAt:t.lastCompletedAt||''}));
+  levelSystem.achievements=levelSystem.achievements.map(a=>({id:a.id||Date.now()+Math.random(),name:safeStr(a.name||'未命名成就'),target:Math.max(1,parseInt(a.target,10)||1),condition:safeStr(a.condition||'累積完成任務次數'),points:Math.max(0,parseInt(a.points,10)||0),effect:safeStr(a.effect||''),progress:Math.max(0,parseInt(a.progress,10)||0),unlocked:!!a.unlocked}));
 }
-function awardTaskCompletions(delta){
-  const add=Math.max(0,parseInt(delta,10)||0);
-  if(!add) return;
-  achievements.taskCompletions+=add;
-  achievements.points+=add*ACHIEVEMENT_SCORE_PER_TASK;
+function migrateLegacyAchievements(){
+  if(levelSystem.achievements.length) return;
+  normalizeAchievements();
+  const legacyDefs=[
+    {name:'任務啟程',target:1,condition:'累積完成任務次數',points:10,effect:'fx-none',progress:achievements.taskCompletions},
+    {name:'十連達成',target:10,condition:'累積完成任務次數',points:30,effect:'fx-glow',progress:achievements.taskCompletions},
+    {name:'專注一小時',target:60,condition:'累積使用分鐘',points:20,effect:'fx-spark',progress:usageMinutesSinceStart()}
+  ];
+  levelSystem.achievements=legacyDefs.map((d,i)=>({id:`legacy_${i}`,...d,unlocked:d.progress>=d.target}));
 }
 function refreshAchievementProgress(){
-  normalizeAchievements();
-  const mins=usageMinutesSinceStart();
-  if(mins>achievements.lastUsageMinuteReward) achievements.lastUsageMinuteReward=mins;
-  ACHIEVEMENT_DEFS.forEach(def=>{
-    if(achievements.unlocked[def.id]) return;
-    const value=def.type==='task'?achievements.taskCompletions:achievements.lastUsageMinuteReward;
-    if(value>=def.threshold) unlockAchievement(def);
+  normalizeLevelSystem();
+  const usageMins=usageMinutesSinceStart();
+  const totalTaskCompletions=(levelSystem.tasks||[]).reduce((sum,t)=>sum+(Number(t.completions)||0),0);
+  levelSystem.achievements.forEach(def=>{
+    const value=def.condition.includes('分鐘')?usageMins:totalTaskCompletions;
+    def.progress=Math.max(def.progress||0,value);
+    if(!def.unlocked&&def.progress>=def.target) def.unlocked=true;
   });
+}
+function applySkillDecay(){
+  const now=Date.now();
+  const needMs=Math.max(1,levelSystem.settings.inactiveDays)*86400000;
+  const decayFloor=levelSystem.settings.decayDifficulty;
+  levelSystem.skills.forEach(skill=>{
+    const lastBy=skill.lastDoneByDiff||{};
+    const candidates=['E','N','H'].filter(difficulty=>difficultyRank(difficulty)>=difficultyRank(decayFloor)).map(difficulty=>Date.parse(lastBy[difficulty]||0)).filter(Number.isFinite);
+    const lastActive=candidates.length?Math.max(...candidates):0;
+    if(!lastActive) return;
+    const elapsed=now-lastActive;
+    const passed=Math.floor(elapsed/needMs);
+    if(passed<=0) return;
+    const lastDecayAt=Date.parse(skill.lastDecayAt||0);
+    if(Number.isFinite(lastDecayAt)&&now-lastDecayAt<needMs) return;
+    skill.level=Math.max(0,skill.level-passed*levelSystem.settings.decayLevels);
+    skill.xp=0;
+    skill.lastDecayAt=new Date(now).toISOString();
+  });
+}
+function completeLevelTask(taskId,skillId){
+  const task=levelSystem.tasks.find(t=>String(t.id)===String(taskId));
+  const skill=levelSystem.skills.find(s=>String(s.id)===String(skillId));
+  if(!task||!skill) return false;
+  const nowIso=new Date().toISOString();
+  task.completions=(task.completions||0)+1;
+  task.lastCompletedAt=nowIso;
+  const gain=levelSystem.settings.xpByDifficulty[task.difficulty]||12;
+  skill.xp=(skill.xp||0)+gain;
+  skill.lastDoneByDiff=skill.lastDoneByDiff||{};
+  skill.lastDoneByDiff[task.difficulty]=nowIso;
+  while(skill.level<100){
+    const need=skillXpRequired(skill.level);
+    if(skill.xp<need) break;
+    skill.xp-=need;
+    skill.level++;
+  }
+  if(skill.level>=100){skill.level=100;skill.xp=0;}
+  refreshAchievementProgress();
   applyBrandTitle();
+  return true;
 }
 
 function normalizeNoteIds(forceReindexAll=false) {
@@ -544,6 +608,10 @@ function loadData() {
       if(typeof calendarSettings.smtpToken!=='string') calendarSettings.smtpToken='';
       if(typeof calendarSettings.emailFrom!=='string') calendarSettings.emailFrom='';
       achievements=(d.achievements&&typeof d.achievements==='object'&&!Array.isArray(d.achievements))?d.achievements:{points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0};
+      levelSystem=(d.levelSystem&&typeof d.levelSystem==='object'&&!Array.isArray(d.levelSystem))?d.levelSystem:{skills:[],tasks:[],achievements:[],settings:{xpByDifficulty:{E:12,N:22,H:36},inactiveDays:7,decayLevels:1,decayDifficulty:'N'}};
+      normalizeLevelSystem();
+      migrateLegacyAchievements();
+      applySkillDecay();
       normalizeAchievements();
       calendarEvents=calendarEvents.map(ev=>({ ...ev, dueHour:Math.min(23,Math.max(0,parseInt(ev.dueHour,10)||9)), dueMinute:Math.min(59,Math.max(0,parseInt(ev.dueMinute,10)||0)) }));
       Object.keys(customFieldDefs).forEach(key=>{
@@ -570,10 +638,10 @@ function loadData() {
       applyPanelDir(d.panelDir||getPanelDir());
       lastSavedPayloadRaw=JSON.stringify(getPayload());
     } else {
-      notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};calendarEvents=[];calendarSettings={emails:[]};achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());saveData();
+      notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};calendarEvents=[];calendarSettings={emails:[]};achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0};levelSystem={skills:[],tasks:[],achievements:[],settings:{xpByDifficulty:{E:12,N:22,H:36},inactiveDays:7,decayLevels:1,decayDifficulty:'N'}};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());saveData();
     }
   } catch(e) {
-    notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};calendarEvents=[];calendarSettings={emails:[]};achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());
+    notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};calendarEvents=[];calendarSettings={emails:[]};achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0};levelSystem={skills:[],tasks:[],achievements:[],settings:{xpByDifficulty:{E:12,N:22,H:36},inactiveDays:7,decayLevels:1,decayDifficulty:'N'}};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());
   }
 }
 function saveData() {
@@ -1130,7 +1198,9 @@ function saveNote() {
     const prevDone=idx!==-1?doneTodoCount(notes[idx].todos):0;
     if(idx!==-1) notes[idx]=normalizeNoteSchema({...notes[idx],type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,body:fieldData.body,detail:fieldData.detail,tags:fieldData.tags,todos:fieldData.todos,extraFields:fieldData.extraFields});
     const nextDone=idx!==-1?doneTodoCount(notes[idx].todos):0;
-    awardTaskCompletions(Math.max(0,nextDone-prevDone));
+    if(nextDone>prevDone&&levelSystem.tasks.length&&levelSystem.skills.length){
+      completeLevelTask(levelSystem.tasks[0].id,levelSystem.skills[0].id);
+    }
     refreshAchievementProgress();
     if(shouldSyncMeta){
       selectedIdNums.forEach(id=>{
@@ -1145,7 +1215,9 @@ function saveNote() {
   } else {
     const d=new Date(),dt=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const newNote=normalizeNoteSchema({id:nid++,type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,body:fieldData.body,detail:fieldData.detail,tags:fieldData.tags,date:dt,todos:fieldData.todos,extraFields:fieldData.extraFields});
-    awardTaskCompletions(doneTodoCount(newNote.todos));
+    if(doneTodoCount(newNote.todos)>0&&levelSystem.tasks.length&&levelSystem.skills.length){
+      completeLevelTask(levelSystem.tasks[0].id,levelSystem.skills[0].id);
+    }
     refreshAchievementProgress();
     notes.unshift(newNote);openId=newNote.id;
     saveData();closeForm();render();showToast('筆記已儲存！');
@@ -1233,21 +1305,33 @@ function openTagMgr() {
 function renderTagStats(){
   const box=g('tagStatsPanel');
   if(!box) return;
+  normalizeLevelSystem();
+  applySkillDecay();
+  refreshAchievementProgress();
   const total=notes.length,byT={},byS={};
   notes.forEach(n=>{byT[n.type]=(byT[n.type]||0)+1;noteSubjects(n).forEach(sk=>{byS[sk]=(byS[sk]||0)+1;});});
   const lnk={};links.forEach(l=>{lnk[l.from]=true;lnk[l.to]=true;});
-  refreshAchievementProgress();
-  const usageMins=usageMinutesSinceStart();
   const usageText=formatUsageDuration(ensureUsageStart());
-  const unlockedCount=Object.keys(achievements.unlocked||{}).length;
+  const unlockedCount=(levelSystem.achievements||[]).filter(a=>a.unlocked).length;
   const titleInfo=getCurrentTitle();
+  const allTaskCount=(levelSystem.tasks||[]).reduce((sum,t)=>sum+(Number(t.completions)||0),0);
   let html=`<div class="stats-grid"><div class="stat-card"><div class="stat-num">${total}</div><div class="stat-lbl">筆記總數</div></div><div class="stat-card"><div class="stat-num">${Object.keys(lnk).length}</div><div class="stat-lbl">有關聯筆記</div></div><div class="stat-card"><div class="stat-num">${subjects.length}</div><div class="stat-lbl">科目數</div></div></div><div class="usage-time">已使用 KLaws：${usageText}</div>`;
-  html+=`<div style="margin-top:10px;padding:10px;border:1px solid #e8edf6;border-radius:10px;background:#f8fbff;"><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;"><span class="brand-title ${titleInfo.effect==='fx-none'?'':titleInfo.effect}">${titleInfo.name}</span><span style="font-size:12px;color:#445;">成就點數：<b>${achievements.points}</b></span><span style="font-size:12px;color:#445;">任務完成：<b>${achievements.taskCompletions}</b> 次</span><span style="font-size:12px;color:#445;">已解鎖：<b>${unlockedCount}</b> 項</span></div></div>`;
+  html+=`<div style="margin-top:10px;padding:10px;border:1px solid #e8edf6;border-radius:10px;background:#f8fbff;"><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;"><span class="brand-title ${titleInfo.effect==='fx-none'?'':titleInfo.effect}">${titleInfo.name}</span><span style="font-size:12px;color:#445;">等級成就點數：<b>${getLevelAchievementPoints()}</b></span><span style="font-size:12px;color:#445;">任務完成：<b>${allTaskCount}</b> 次</span><span style="font-size:12px;color:#445;">已解鎖：<b>${unlockedCount}</b> 項</span></div></div>`;
+  html+=`<div class="level-toolbar"><button class="tool-btn" id="addSkillBtn">+ 技能</button><button class="tool-btn" id="addTaskBtn">+ 任務</button><button class="tool-btn" id="completeTaskBtn">完成任務</button><button class="tool-btn" id="addAchievementBtn">+ 成就</button><button class="tool-btn" id="levelSettingsBtn">⚙️ 衰退設定</button></div>`;
   html+=`<div style="font-size:11px;font-weight:700;color:#888;margin:10px 0 6px;">各科目筆記數</div>`;
   Object.keys(byS).sort((a,b)=>byS[b]-byS[a]).forEach(sk=>{const s=subByKey(sk),c=byS[sk],p=total?Math.round(c/total*100):0;html+=`<div class="stats-bar-row"><span class="stats-bar-label">${s.label}</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${p}%;background:${s.color}"></div></div><span class="stats-bar-count">${c}</span></div>`;});
+  html+=`<div style="font-size:11px;font-weight:700;color:#888;margin:12px 0 6px;">技能（最高 100 級）</div>`;
+  html+=(levelSystem.skills.length?levelSystem.skills.map(skill=>{const need=skill.level>=100?0:skillXpRequired(skill.level);const pct=need?Math.round((skill.xp||0)/need*100):100;return `<div class="stats-bar-row"><span class="stats-bar-label" style="min-width:112px;">${escapeHtml(skill.name)} Lv.${skill.level} (${getSkillStage(skill.level)})</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${Math.max(0,Math.min(100,pct))}%;background:#3B6D11"></div></div><span class="stats-bar-count" style="min-width:64px;">${skill.level>=100?'MAX':`${skill.xp||0}/${need}`}</span></div>`;}).join(''):'<div style="color:#9aa3b2;font-size:12px;">尚無技能，請先新增。</div>');
+  html+=`<div style="font-size:11px;font-weight:700;color:#888;margin:12px 0 6px;">任務（E/N/H）</div>`;
+  html+=(levelSystem.tasks.length?levelSystem.tasks.map(task=>`<div class="stats-bar-row"><span class="stats-bar-label" style="min-width:112px;">${escapeHtml(task.name)} [${task.difficulty}]</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${Math.min(100,(task.completions||0)*8)}%;background:#9cb8d8"></div></div><span class="stats-bar-count" style="min-width:64px;">${task.completions||0} 次</span></div>`).join(''):'<div style="color:#9aa3b2;font-size:12px;">尚無任務，請先新增。</div>');
   html+=`<div style="font-size:11px;font-weight:700;color:#888;margin:12px 0 6px;">成就進度</div>`;
-  html+=ACHIEVEMENT_DEFS.map(def=>{const value=def.type==='task'?achievements.taskCompletions:usageMins;const unlocked=!!achievements.unlocked[def.id];const pct=Math.max(0,Math.min(100,Math.round(value/def.threshold*100)));return `<div class="stats-bar-row"><span class="stats-bar-label" style="min-width:92px;">${def.label}</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${unlocked?100:pct}%;background:${unlocked?'#3B6D11':'#9cb8d8'}"></div></div><span class="stats-bar-count" style="min-width:64px;">${unlocked?'✓':'+'+def.points}</span></div><div style="font-size:11px;color:#7d8aa0;margin:-3px 0 5px 100px;">${def.desc}（${Math.min(value,def.threshold)}/${def.threshold}${def.type==='usage'?' 分鐘':''}）</div>`;}).join('');
+  html+=(levelSystem.achievements.length?levelSystem.achievements.map(def=>{const unlocked=!!def.unlocked;const pct=Math.max(0,Math.min(100,Math.round((def.progress||0)/def.target*100)));return `<div class="stats-bar-row"><span class="stats-bar-label" style="min-width:92px;">${escapeHtml(def.name)}</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${unlocked?100:pct}%;background:${unlocked?'#3B6D11':'#9cb8d8'}"></div></div><span class="stats-bar-count" style="min-width:64px;">${unlocked?'✓':'+'+(def.points||0)}</span></div><div style="font-size:11px;color:#7d8aa0;margin:-3px 0 5px 100px;">${escapeHtml(def.condition)}（${Math.min(def.progress||0,def.target)}/${def.target}）${def.effect?`・特效：${escapeHtml(def.effect)}`:''}</div>`;}).join(''):'<div style="color:#9aa3b2;font-size:12px;">尚無成就，請先新增。</div>');
   box.innerHTML=html;
+  g('addSkillBtn')?.addEventListener('click',addSkillItem);
+  g('addTaskBtn')?.addEventListener('click',addTaskItem);
+  g('completeTaskBtn')?.addEventListener('click',completeTaskFromPrompt);
+  g('addAchievementBtn')?.addEventListener('click',addAchievementItem);
+  g('levelSettingsBtn')?.addEventListener('click',editLevelSettings);
 }
 function renderTagLists() {
   renderTagList('typeTagList',types,'type');
@@ -1467,6 +1551,55 @@ function addTag(kind) {
   if(isType) typeFieldConfigs[newKey]=getTypeFieldKeys(newKey);
   g(isType?'newTypeLabel':'newSubLabel').value='';
   saveData();renderTagLists();rebuildUI();showToast('標籤已新增！');
+}
+function addSkillItem(){
+  const name=safeStr(prompt('技能名稱：','法條理解力')||'').trim();
+  if(!name) return;
+  levelSystem.skills.push({id:Date.now()+Math.random(),name,level:1,xp:0,lastDoneByDiff:{},lastDecayAt:new Date().toISOString()});
+  saveData();renderTagStats();applyBrandTitle();showToast('技能已新增');
+}
+function addTaskItem(){
+  const name=safeStr(prompt('任務名稱：','每日複習')||'').trim();
+  if(!name) return;
+  const difficulty=safeStr(prompt('難度（E/N/H）：','N')||'').toUpperCase();
+  if(!['E','N','H'].includes(difficulty)){showToast('難度需為 E / N / H');return;}
+  levelSystem.tasks.push({id:Date.now()+Math.random(),name,difficulty,completions:0,lastCompletedAt:''});
+  saveData();renderTagStats();showToast('任務已新增');
+}
+function addAchievementItem(){
+  const name=safeStr(prompt('成就名稱：','穩定輸出')||'').trim();
+  if(!name) return;
+  const target=Math.max(1,parseInt(prompt('成就數量（達成門檻）：','10')||'10',10)||1);
+  const condition=safeStr(prompt('達成方式（例如：累積完成任務次數 / 累積使用分鐘）：','累積完成任務次數')||'').trim()||'累積完成任務次數';
+  const points=Math.max(0,parseInt(prompt('獲得點數：','30')||'30',10)||0);
+  const effect=safeStr(prompt('成就特效（可空白，如 fx-glow）：','')||'').trim();
+  levelSystem.achievements.push({id:Date.now()+Math.random(),name,target,condition,points,effect,progress:0,unlocked:false});
+  refreshAchievementProgress();
+  saveData();renderTagStats();applyBrandTitle();showToast('成就已新增');
+}
+function completeTaskFromPrompt(){
+  if(!levelSystem.tasks.length||!levelSystem.skills.length){showToast('請先新增至少 1 個任務與技能');return;}
+  const taskGuide=levelSystem.tasks.map((t,i)=>`${i+1}. ${t.name} [${t.difficulty}]`).join('\n');
+  const taskIdx=Math.max(1,parseInt(prompt(`選擇任務編號：\n${taskGuide}`,'1')||'1',10))-1;
+  const skillGuide=levelSystem.skills.map((s,i)=>`${i+1}. ${s.name}（Lv.${s.level}）`).join('\n');
+  const skillIdx=Math.max(1,parseInt(prompt(`選擇升級技能編號：\n${skillGuide}`,'1')||'1',10))-1;
+  const task=levelSystem.tasks[taskIdx],skill=levelSystem.skills[skillIdx];
+  if(!task||!skill){showToast('編號無效');return;}
+  if(!completeLevelTask(task.id,skill.id)){showToast('任務完成失敗');return;}
+  saveData();renderTagStats();
+  showToast(`+${levelSystem.settings.xpByDifficulty[task.difficulty]||0} EXP → ${skill.name}`);
+}
+function editLevelSettings(){
+  const inactiveDays=Math.max(1,parseInt(prompt('技能幾天未完成指定難度任務後開始衰退？',String(levelSystem.settings.inactiveDays))||String(levelSystem.settings.inactiveDays),10)||levelSystem.settings.inactiveDays);
+  const decayLevels=Math.max(1,parseInt(prompt('每次衰退下降幾級？',String(levelSystem.settings.decayLevels))||String(levelSystem.settings.decayLevels),10)||levelSystem.settings.decayLevels);
+  const decayDifficulty=safeStr(prompt('衰退判定難度（E/N/H，達成此難度以上視為有使用）：',levelSystem.settings.decayDifficulty)||levelSystem.settings.decayDifficulty).toUpperCase();
+  if(!['E','N','H'].includes(decayDifficulty)){showToast('難度需為 E / N / H');return;}
+  const eXp=Math.max(1,parseInt(prompt('E 難度經驗值：',String(levelSystem.settings.xpByDifficulty.E))||String(levelSystem.settings.xpByDifficulty.E),10)||levelSystem.settings.xpByDifficulty.E);
+  const nXp=Math.max(1,parseInt(prompt('N 難度經驗值：',String(levelSystem.settings.xpByDifficulty.N))||String(levelSystem.settings.xpByDifficulty.N),10)||levelSystem.settings.xpByDifficulty.N);
+  const hXp=Math.max(1,parseInt(prompt('H 難度經驗值：',String(levelSystem.settings.xpByDifficulty.H))||String(levelSystem.settings.xpByDifficulty.H),10)||levelSystem.settings.xpByDifficulty.H);
+  levelSystem.settings={...levelSystem.settings,inactiveDays,decayLevels,decayDifficulty,xpByDifficulty:{E:eXp,N:nXp,H:hXp}};
+  applySkillDecay();
+  saveData();renderTagStats();showToast('等級設定已更新');
 }
 
 // ==================== 匯入/匯出 ====================

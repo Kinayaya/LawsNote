@@ -21,6 +21,7 @@ const ARCHIVES_KEY = 'klaws_archives_v1';
 const SCOPE_LINKED_TOGGLE_KEY = 'klaws_scope_linked_toggle_v1';
 const COMPACT_FILTER_KEY = 'klaws_compact_filters_v1';
 const USAGE_START_KEY = 'klaws_usage_start_v1';
+const ACHIEVEMENT_SCORE_PER_TASK = 2;
 const SYNC_KEY = 'klaws_sync_v1', SYNC_FILE = 'klaws_data.json';
 const AI_MODELS = [
   {id:'openrouter/free', label:'🔀 自動選最佳免費模型（推薦）'},
@@ -33,7 +34,7 @@ const DEFAULT_SHORTCUTS = [
   {id:'new',label:'新增筆記',code:'KeyN',alt:true},{id:'search',label:'搜尋',code:'KeyF',alt:true},
   {id:'map',label:'開啟體系圖',code:'KeyM',alt:true},{id:'back',label:'返回筆記列表',code:'Escape'},
   {id:'close',label:'關閉面板',code:'KeyW',alt:true},{id:'edit',label:'編輯當前筆記',code:'KeyE',alt:true},
-  {id:'link',label:'新增關聯',code:'KeyL',alt:true},{id:'export',label:'匯出備份',code:'KeyS',alt:true},
+  {id:'link',label:'新增關聯',code:'KeyL',alt:true},{id:'export',label:'存檔管理',code:'KeyS',alt:true},
   {id:'shortcuts',label:'快捷鍵設定',code:'KeyK',alt:true},
   {id:'stats',label:'統計',code:'KeyI',alt:true}
 ];
@@ -82,6 +83,23 @@ let reminderTimer=null, reminderSent={};
 let reminderDismissed={};
 let editingCalendarEventId=null;
 let focusTimerRemainingSec=1500, focusTimerInterval=null, focusTimerRunning=false;
+let achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0};
+
+const ACHIEVEMENT_DEFS=[
+  {id:'task_first',label:'任務啟程',desc:'首次完成任務',type:'task',threshold:1,points:10},
+  {id:'task_ten',label:'十連達成',desc:'累積完成 10 次任務',type:'task',threshold:10,points:30},
+  {id:'task_fifty',label:'任務鍛鍊',desc:'累積完成 50 次任務',type:'task',threshold:50,points:80},
+  {id:'task_two_hundred',label:'高效實戰',desc:'累積完成 200 次任務',type:'task',threshold:200,points:220},
+  {id:'usage_one_hour',label:'專注一小時',desc:'累積使用達 1 小時',type:'usage',threshold:60,points:20},
+  {id:'usage_five_hours',label:'持續學習',desc:'累積使用達 5 小時',type:'usage',threshold:300,points:70},
+  {id:'usage_twenty_hours',label:'長線耕耘',desc:'累積使用達 20 小時',type:'usage',threshold:1200,points:200}
+];
+const TITLE_LEVELS=[
+  {min:0,name:'初心學徒',effect:'fx-none'},
+  {min:80,name:'條文旅人',effect:'fx-glow'},
+  {min:220,name:'判解鍛造者',effect:'fx-spark'},
+  {min:500,name:'Klaws 傳奇',effect:'fx-aurora'}
+];
 
 // ==================== 工具函數 ====================
 const g = id => document.getElementById(id);
@@ -278,7 +296,7 @@ const setMapCenterForCurrentScope = id => {
   mapCenterNodeIds[getMapCenterContextKey()]=id;
   mapCenterNodeId=id;
 };
-const getPayload = () => ({notes,links,nid,lid,types,subjects,chapters,sections,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,mapSubpages,typeFieldConfigs,customFieldDefs,calendarEvents,calendarSettings,panelDir:getPanelDir(),updatedAt:new Date().toISOString()});
+const getPayload = () => ({notes,links,nid,lid,types,subjects,chapters,sections,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,mapSubpages,typeFieldConfigs,customFieldDefs,calendarEvents,calendarSettings,achievements,panelDir:getPanelDir(),updatedAt:new Date().toISOString()});
 const parseUpdatedAt = raw => {
   const n=Date.parse(raw||'');
   return Number.isFinite(n)?n:0;
@@ -386,6 +404,51 @@ const formatUsageDuration = (startRaw,endRaw=new Date()) => {
   return parts.join('');
 };
 
+const usageMinutesSinceStart = () => Math.max(0,Math.floor((new Date()-new Date(ensureUsageStart()))/60000));
+const doneTodoCount = todos => (Array.isArray(todos)?todos:[]).filter(t=>t&&t.done&&safeStr(t.text).trim()).length;
+function getCurrentTitle(){
+  const pts=Math.max(0,Number(achievements.points)||0);
+  return TITLE_LEVELS.reduce((pick,lvl)=>pts>=lvl.min?lvl:pick,TITLE_LEVELS[0]);
+}
+function applyBrandTitle(){
+  const el=g('brandTitleBadge');
+  if(!el) return;
+  const lvl=getCurrentTitle();
+  el.textContent=lvl.name;
+  el.classList.remove('fx-glow','fx-spark','fx-aurora');
+  if(lvl.effect&&lvl.effect!=='fx-none') el.classList.add(lvl.effect);
+}
+function normalizeAchievements(){
+  const base=(achievements&&typeof achievements==='object')?achievements:{};
+  achievements={
+    points:Math.max(0,parseInt(base.points,10)||0),
+    taskCompletions:Math.max(0,parseInt(base.taskCompletions,10)||0),
+    unlocked:(base.unlocked&&typeof base.unlocked==='object'&&!Array.isArray(base.unlocked))?base.unlocked:{},
+    lastUsageMinuteReward:Math.max(0,parseInt(base.lastUsageMinuteReward,10)||0)
+  };
+}
+function unlockAchievement(def){
+  achievements.unlocked[def.id]=true;
+  achievements.points+=def.points;
+}
+function awardTaskCompletions(delta){
+  const add=Math.max(0,parseInt(delta,10)||0);
+  if(!add) return;
+  achievements.taskCompletions+=add;
+  achievements.points+=add*ACHIEVEMENT_SCORE_PER_TASK;
+}
+function refreshAchievementProgress(){
+  normalizeAchievements();
+  const mins=usageMinutesSinceStart();
+  if(mins>achievements.lastUsageMinuteReward) achievements.lastUsageMinuteReward=mins;
+  ACHIEVEMENT_DEFS.forEach(def=>{
+    if(achievements.unlocked[def.id]) return;
+    const value=def.type==='task'?achievements.taskCompletions:achievements.lastUsageMinuteReward;
+    if(value>=def.threshold) unlockAchievement(def);
+  });
+  applyBrandTitle();
+}
+
 function normalizeNoteIds(forceReindexAll=false) {
   const seen={}, duplicates=new Set();
   notes.forEach(n=>{
@@ -474,6 +537,8 @@ function loadData() {
       if(!Array.isArray(calendarSettings.emails)) calendarSettings.emails=[];
       if(typeof calendarSettings.smtpToken!=='string') calendarSettings.smtpToken='';
       if(typeof calendarSettings.emailFrom!=='string') calendarSettings.emailFrom='';
+      achievements=(d.achievements&&typeof d.achievements==='object'&&!Array.isArray(d.achievements))?d.achievements:{points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0};
+      normalizeAchievements();
       calendarEvents=calendarEvents.map(ev=>({ ...ev, dueHour:Math.min(23,Math.max(0,parseInt(ev.dueHour,10)||9)), dueMinute:Math.min(59,Math.max(0,parseInt(ev.dueMinute,10)||0)) }));
       Object.keys(customFieldDefs).forEach(key=>{
         const item=customFieldDefs[key]||{};
@@ -499,10 +564,10 @@ function loadData() {
       applyPanelDir(d.panelDir||getPanelDir());
       lastSavedPayloadRaw=JSON.stringify(getPayload());
     } else {
-      notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};calendarEvents=[];calendarSettings={emails:[]};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());saveData();
+      notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};calendarEvents=[];calendarSettings={emails:[]};achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());saveData();
     }
   } catch(e) {
-    notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};calendarEvents=[];calendarSettings={emails:[]};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());
+    notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};calendarEvents=[];calendarSettings={emails:[]};achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());
   }
 }
 function saveData() {
@@ -547,10 +612,12 @@ function saveArchives(arr){
   writeJSON(ARCHIVES_KEY,Array.isArray(arr)?arr:[]);
 }
 function manageArchives(){
-  const action=prompt('存檔管理：輸入 save（儲存目前資料）/ load（載入存檔）/ delete（刪除存檔）','save');
+  const action=prompt('存檔管理：輸入 save（存成快照）/ load（載入快照）/ delete（刪除快照）/ export（下載備份）/ import（匯入備份）','save');
   if(!action) return;
   const op=action.trim().toLowerCase();
   const archives=loadArchives();
+  if(op==='export'){exportData();return;}
+  if(op==='import'){const inp=g('importFile');if(inp) inp.click();return;}
   if(op==='save'){
     const name=(prompt('請輸入存檔名稱：',`存檔 ${new Date().toLocaleString('zh-TW')}`)||'').trim();
     if(!name){showToast('存檔名稱不可空白');return;}
@@ -1054,7 +1121,11 @@ function saveNote() {
     const idx=notes.findIndex(n=>n.id===openId);
     const selectedIdNums=Object.keys(selectedIds||{}).map(Number).filter(id=>selectedIds[id]);
     const shouldSyncMeta=multiSelMode&&selectedIds[openId]&&selectedIdNums.length>1;
+    const prevDone=idx!==-1?doneTodoCount(notes[idx].todos):0;
     if(idx!==-1) notes[idx]=normalizeNoteSchema({...notes[idx],type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,body:fieldData.body,detail:fieldData.detail,tags:fieldData.tags,todos:fieldData.todos,extraFields:fieldData.extraFields});
+    const nextDone=idx!==-1?doneTodoCount(notes[idx].todos):0;
+    awardTaskCompletions(Math.max(0,nextDone-prevDone));
+    refreshAchievementProgress();
     if(shouldSyncMeta){
       selectedIdNums.forEach(id=>{
         if(id===openId) return;
@@ -1068,6 +1139,8 @@ function saveNote() {
   } else {
     const d=new Date(),dt=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const newNote=normalizeNoteSchema({id:nid++,type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,body:fieldData.body,detail:fieldData.detail,tags:fieldData.tags,date:dt,todos:fieldData.todos,extraFields:fieldData.extraFields});
+    awardTaskCompletions(doneTodoCount(newNote.todos));
+    refreshAchievementProgress();
     notes.unshift(newNote);openId=newNote.id;
     saveData();closeForm();render();showToast('筆記已儲存！');
     if(isMapOpen) setTimeout(()=>openNote(newNote.id),120);
@@ -1157,10 +1230,17 @@ function renderTagStats(){
   const total=notes.length,byT={},byS={};
   notes.forEach(n=>{byT[n.type]=(byT[n.type]||0)+1;noteSubjects(n).forEach(sk=>{byS[sk]=(byS[sk]||0)+1;});});
   const lnk={};links.forEach(l=>{lnk[l.from]=true;lnk[l.to]=true;});
+  refreshAchievementProgress();
+  const usageMins=usageMinutesSinceStart();
   const usageText=formatUsageDuration(ensureUsageStart());
+  const unlockedCount=Object.keys(achievements.unlocked||{}).length;
+  const titleInfo=getCurrentTitle();
   let html=`<div class="stats-grid"><div class="stat-card"><div class="stat-num">${total}</div><div class="stat-lbl">筆記總數</div></div><div class="stat-card"><div class="stat-num">${Object.keys(lnk).length}</div><div class="stat-lbl">有關聯筆記</div></div><div class="stat-card"><div class="stat-num">${subjects.length}</div><div class="stat-lbl">科目數</div></div></div><div class="usage-time">已使用 KLaws：${usageText}</div>`;
+  html+=`<div style="margin-top:10px;padding:10px;border:1px solid #e8edf6;border-radius:10px;background:#f8fbff;"><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;"><span class="brand-title ${titleInfo.effect==='fx-none'?'':titleInfo.effect}">${titleInfo.name}</span><span style="font-size:12px;color:#445;">成就點數：<b>${achievements.points}</b></span><span style="font-size:12px;color:#445;">任務完成：<b>${achievements.taskCompletions}</b> 次</span><span style="font-size:12px;color:#445;">已解鎖：<b>${unlockedCount}</b> 項</span></div></div>`;
   html+=`<div style="font-size:11px;font-weight:700;color:#888;margin:10px 0 6px;">各科目筆記數</div>`;
   Object.keys(byS).sort((a,b)=>byS[b]-byS[a]).forEach(sk=>{const s=subByKey(sk),c=byS[sk],p=total?Math.round(c/total*100):0;html+=`<div class="stats-bar-row"><span class="stats-bar-label">${s.label}</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${p}%;background:${s.color}"></div></div><span class="stats-bar-count">${c}</span></div>`;});
+  html+=`<div style="font-size:11px;font-weight:700;color:#888;margin:12px 0 6px;">成就進度</div>`;
+  html+=ACHIEVEMENT_DEFS.map(def=>{const value=def.type==='task'?achievements.taskCompletions:usageMins;const unlocked=!!achievements.unlocked[def.id];const pct=Math.max(0,Math.min(100,Math.round(value/def.threshold*100)));return `<div class="stats-bar-row"><span class="stats-bar-label" style="min-width:92px;">${def.label}</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${unlocked?100:pct}%;background:${unlocked?'#3B6D11':'#9cb8d8'}"></div></div><span class="stats-bar-count" style="min-width:64px;">${unlocked?'✓':'+'+def.points}</span></div><div style="font-size:11px;color:#7d8aa0;margin:-3px 0 5px 100px;">${def.desc}（${Math.min(value,def.threshold)}/${def.threshold}${def.type==='usage'?' 分鐘':''}）</div>`;}).join('');
   box.innerHTML=html;
 }
 function renderTagLists() {
@@ -1474,10 +1554,10 @@ function execShortcut(id) {
     map:()=>{if(!isMapOpen)toggleMapView(true);},back:()=>{if(isMapOpen)toggleMapView(false);},
     close:()=>{if(g('scp').style.display==='block')closeShortcutMgr();else if(g('tp').classList.contains('open')){g('tp').classList.remove('open');syncSidePanelState();}else if(g('fp').classList.contains('open'))closeForm();else if(g('dp').classList.contains('open'))closeDetail();},
     edit:()=>{if(openId)openForm(true);},link:()=>{if(openId)openForm(true);},
-    export:()=>exportData(),stats:()=>{if(!isMapOpen)openStats();},shortcuts:()=>openShortcutMgr()
+    export:()=>manageArchives(),stats:()=>{if(!isMapOpen)openStats();},shortcuts:()=>openShortcutMgr()
   };
   if(map[id]) map[id]();
-  showShortcutHint({new:'新增筆記',search:'搜尋',map:'開啟體系圖',back:'返回筆記列表',close:'關閉',edit:'編輯筆記',link:'新增關聯',export:'匯出備份',stats:'統計',shortcuts:'快捷鍵設定'}[id]);
+  showShortcutHint({new:'新增筆記',search:'搜尋',map:'開啟體系圖',back:'返回筆記列表',close:'關閉',edit:'編輯筆記',link:'新增關聯',export:'存檔管理',stats:'統計',shortcuts:'快捷鍵設定'}[id]);
 }
 function showShortcutHint(t){ const h=g('scHint');h.textContent=t;h.style.display='block';clearTimeout(h._t);h._t=setTimeout(()=>h.style.display='none',1800); }
 function setMapLinkedOnlyBtnStyle(){
@@ -1491,6 +1571,7 @@ function setMapLinkedOnlyBtnStyle(){
 function updateMapPinnedChapter(){
   const el=g('mapPinnedChapter');
   if(!el) return;
+  if(mapFilter.chapter==='none'){el.textContent='章：無章';return;}
   const ch=mapFilter.chapter==='all'?null:chapterByKey(mapFilter.chapter);
   el.textContent=ch?`章：${ch.label}`:'章：未設定';
 }
@@ -2022,9 +2103,11 @@ function visibleNotes(){
   if(mapLinkedOnly)links.forEach(l=>{linkedIds[l.from]=true;linkedIds[l.to]=true;});
   const baseFiltered=notes.filter(n=>{
     const subs=noteSubjects(n),chs=noteChapters(n),secs=noteSections(n);
+    const chapterMatch=mapFilter.chapter==='all'?true:(mapFilter.chapter==='none'?!chs.length:chs.includes(mapFilter.chapter));
+    const sectionMatch=mapFilter.section==='all'?true:(mapFilter.section==='none'?!secs.length:secs.includes(mapFilter.section));
     return (mapFilter.sub==='all'||subs.includes(mapFilter.sub))
-      &&(mapFilter.chapter==='all'||chs.includes(mapFilter.chapter))
-      &&(mapFilter.section==='all'||secs.includes(mapFilter.section))
+      &&chapterMatch
+      &&sectionMatch
       &&(!q||`${n.title}${subs.join('')}${chs.join('')}${secs.join('')}${noteTags(n).join('')}`.toLowerCase().includes(q));
   });
   const shouldExpandLinked=scopeLinkedEnabled&&mapHasTaxonomyFilter();
@@ -2289,26 +2372,26 @@ function buildMapFilters(){
   const mapChapters=chapters.filter(ch=>mapFilter.sub==='all'||ch.subject===mapFilter.sub||ch.subject==='all');
   const preferredChapter=(cch!=='all'&&cch)||selectedChapters[0]||'';
   if(mapChapters.length){
-    if(!mapChapters.some(ch=>ch.key===mapFilter.chapter)) mapFilter.chapter=preferredChapter;
-    if(!mapChapters.some(ch=>ch.key===mapFilter.chapter)) mapFilter.chapter=mapChapters[0].key;
-    sch.innerHTML=mapChapters.map(ch=>`<option value="${ch.key}">${ch.label}</option>`).join('');
+    if(!['all','none'].includes(mapFilter.chapter)&&!mapChapters.some(ch=>ch.key===mapFilter.chapter)) mapFilter.chapter=preferredChapter;
+    if(!['all','none'].includes(mapFilter.chapter)&&!mapChapters.some(ch=>ch.key===mapFilter.chapter)) mapFilter.chapter='all';
+    sch.innerHTML='<option value="all">全部章</option><option value="none">無章</option>'+mapChapters.map(ch=>`<option value="${ch.key}">${ch.label}</option>`).join('');
   }else{
     mapFilter.chapter='all';
-    sch.innerHTML='<option value="all">（目前無可用章）</option>';
+    sch.innerHTML='<option value="all">全部章</option><option value="none">無章</option>';
   }
   const mapSections=sections.filter(sec=>mapFilter.chapter==='all'||sec.chapter===mapFilter.chapter||sec.chapter==='all');
   if(mapSections.length){
-    if(!mapSections.some(sec=>sec.key===mapFilter.section)) mapFilter.section='all';
-    ssc.innerHTML='<option value="all">全部節</option>'+mapSections.map(sec=>`<option value="${sec.key}">${sec.label}</option>`).join('');
+    if(!['all','none'].includes(mapFilter.section)&&!mapSections.some(sec=>sec.key===mapFilter.section)) mapFilter.section='all';
+    ssc.innerHTML='<option value="all">全部節</option><option value="none">無節</option>'+mapSections.map(sec=>`<option value="${sec.key}">${sec.label}</option>`).join('');
   }else{
     mapFilter.section='all';
-    ssc.innerHTML='<option value="all">（目前無可用節）</option>';
+    ssc.innerHTML='<option value="all">全部節</option><option value="none">無節</option>';
   }
   ss.value=mapFilter.sub;sch.value=mapFilter.chapter;ssc.value=mapFilter.section;
   if(sd)sd.value=['all','1','2','3'].includes(mapDepth)?mapDepth:'all';
   updateMapPinnedChapter();
 }
-function laneContextLabelText(){ const s=mapFilter.sub==='all'?'全部科目':subByKey(mapFilter.sub).label,sec=mapFilter.section==='all'?'全部節':sectionByKey(mapFilter.section).label;return `目前篩選：${s} / ${sec}`; }
+function laneContextLabelText(){ const s=mapFilter.sub==='all'?'全部科目':subByKey(mapFilter.sub).label,sec=mapFilter.section==='all'?'全部節':(mapFilter.section==='none'?'無節':sectionByKey(mapFilter.section).label);return `目前篩選：${s} / ${sec}`; }
 function ensureLanePanel(){
   const existing=g('lanePanel');if(existing)return existing;
   const canvas=g('mapCanvas');if(!canvas)return null;
@@ -2402,8 +2485,8 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   on('compactToggleBtn','click',()=>applyCompactFilterMode(!document.body.classList.contains('compact-filters')));
   on('tagMgrBtn','click',openTagMgr);
   bindCoreButtons();
+  applyBrandTitle();
   bindTagManagerNav();
-  g('exportBtn').addEventListener('click',exportData);
   on('undoBtn','click',undoLastAction);
   on('archiveBtn','click',manageArchives);
   g('tpClose').addEventListener('click',()=>{g('tp').classList.remove('open');syncSidePanelState();});

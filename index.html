@@ -215,6 +215,59 @@
     <button class="tool-btn map-primary-action" id="levelSystemBackBtn">← 返回筆記</button>
   </div>
   <div id="levelSystemPanel"></div>
+  <div id="levelEditorModal">
+    <div id="levelEditorBox">
+      <div class="ph"><span class="ph-title" id="levelEditorTitle">編輯項目</span><button class="pcls" id="levelEditorClose">&#215;</button></div>
+      <div id="levelTaskFields">
+        <label class="flbl">任務名稱</label>
+        <input class="fi" id="levelTaskName" placeholder="例：每日複習">
+        <div class="f2col">
+          <div>
+            <label class="flbl" style="margin-top:0">難度</label>
+            <select class="fs" id="levelTaskDifficulty">
+              <option value="E">E</option>
+              <option value="N">N</option>
+              <option value="H">H</option>
+            </select>
+          </div>
+          <div>
+            <label class="flbl" style="margin-top:0">重複週期</label>
+            <select class="fs" id="levelTaskRepeat"></select>
+          </div>
+        </div>
+        <label class="flbl">小任務（每行一項）</label>
+        <textarea class="ft" id="levelTaskSubtasks" placeholder="閱讀判決摘要&#10;整理一則爭點"></textarea>
+      </div>
+      <div id="levelAchievementFields">
+        <label class="flbl">成就名稱</label>
+        <input class="fi" id="levelAchievementName" placeholder="例：穩定輸出">
+        <div class="f2col">
+          <div>
+            <label class="flbl" style="margin-top:0">達成門檻</label>
+            <input class="fi" id="levelAchievementTarget" type="number" min="1" value="10">
+          </div>
+          <div>
+            <label class="flbl" style="margin-top:0">難度</label>
+            <select class="fs" id="levelAchievementDifficulty">
+              <option value="E">E</option>
+              <option value="N">N</option>
+              <option value="H">H</option>
+            </select>
+          </div>
+        </div>
+        <label class="flbl">達成方式</label>
+        <input class="fi" id="levelAchievementCondition" placeholder="例：累積完成任務次數">
+        <label class="flbl">獲得點數</label>
+        <input class="fi" id="levelAchievementPoints" type="number" min="0" value="30">
+        <label class="flbl">特效（可留空）</label>
+        <input class="fi" id="levelAchievementEffect" placeholder="例：fx-glow">
+      </div>
+      <div class="frow">
+        <button class="fbtn bcl" id="levelEditorCancel">取消</button>
+        <button class="fbtn bsv" id="levelEditorSave">儲存</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Map View -->

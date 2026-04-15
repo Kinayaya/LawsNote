@@ -1923,6 +1923,25 @@ function pushNodeOffLinks(nodeId,visLinks,pad=0){
   visLinks.forEach(lk=>{if(lk.from===nodeId||lk.to===nodeId)return;const a=nodePos[lk.from],b=nodePos[lk.to];if(!a||!b)return;const hit=pointToSegmentDistance(pos.x,pos.y,a.x,a.y,b.x,b.y);if(hit.dist<need){const push=need-hit.dist+.8;pos.x+=hit.nx*push;pos.y+=hit.ny*push;clampNodeToCanvas(nodeId);moved=true;}});
   return moved;
 }
+const chapterIndexMap = () => {
+  const map={};
+  chapters.forEach((ch,idx)=>{ if(ch&&ch.key) map[ch.key]=idx; });
+  return map;
+};
+const sectionIndexMap = () => {
+  const map={};
+  sections.forEach((sec,idx)=>{ if(sec&&sec.key) map[sec.key]=idx; });
+  return map;
+};
+const nodePreferredRank = (nodeId,chIdxMap,secIdxMap) => {
+  const note=noteById(nodeId)||{};
+  const chIdxs=noteChapters(note).map(key=>chIdxMap[key]).filter(idx=>Number.isFinite(idx));
+  const secIdxs=noteSections(note).map(key=>secIdxMap[key]).filter(idx=>Number.isFinite(idx));
+  const minChIdx=chIdxs.length?Math.min(...chIdxs):9999;
+  const minSecIdx=secIdxs.length?Math.min(...secIdxs):9999;
+  const title=safeStr(note.title).trim();
+  return {minChIdx,minSecIdx,title,nodeId};
+};
 function forceLayout() {
   const canvas=g('mapCanvas');mapW=canvas.offsetWidth||800;mapH=canvas.offsetHeight||600;
   const layoutNotes=visibleNotes(),visIds={};layoutNotes.forEach(n=>visIds[n.id]=true);
@@ -1942,13 +1961,18 @@ function forceLayout() {
   const LANE_CARD_GAP_Y=34,TOP_PAD=72,BOT_PAD=40;
   const laneLeft=Math.max(80,mapW*.1),laneRight=Math.min(mapW-80,mapW*.9);
   const laneGapX=laneCount>1?(laneRight-laneLeft)/(laneCount-1):0;
+  const chIdxMap=chapterIndexMap(),secIdxMap=sectionIndexMap();
   const adj={};layoutNotes.forEach(n=>adj[n.id]=[]);visLinks.forEach(lk=>{if(adj[lk.from])adj[lk.from].push(lk.to);if(adj[lk.to])adj[lk.to].push(lk.from);});
   const layers={},visited=new Set(),queue=[layoutCenterNodeId];layers[layoutCenterNodeId]=0;visited.add(layoutCenterNodeId);
   while(queue.length){const current=queue.shift(),cl=layers[current];(adj[current]||[]).forEach(neighbor=>{if(!visited.has(neighbor)){visited.add(neighbor);layers[neighbor]=cl+1;queue.push(neighbor);}});}
   const connectedMaxLayer=Object.values(layers).reduce((m,v)=>Math.max(m,v),0);
   layoutNotes.forEach(n=>{if(!visited.has(n.id))layers[n.id]=connectedMaxLayer+1;});
   const laneGroups={};Object.keys(layers).forEach(nodeId=>{const lane=Math.max(0,Math.min(laneCount-1,layers[nodeId]||0));if(!laneGroups[lane])laneGroups[lane]=[];laneGroups[lane].push(parseInt(nodeId,10));});
-  const laneOrder={};Object.keys(laneGroups).forEach(lane=>{laneOrder[lane]=laneGroups[lane].slice().sort((a,b)=>(adj[b]||[]).length-(adj[a]||[]).length||a-b);});
+  const byPreferredRank=(a,b)=>{
+    const ra=nodePreferredRank(a,chIdxMap,secIdxMap),rb=nodePreferredRank(b,chIdxMap,secIdxMap);
+    return ra.minChIdx-rb.minChIdx||ra.minSecIdx-rb.minSecIdx||ra.title.localeCompare(rb.title,'zh')||ra.nodeId-rb.nodeId;
+  };
+  const laneOrder={};Object.keys(laneGroups).forEach(lane=>{laneOrder[lane]=laneGroups[lane].slice().sort((a,b)=>byPreferredRank(a,b)||(adj[b]||[]).length-(adj[a]||[]).length||a-b);});
   for(let pass=0;pass<6;pass++){
     for(let lane=1;lane<laneCount;lane++){
       const arr=laneOrder[lane]||[],prev=laneOrder[lane-1]||[],prevIdx={};prev.forEach((id,idx)=>prevIdx[id]=idx);
@@ -1956,7 +1980,7 @@ function forceLayout() {
         const an=(adj[a]||[]).map(id=>prevIdx[id]).filter(v=>v!==undefined);
         const bn=(adj[b]||[]).map(id=>prevIdx[id]).filter(v=>v!==undefined);
         const am=an.length?an.reduce((s,v)=>s+v,0)/an.length:9999,bm=bn.length?bn.reduce((s,v)=>s+v,0)/bn.length:9999;
-        return am-bm||a-b;
+        return am-bm||byPreferredRank(a,b)||a-b;
       });
     }
   }

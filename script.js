@@ -313,6 +313,21 @@ const getMapCenterContextKey = () => {
   const pageRoot=mapPageStack.length?mapPageStack[mapPageStack.length-1]:'root';
   return `${mapFilter.sub||'all'}::${mapFilter.chapter||'all'}::${mapFilter.section||'all'}::${pageRoot}`;
 };
+const getMapCollapseContextKey = () => {
+  const pageRoot=mapPageStack.length?mapPageStack[mapPageStack.length-1]:'root';
+  return `${mapFilter.sub||'all'}::${mapFilter.chapter||'all'}::${mapFilter.section||'all'}::${pageRoot}`;
+};
+const mapCollapseKey = noteId => `${getMapCollapseContextKey()}::${noteId}`;
+const getCollapsedNodesForCurrentContext = () => {
+  const keyPrefix=`${getMapCollapseContextKey()}::`, collapsed={};
+  Object.keys(mapCollapsed||{}).forEach(key=>{
+    if(!mapCollapsed[key]||typeof key!=='string'||!key.startsWith(keyPrefix)) return;
+    const id=parseInt(key.slice(keyPrefix.length),10);
+    if(Number.isFinite(id)) collapsed[id]=true;
+  });
+  return collapsed;
+};
+const isMapNodeCollapsed = noteId => !!mapCollapsed[mapCollapseKey(noteId)];
 const mapSubpageContextKey = () => 'global';
 const mapSubpageKey = noteId => `${mapSubpageContextKey()}::${noteId}`;
 const findSubpageKeyByNoteId = noteId => {
@@ -337,6 +352,20 @@ const normalizeMapSubpages = raw => {
     const normalizedKey=mapSubpageKey(noteId);
     if(next[normalizedKey]) return;
     next[normalizedKey]={...item,rootId:noteId,createdAt:item.createdAt||new Date().toISOString()};
+  });
+  return next;
+};
+const normalizeMapCollapsed = raw => {
+  const src=(raw&&typeof raw==='object'&&!Array.isArray(raw))?raw:{}, next={};
+  const legacyPrefix='all::all::all::root::';
+  Object.keys(src).forEach(key=>{
+    if(!src[key]) return;
+    let normalizedKey=String(key);
+    if(/^\d+$/.test(normalizedKey)) normalizedKey=`${legacyPrefix}${normalizedKey}`;
+    const noteId=parseInt(normalizedKey.split('::').pop(),10);
+    if(!Number.isFinite(noteId)) return;
+    if(!normalizedKey.includes('::')) return;
+    next[normalizedKey]=true;
   });
   return next;
 };
@@ -749,7 +778,8 @@ function loadData() {
       if(['all','1','2','3'].includes(d.mapDepth)) mapDepth=d.mapDepth;
       if(typeof d.mapFocusMode==='boolean') mapFocusMode=d.mapFocusMode;
       mapLaneConfigs=(d.mapLaneConfigs&&typeof d.mapLaneConfigs==='object'&&!Array.isArray(d.mapLaneConfigs))?d.mapLaneConfigs:{};
-      mapCollapsed=(d.mapCollapsed&&typeof d.mapCollapsed==='object'&&!Array.isArray(d.mapCollapsed))?d.mapCollapsed:{};
+      const rawMapCollapsed=(d.mapCollapsed&&typeof d.mapCollapsed==='object'&&!Array.isArray(d.mapCollapsed))?d.mapCollapsed:{};
+      mapCollapsed=normalizeMapCollapsed(rawMapCollapsed);
       const rawMapSubpages=(d.mapSubpages&&typeof d.mapSubpages==='object'&&!Array.isArray(d.mapSubpages))?d.mapSubpages:{};
       mapSubpages=normalizeMapSubpages(rawMapSubpages);
       customFieldDefs=(d.customFieldDefs&&typeof d.customFieldDefs==='object'&&!Array.isArray(d.customFieldDefs))?d.customFieldDefs:{};
@@ -772,6 +802,7 @@ function loadData() {
       typeFieldConfigs=(d.typeFieldConfigs&&typeof d.typeFieldConfigs==='object'&&!Array.isArray(d.typeFieldConfigs))?d.typeFieldConfigs:{};
       types.forEach(t=>{ typeFieldConfigs[t.key]=getTypeFieldKeys(t.key); });
       let repaired=false,chapterMigrated=false;
+      if(JSON.stringify(rawMapCollapsed)!==JSON.stringify(mapCollapsed)) repaired=true;
       if(JSON.stringify(rawMapSubpages)!==JSON.stringify(mapSubpages)) repaired=true;
       types.forEach(t=>{if(/^tag_t_/.test(t.key)){let old=t.key;t.key=t.label;notes.forEach(n=>{if(n.type===old)n.type=t.label;});repaired=true;}});
       subjects.forEach(s=>{if(/^tag_s_/.test(s.key)){let old=s.key;s.key=s.label;notes.forEach(n=>{n.subjects=noteSubjects(n).map(x=>x===old?s.label:x);n.subject=n.subjects[0]||'';});repaired=true;}});
@@ -2682,15 +2713,16 @@ function visibleNotes(){
   }
   const baseIds={};base.forEach(n=>baseIds[n.id]=true);
   if(base.length){
+    const collapsedNodes=getCollapsedNodesForCurrentContext();
     const hiddenByCollapse={},stack=[];
-    Object.keys(mapCollapsed||{}).forEach(key=>{
+    Object.keys(collapsedNodes).forEach(key=>{
       const id=parseInt(key,10);
-      if(mapCollapsed[id]&&baseIds[id]) stack.push(id);
+      if(collapsedNodes[id]&&baseIds[id]) stack.push(id);
     });
     while(stack.length){
       const current=stack.pop();
       links.forEach(lk=>{
-        if(lk.from!==current||!baseIds[lk.to]||hiddenByCollapse[lk.to]||mapCollapsed[lk.to]) return;
+        if(lk.from!==current||!baseIds[lk.to]||hiddenByCollapse[lk.to]||collapsedNodes[lk.to]) return;
         hiddenByCollapse[lk.to]=true;
         stack.push(lk.to);
       });
@@ -2780,7 +2812,7 @@ function drawMap(){
       foldSign.setAttribute('font-size','14');
       foldSign.setAttribute('font-weight','700');foldSign.setAttribute('fill',type.color);
       foldSign.style.cursor='pointer';
-      foldSign.textContent=mapCollapsed[n.id]?'+':'−';
+      foldSign.textContent=isMapNodeCollapsed(n.id)?'+':'−';
       const toggleFold=e=>{e.stopPropagation();toggleMapFold(n.id);};
       foldBtn.addEventListener('click',toggleFold);
       foldSign.addEventListener('click',toggleFold);
@@ -2816,8 +2848,9 @@ function drawMap(){
   applyFocusStyles();
 }
 function toggleMapFold(id){
-  if(mapCollapsed[id]) delete mapCollapsed[id];
-  else mapCollapsed[id]=true;
+  const key=mapCollapseKey(id);
+  if(mapCollapsed[key]) delete mapCollapsed[key];
+  else mapCollapsed[key]=true;
   closeMapPopup();
   drawMap();
   saveDataDeferred();

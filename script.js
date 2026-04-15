@@ -419,8 +419,6 @@ function applyBrandTitle(){
   el.textContent=lvl.name;
   el.classList.remove('fx-glow','fx-spark','fx-aurora');
   if(lvl.effect&&lvl.effect!=='fx-none') el.classList.add(lvl.effect);
-  const header=g('headerAchievementWrap');
-  if(header) header.textContent=`成就點數：${getLevelAchievementPoints()}｜已解鎖：${(levelSystem.achievements||[]).filter(a=>a.unlocked).length}`;
 }
 function normalizeAchievements(){
   const base=(achievements&&typeof achievements==='object')?achievements:{};
@@ -1305,33 +1303,73 @@ function openTagMgr() {
 function renderTagStats(){
   const box=g('tagStatsPanel');
   if(!box) return;
-  normalizeLevelSystem();
-  applySkillDecay();
-  refreshAchievementProgress();
   const total=notes.length,byT={},byS={};
   notes.forEach(n=>{byT[n.type]=(byT[n.type]||0)+1;noteSubjects(n).forEach(sk=>{byS[sk]=(byS[sk]||0)+1;});});
   const lnk={};links.forEach(l=>{lnk[l.from]=true;lnk[l.to]=true;});
   const usageText=formatUsageDuration(ensureUsageStart());
-  const unlockedCount=(levelSystem.achievements||[]).filter(a=>a.unlocked).length;
-  const titleInfo=getCurrentTitle();
-  const allTaskCount=(levelSystem.tasks||[]).reduce((sum,t)=>sum+(Number(t.completions)||0),0);
   let html=`<div class="stats-grid"><div class="stat-card"><div class="stat-num">${total}</div><div class="stat-lbl">筆記總數</div></div><div class="stat-card"><div class="stat-num">${Object.keys(lnk).length}</div><div class="stat-lbl">有關聯筆記</div></div><div class="stat-card"><div class="stat-num">${subjects.length}</div><div class="stat-lbl">科目數</div></div></div><div class="usage-time">已使用 KLaws：${usageText}</div>`;
-  html+=`<div style="margin-top:10px;padding:10px;border:1px solid #e8edf6;border-radius:10px;background:#f8fbff;"><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;"><span class="brand-title ${titleInfo.effect==='fx-none'?'':titleInfo.effect}">${titleInfo.name}</span><span style="font-size:12px;color:#445;">等級成就點數：<b>${getLevelAchievementPoints()}</b></span><span style="font-size:12px;color:#445;">任務完成：<b>${allTaskCount}</b> 次</span><span style="font-size:12px;color:#445;">已解鎖：<b>${unlockedCount}</b> 項</span></div></div>`;
-  html+=`<div class="level-toolbar"><button class="tool-btn" id="addSkillBtn">+ 技能</button><button class="tool-btn" id="addTaskBtn">+ 任務</button><button class="tool-btn" id="completeTaskBtn">完成任務</button><button class="tool-btn" id="addAchievementBtn">+ 成就</button><button class="tool-btn" id="levelSettingsBtn">⚙️ 衰退設定</button></div>`;
   html+=`<div style="font-size:11px;font-weight:700;color:#888;margin:10px 0 6px;">各科目筆記數</div>`;
   Object.keys(byS).sort((a,b)=>byS[b]-byS[a]).forEach(sk=>{const s=subByKey(sk),c=byS[sk],p=total?Math.round(c/total*100):0;html+=`<div class="stats-bar-row"><span class="stats-bar-label">${s.label}</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${p}%;background:${s.color}"></div></div><span class="stats-bar-count">${c}</span></div>`;});
-  html+=`<div style="font-size:11px;font-weight:700;color:#888;margin:12px 0 6px;">技能（最高 100 級）</div>`;
-  html+=(levelSystem.skills.length?levelSystem.skills.map(skill=>{const need=skill.level>=100?0:skillXpRequired(skill.level);const pct=need?Math.round((skill.xp||0)/need*100):100;return `<div class="stats-bar-row"><span class="stats-bar-label" style="min-width:112px;">${escapeHtml(skill.name)} Lv.${skill.level} (${getSkillStage(skill.level)})</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${Math.max(0,Math.min(100,pct))}%;background:#3B6D11"></div></div><span class="stats-bar-count" style="min-width:64px;">${skill.level>=100?'MAX':`${skill.xp||0}/${need}`}</span></div>`;}).join(''):'<div style="color:#9aa3b2;font-size:12px;">尚無技能，請先新增。</div>');
-  html+=`<div style="font-size:11px;font-weight:700;color:#888;margin:12px 0 6px;">任務（E/N/H）</div>`;
-  html+=(levelSystem.tasks.length?levelSystem.tasks.map(task=>`<div class="stats-bar-row"><span class="stats-bar-label" style="min-width:112px;">${escapeHtml(task.name)} [${task.difficulty}]</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${Math.min(100,(task.completions||0)*8)}%;background:#9cb8d8"></div></div><span class="stats-bar-count" style="min-width:64px;">${task.completions||0} 次</span></div>`).join(''):'<div style="color:#9aa3b2;font-size:12px;">尚無任務，請先新增。</div>');
-  html+=`<div style="font-size:11px;font-weight:700;color:#888;margin:12px 0 6px;">成就進度</div>`;
-  html+=(levelSystem.achievements.length?levelSystem.achievements.map(def=>{const unlocked=!!def.unlocked;const pct=Math.max(0,Math.min(100,Math.round((def.progress||0)/def.target*100)));return `<div class="stats-bar-row"><span class="stats-bar-label" style="min-width:92px;">${escapeHtml(def.name)}</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${unlocked?100:pct}%;background:${unlocked?'#3B6D11':'#9cb8d8'}"></div></div><span class="stats-bar-count" style="min-width:64px;">${unlocked?'✓':'+'+(def.points||0)}</span></div><div style="font-size:11px;color:#7d8aa0;margin:-3px 0 5px 100px;">${escapeHtml(def.condition)}（${Math.min(def.progress||0,def.target)}/${def.target}）${def.effect?`・特效：${escapeHtml(def.effect)}`:''}</div>`;}).join(''):'<div style="color:#9aa3b2;font-size:12px;">尚無成就，請先新增。</div>');
+  box.innerHTML=html;
+}
+function moveLevelItem(kind,idx,dir){
+  const arr=levelSystem[kind];
+  const target=idx+dir;
+  if(!arr?.[idx]||target<0||target>=arr.length) return;
+  [arr[idx],arr[target]]=[arr[target],arr[idx]];
+  saveData();renderLevelSystemPage();
+}
+function deleteLevelItem(kind,idx){
+  const mapLabel={skills:'技能',tasks:'任務',achievements:'成就'};
+  const arr=levelSystem[kind];
+  const item=arr?.[idx];
+  if(!item) return;
+  if(!confirm(`確定刪除${mapLabel[kind]}「${item.name||'未命名'}」？`)) return;
+  arr.splice(idx,1);
+  refreshAchievementProgress();
+  saveData();
+  applyBrandTitle();
+  renderLevelSystemPage();
+  showToast(`${mapLabel[kind]}已刪除`);
+}
+function renderLevelRows(kind){
+  const arr=levelSystem[kind]||[];
+  if(!arr.length) return '<div style="color:#9aa3b2;font-size:12px;">尚無資料，請先新增。</div>';
+  if(kind==='skills') return arr.map((skill,idx)=>{const need=skill.level>=100?0:skillXpRequired(skill.level);const pct=need?Math.round((skill.xp||0)/need*100):100;return `<div class="stats-bar-row"><span class="stats-bar-label" style="min-width:112px;">${escapeHtml(skill.name)} Lv.${skill.level} (${getSkillStage(skill.level)})</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${Math.max(0,Math.min(100,pct))}%;background:#3B6D11"></div></div><span class="stats-bar-count" style="min-width:64px;">${skill.level>=100?'MAX':`${skill.xp||0}/${need}`}</span><span class="level-list-row-actions"><button class="tool-btn" data-level-move="skills" data-idx="${idx}" data-dir="-1">↑</button><button class="tool-btn" data-level-move="skills" data-idx="${idx}" data-dir="1">↓</button><button class="tool-btn" data-level-del="skills" data-idx="${idx}">移除</button></span></div>`;}).join('');
+  if(kind==='tasks') return arr.map((task,idx)=>`<div class="stats-bar-row"><span class="stats-bar-label" style="min-width:112px;">${escapeHtml(task.name)} [${task.difficulty}]</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${Math.min(100,(task.completions||0)*8)}%;background:#9cb8d8"></div></div><span class="stats-bar-count" style="min-width:64px;">${task.completions||0} 次</span><span class="level-list-row-actions"><button class="tool-btn" data-level-move="tasks" data-idx="${idx}" data-dir="-1">↑</button><button class="tool-btn" data-level-move="tasks" data-idx="${idx}" data-dir="1">↓</button><button class="tool-btn" data-level-del="tasks" data-idx="${idx}">移除</button></span></div>`).join('');
+  return arr.map((def,idx)=>{const unlocked=!!def.unlocked;const pct=Math.max(0,Math.min(100,Math.round((def.progress||0)/def.target*100)));return `<div class="stats-bar-row"><span class="stats-bar-label" style="min-width:92px;">${escapeHtml(def.name)}</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${unlocked?100:pct}%;background:${unlocked?'#3B6D11':'#9cb8d8'}"></div></div><span class="stats-bar-count" style="min-width:64px;">${unlocked?'✓':'+'+(def.points||0)}</span><span class="level-list-row-actions"><button class="tool-btn" data-level-move="achievements" data-idx="${idx}" data-dir="-1">↑</button><button class="tool-btn" data-level-move="achievements" data-idx="${idx}" data-dir="1">↓</button><button class="tool-btn" data-level-del="achievements" data-idx="${idx}">移除</button></span></div><div class="level-subtext">${escapeHtml(def.condition)}（${Math.min(def.progress||0,def.target)}/${def.target}）${def.effect?`・特效：${escapeHtml(def.effect)}`:''}</div>`;}).join('');
+}
+function resetSkillLevels(){
+  if(!levelSystem.skills.length){showToast('目前沒有技能可重置');return;}
+  if(!confirm('確定要重置全部技能等級與經驗值嗎？此動作無法復原。')) return;
+  levelSystem.skills.forEach(skill=>{skill.level=1;skill.xp=0;skill.lastDoneByDiff={};skill.lastDecayAt=new Date().toISOString();});
+  saveData();
+  renderLevelSystemPage();
+  showToast('已重置技能等級');
+}
+function renderLevelSystemPage(){
+  const box=g('levelSystemPanel');
+  if(!box) return;
+  normalizeLevelSystem();
+  applySkillDecay();
+  refreshAchievementProgress();
+  const titleInfo=getCurrentTitle();
+  const unlockedCount=(levelSystem.achievements||[]).filter(a=>a.unlocked).length;
+  const allTaskCount=(levelSystem.tasks||[]).reduce((sum,t)=>sum+(Number(t.completions)||0),0);
+  let html=`<div style="margin-top:2px;padding:10px;border:1px solid #e8edf6;border-radius:10px;background:#f8fbff;"><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;"><span class="brand-title ${titleInfo.effect==='fx-none'?'':titleInfo.effect}">${titleInfo.name}</span><span style="font-size:12px;color:#445;">成就點數：<b>${getLevelAchievementPoints()}</b></span><span style="font-size:12px;color:#445;">任務完成：<b>${allTaskCount}</b> 次</span><span style="font-size:12px;color:#445;">已解鎖：<b>${unlockedCount}</b> 項</span></div></div>`;
+  html+=`<div class="level-toolbar"><button class="tool-btn" id="addSkillBtn">+ 技能</button><button class="tool-btn" id="addTaskBtn">+ 任務</button><button class="tool-btn" id="completeTaskBtn">完成任務</button><button class="tool-btn" id="addAchievementBtn">+ 成就</button><button class="tool-btn" id="resetSkillLevelBtn">重置技能等級</button><button class="tool-btn" id="levelSettingsBtn">⚙️ 衰退設定</button></div>`;
+  html+=`<div class="level-section-title">技能（最高 100 級）</div>${renderLevelRows('skills')}`;
+  html+=`<div class="level-section-title">任務（E/N/H）</div>${renderLevelRows('tasks')}`;
+  html+=`<div class="level-section-title">成就進度</div>${renderLevelRows('achievements')}`;
   box.innerHTML=html;
   g('addSkillBtn')?.addEventListener('click',addSkillItem);
   g('addTaskBtn')?.addEventListener('click',addTaskItem);
   g('completeTaskBtn')?.addEventListener('click',completeTaskFromPrompt);
   g('addAchievementBtn')?.addEventListener('click',addAchievementItem);
+  g('resetSkillLevelBtn')?.addEventListener('click',resetSkillLevels);
   g('levelSettingsBtn')?.addEventListener('click',editLevelSettings);
+  box.querySelectorAll('[data-level-move]').forEach(btn=>btn.addEventListener('click',()=>moveLevelItem(btn.dataset.levelMove,Number(btn.dataset.idx),Number(btn.dataset.dir))));
+  box.querySelectorAll('[data-level-del]').forEach(btn=>btn.addEventListener('click',()=>deleteLevelItem(btn.dataset.levelDel,Number(btn.dataset.idx))));
 }
 function renderTagLists() {
   renderTagList('typeTagList',types,'type');
@@ -1556,7 +1594,7 @@ function addSkillItem(){
   const name=safeStr(prompt('技能名稱：','法條理解力')||'').trim();
   if(!name) return;
   levelSystem.skills.push({id:Date.now()+Math.random(),name,level:1,xp:0,lastDoneByDiff:{},lastDecayAt:new Date().toISOString()});
-  saveData();renderTagStats();applyBrandTitle();showToast('技能已新增');
+  saveData();renderLevelSystemPage();applyBrandTitle();showToast('技能已新增');
 }
 function addTaskItem(){
   const name=safeStr(prompt('任務名稱：','每日複習')||'').trim();
@@ -1564,7 +1602,7 @@ function addTaskItem(){
   const difficulty=safeStr(prompt('難度（E/N/H）：','N')||'').toUpperCase();
   if(!['E','N','H'].includes(difficulty)){showToast('難度需為 E / N / H');return;}
   levelSystem.tasks.push({id:Date.now()+Math.random(),name,difficulty,completions:0,lastCompletedAt:''});
-  saveData();renderTagStats();showToast('任務已新增');
+  saveData();renderLevelSystemPage();showToast('任務已新增');
 }
 function addAchievementItem(){
   const name=safeStr(prompt('成就名稱：','穩定輸出')||'').trim();
@@ -1575,7 +1613,7 @@ function addAchievementItem(){
   const effect=safeStr(prompt('成就特效（可空白，如 fx-glow）：','')||'').trim();
   levelSystem.achievements.push({id:Date.now()+Math.random(),name,target,condition,points,effect,progress:0,unlocked:false});
   refreshAchievementProgress();
-  saveData();renderTagStats();applyBrandTitle();showToast('成就已新增');
+  saveData();renderLevelSystemPage();applyBrandTitle();showToast('成就已新增');
 }
 function completeTaskFromPrompt(){
   if(!levelSystem.tasks.length||!levelSystem.skills.length){showToast('請先新增至少 1 個任務與技能');return;}
@@ -1586,7 +1624,7 @@ function completeTaskFromPrompt(){
   const task=levelSystem.tasks[taskIdx],skill=levelSystem.skills[skillIdx];
   if(!task||!skill){showToast('編號無效');return;}
   if(!completeLevelTask(task.id,skill.id)){showToast('任務完成失敗');return;}
-  saveData();renderTagStats();
+  saveData();renderLevelSystemPage();
   showToast(`+${levelSystem.settings.xpByDifficulty[task.difficulty]||0} EXP → ${skill.name}`);
 }
 function editLevelSettings(){
@@ -1594,12 +1632,9 @@ function editLevelSettings(){
   const decayLevels=Math.max(1,parseInt(prompt('每次衰退下降幾級？',String(levelSystem.settings.decayLevels))||String(levelSystem.settings.decayLevels),10)||levelSystem.settings.decayLevels);
   const decayDifficulty=safeStr(prompt('衰退判定難度（E/N/H，達成此難度以上視為有使用）：',levelSystem.settings.decayDifficulty)||levelSystem.settings.decayDifficulty).toUpperCase();
   if(!['E','N','H'].includes(decayDifficulty)){showToast('難度需為 E / N / H');return;}
-  const eXp=Math.max(1,parseInt(prompt('E 難度經驗值：',String(levelSystem.settings.xpByDifficulty.E))||String(levelSystem.settings.xpByDifficulty.E),10)||levelSystem.settings.xpByDifficulty.E);
-  const nXp=Math.max(1,parseInt(prompt('N 難度經驗值：',String(levelSystem.settings.xpByDifficulty.N))||String(levelSystem.settings.xpByDifficulty.N),10)||levelSystem.settings.xpByDifficulty.N);
-  const hXp=Math.max(1,parseInt(prompt('H 難度經驗值：',String(levelSystem.settings.xpByDifficulty.H))||String(levelSystem.settings.xpByDifficulty.H),10)||levelSystem.settings.xpByDifficulty.H);
-  levelSystem.settings={...levelSystem.settings,inactiveDays,decayLevels,decayDifficulty,xpByDifficulty:{E:eXp,N:nXp,H:hXp}};
+  levelSystem.settings={...levelSystem.settings,inactiveDays,decayLevels,decayDifficulty};
   applySkillDecay();
-  saveData();renderTagStats();showToast('等級設定已更新');
+  saveData();renderLevelSystemPage();showToast('等級設定已更新');
 }
 
 // ==================== 匯入/匯出 ====================
@@ -1731,6 +1766,7 @@ function toggleMapView(open) {
   isMapOpen=open;currentView=open?'map':'notes';
   g('notesView').style.display=open?'none':'block';
   g('calendarView')?.classList.remove('open');
+  g('levelSystemView')?.classList.remove('open');
   g('mapView').classList.toggle('open',open);
   g('subbar').style.display=open?'none':'flex';
   const advanced=g('filterAdvanced');
@@ -1760,9 +1796,23 @@ function toggleCalendarView(open){
   currentView=open?'calendar':'notes';
   g('notesView').style.display=open?'none':'block';
   g('mapView').classList.remove('open');
+  g('levelSystemView').classList.remove('open');
   ['dp','fp','tp'].forEach(id=>g(id)?.classList.remove('open'));
   g('calendarView').classList.toggle('open',open);
   if(open) renderCalendar();
+}
+function toggleLevelSystemView(open){
+  currentView=open?'level':'notes';
+  isMapOpen=false;
+  g('notesView').style.display=open?'none':'block';
+  g('mapView').classList.remove('open');
+  g('calendarView').classList.remove('open');
+  ['dp','fp','tp'].forEach(id=>g(id)?.classList.remove('open'));
+  g('levelSystemView').classList.toggle('open',open);
+  g('subbar').style.display=open?'none':'flex';
+  const advanced=g('filterAdvanced');
+  if(advanced) advanced.style.display=open?'none':'block';
+  if(open) renderLevelSystemPage();
 }
 function renderCalendar(){
   const y=calendarCursor.getFullYear(),m=calendarCursor.getMonth();
@@ -2639,7 +2689,8 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
     });
   }
   g('selAllBtn').addEventListener('click',selectAll);g('selDeleteBtn').addEventListener('click',deleteSelected);g('selCancelBtn').addEventListener('click',exitMultiSel);
-    on('calendarBtn','click',()=>toggleCalendarView(true));
+  on('calendarBtn','click',()=>toggleCalendarView(true));
+  on('levelSystemBtn','click',()=>toggleLevelSystemView(true));
   on('ft','change',()=>renderDynamicFields(g('ft').value,editMode&&openId?noteById(openId):null));
   on('fs2','change',()=>{
     syncChapterSelect(selectedValues('fs2'),selectedValues('fc'));
@@ -2731,6 +2782,7 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   on('mapAutoBtn','click',()=>{const btn=g('mapAutoBtn'),orig=btn.textContent;btn.textContent='排列中...';btn.disabled=true;setTimeout(()=>{nodePos={};mapScale=1;mapOffX=mapOffY=0;forceLayout();drawMap();saveDataDeferred();g('zoomLabel').textContent='100%';btn.textContent=orig;btn.disabled=false;showToast('已自動排列（保留核心節點）');},30);});
   on('mapLaneBtn','click',()=>{const panel=ensureLanePanel();if(!panel){showToast('泳道面板載入失敗');return;}if(panel.classList.contains('open'))closeLanePanel();else openLanePanel();});
   on('calendarBackBtn','click',()=>toggleCalendarView(false));
+  on('levelSystemBackBtn','click',()=>toggleLevelSystemView(false));
   on('calendarPrevBtn','click',()=>{calendarCursor=new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()-1,1);renderCalendar();});
   on('calendarNextBtn','click',()=>{calendarCursor=new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()+1,1);renderCalendar();});
   on('calendarTodayBtn','click',()=>{calendarCursor=new Date();renderCalendar();});

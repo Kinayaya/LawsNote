@@ -286,6 +286,19 @@ const renderFieldValue = (n,key) => {
   if(key==='tags') return noteTags(n).join('、')||'（無標籤）';
   return noteExtraFields(n)[key]||'';
 };
+const mapCardFieldText = (n,key) => {
+  if(key==='todos'){
+    const list=(Array.isArray(n&&n.todos)?n.todos:[]).filter(t=>t&&safeStr(t.text).trim());
+    return list.map(t=>`${t.done?'✅':'⬜'} ${safeStr(t.text).trim()}`).join('\n');
+  }
+  return safeStr(renderFieldValue(n,key)).trim();
+};
+const renderMapCardPreview = n => {
+  const keys=getTypeFieldKeys(n.type).filter(key=>key!=='tags');
+  const sections=keys.map(key=>mapCardFieldText(n,key)).filter(text=>!!text);
+  if(!sections.length) return '';
+  return sections.map(text=>`<div class="map-card-body-segment"><div class="map-card-body-text">${escapeHtml(text)}</div></div>`).join('');
+};
 const noteFieldValueForEdit = (n,key) => {
   if(key==='body') return n.body||'';
   if(key==='detail') return n.detail||'';
@@ -2789,11 +2802,11 @@ function drawMap(){
     cardBody.setAttribute('x',String(pos.x-halfW));cardBody.setAttribute('y',String(pos.y-halfH));
     cardBody.setAttribute('width',String(box.width));cardBody.setAttribute('height',String(box.height));
     cardBody.style.pointerEvents='none';
-    const bodyPreview=safeStr(n.body).trim();
+    const previewHtml=renderMapCardPreview(n);
     const markedTitle=`${mapTitleMarkers(n.id)}${n.title||'（未命名）'}`;
     cardBody.innerHTML=`<div xmlns="http://www.w3.org/1999/xhtml" class="map-card-inner">
       <div class="map-card-head"><span class="map-card-type" style="background:${lightC(type.color)};color:${darkC(type.color)}">${type.label}</span><span class="map-card-title">${escapeHtml(markedTitle)}</span></div>
-      ${bodyPreview?`<div class="map-card-body-text">${escapeHtml(bodyPreview)}</div>`:''}
+      ${previewHtml}
     </div>`;
     const hasChildren=links.some(l=>l.from===n.id&&noteById(l.to));
     grp.appendChild(card);grp.appendChild(cardBody);

@@ -2185,21 +2185,67 @@ function importData(file) {
       } else {
         // ★ 合併模式：同樣不覆蓋 types/subjects/chapters
         const existing=new Set(notes.map(n=>n.id));let added=0;
+        let maxNoteId=notes.reduce((m,x)=>Math.max(m,x.id||0),0);
+        const importedIdMap={};
         d.notes.forEach(n=>{
-          let nextId=n.id;
+          const oldId=Number(n.id);
+          let nextId=oldId;
           if(existing.has(nextId)||!Number.isFinite(nextId)){
-            nextId=Math.max(nid,notes.reduce((m,x)=>Math.max(m,x.id||0),0)+1);
+            nextId=Math.max(nid,maxNoteId+1);
           }
           existing.add(nextId);
+          if(Number.isFinite(oldId)) importedIdMap[oldId]=nextId;
+          if(nextId>maxNoteId) maxNoteId=nextId;
           notes.push({...n,id:nextId});
           added++;
           if(nextId>=nid) nid=nextId+1;
         });
-        if(d.links)links=d.links;
-        if(d.nodeSizes)nodeSizes={...nodeSizes,...d.nodeSizes};if(d.mapCenterNodeId)mapCenterNodeId=d.mapCenterNodeId;
-        if(d.mapCenterNodeIds&&typeof d.mapCenterNodeIds==='object') mapCenterNodeIds={...mapCenterNodeIds,...d.mapCenterNodeIds};
-        if(d.mapCollapsed&&typeof d.mapCollapsed==='object') mapCollapsed={...mapCollapsed,...d.mapCollapsed};
-        if(d.mapSubpages&&typeof d.mapSubpages==='object') mapSubpages={...mapSubpages,...d.mapSubpages};
+        if(Array.isArray(d.links)){
+          const edgeSet=new Set(links.map(l=>`${Math.min(l.from,l.to)}-${Math.max(l.from,l.to)}`));
+          d.links.forEach(l=>{
+            const from=importedIdMap[Number(l.from)],to=importedIdMap[Number(l.to)];
+            if(!Number.isFinite(from)||!Number.isFinite(to)||from===to) return;
+            const edgeKey=`${Math.min(from,to)}-${Math.max(from,to)}`;
+            if(edgeSet.has(edgeKey)) return;
+            links.push({id:lid++,from,to,rel:'關聯',color:LINK_COLOR});
+            edgeSet.add(edgeKey);
+          });
+        }
+        if(d.nodeSizes&&typeof d.nodeSizes==='object'){
+          const remappedSizes={};
+          Object.keys(d.nodeSizes).forEach(k=>{
+            const nk=importedIdMap[Number(k)];
+            if(nk!==undefined&&remappedSizes[nk]===undefined) remappedSizes[nk]=d.nodeSizes[k];
+          });
+          nodeSizes={...nodeSizes,...remappedSizes};
+        }
+        if(d.mapCenterNodeId&&importedIdMap[Number(d.mapCenterNodeId)]!==undefined) mapCenterNodeId=importedIdMap[Number(d.mapCenterNodeId)];
+        if(d.mapCenterNodeIds&&typeof d.mapCenterNodeIds==='object'){
+          const remappedCenters={};
+          Object.keys(d.mapCenterNodeIds).forEach(k=>{
+            const nk=importedIdMap[Number(d.mapCenterNodeIds[k])];
+            if(nk!==undefined) remappedCenters[k]=nk;
+          });
+          mapCenterNodeIds={...mapCenterNodeIds,...remappedCenters};
+        }
+        if(d.mapCollapsed&&typeof d.mapCollapsed==='object'){
+          const remappedCollapsed={};
+          Object.keys(d.mapCollapsed).forEach(k=>{
+            const nk=importedIdMap[Number(k)];
+            if(nk!==undefined) remappedCollapsed[nk]=d.mapCollapsed[k];
+          });
+          mapCollapsed={...mapCollapsed,...remappedCollapsed};
+        }
+        if(d.mapSubpages&&typeof d.mapSubpages==='object'){
+          const remappedSubpages={};
+          Object.keys(d.mapSubpages).forEach(k=>{
+            const parentId=importedIdMap[Number(k)];
+            const arr=Array.isArray(d.mapSubpages[k])?d.mapSubpages[k]:[];
+            if(parentId===undefined) return;
+            remappedSubpages[parentId]=arr.map(v=>importedIdMap[Number(v)]).filter(Number.isFinite);
+          });
+          mapSubpages={...mapSubpages,...remappedSubpages};
+        }
         notes.sort((a,b)=>b.id-a.id);normalizeNoteIds(true);saveData();rebuildUI();render();showToast(`已合併，新增 ${added} 筆`);
       }
     } catch(ex){showToast('匯入失敗，請確認檔案格式');}

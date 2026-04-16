@@ -18,6 +18,10 @@ const DEFAULTS = {
 };
 const LINK_COLOR = '#378ADD', SKEY = 'legal_notes_v4', PAGE_SIZE = 24;
 const ARCHIVES_KEY = 'klaws_archives_v1';
+const RECYCLE_BIN_KEY = 'klaws_recycle_bin_v1';
+const UNUSED_TAG_TRACK_KEY = 'klaws_unused_tag_tracker_v1';
+const RECYCLE_RETENTION_MS = 7*24*60*60*1000;
+const UNUSED_TAG_PURGE_MS = 10*60*1000;
 const SCOPE_LINKED_TOGGLE_KEY = 'klaws_scope_linked_toggle_v1';
 const COMPACT_FILTER_KEY = 'klaws_compact_filters_v1';
 const USAGE_START_KEY = 'klaws_usage_start_v1';
@@ -58,6 +62,7 @@ const { fmtDateKey, dueTimeText, relativeDateLabel } = window.KLawsCalendar;
 
 // ==================== 全域變數 ====================
 let notes=[], links=[], nid=10, lid=10, types=[], subjects=[], chapters=[], sections=[];
+let recycleBin=[], unusedTagTracker={};
 let cv='all', cs='all', cch='all', csec='all', searchQ='', openId=null, editMode=false;
 let selectedSubjects=[], selectedChapters=[], selectedSections=[];
 let scopeLinkedEnabled = localStorage.getItem(SCOPE_LINKED_TOGGLE_KEY)==='1';
@@ -246,10 +251,10 @@ const togglePanelDir = () => {
   showToast(next==='bottom'?'已切換為底部展開':'已切換為右側展開');
 };
 const saveDataDeferred = () => { clearTimeout(_saveTimer); _saveTimer=setTimeout(()=>{ if(JSON.stringify({notes,links}).length>4500000) showToast('⚠️ 資料接近儲存上限'); saveData(); },500); };
-const typeByKey = k => types.find(t=>t.key===k)||{key:k,label:k,color:'#888'};
-const subByKey = k => subjects.find(s=>s.key===k)||{key:k,label:k,color:'#888'};
-const chapterByKey = k => chapters.find(c=>c.key===k)||{key:k,label:k,subject:'all'};
-const sectionByKey = k => sections.find(s=>s.key===k)||{key:k,label:k,chapter:'all'};
+const typeByKey = k => k?(types.find(t=>t.key===k)||{key:k,label:k,color:'#888'}):{key:'',label:'無',color:'#888'};
+const subByKey = k => k?(subjects.find(s=>s.key===k)||{key:k,label:k,color:'#888'}):{key:'',label:'無',color:'#888'};
+const chapterByKey = k => k?(chapters.find(c=>c.key===k)||{key:k,label:k,subject:'all'}):{key:'',label:'無',subject:'all'};
+const sectionByKey = k => k?(sections.find(s=>s.key===k)||{key:k,label:k,chapter:'all'}):{key:'',label:'無',chapter:'all'};
 const noteScopeKeys = (n,arrKey,singleKey) => {
   const arr=Array.isArray(n&&n[arrKey])?n[arrKey].filter(Boolean):[];
   return uniq(arr.length?arr:((n&&n[singleKey])?[n[singleKey]]:[]));
@@ -827,6 +832,7 @@ function loadData() {
           chapterMigrated=true;
         }
       });
+      normalizeNotesTaxonomy();
       if(normalizeNoteIds(true)) repaired=true;
       if(repaired||chapterMigrated) saveData();
       mapPageStack=[];
@@ -880,38 +886,112 @@ function loadArchives(){
 function saveArchives(arr){
   writeJSON(ARCHIVES_KEY,Array.isArray(arr)?arr:[]);
 }
-function manageArchives(){
-  const action=prompt('存檔管理：輸入 save（存成快照）/ load（載入快照）/ delete（刪除快照）/ export（下載備份）/ import（匯入備份）','save');
-  if(!action) return;
-  const op=action.trim().toLowerCase();
+function loadRecycleBin(){
+  const arr=readJSON(RECYCLE_BIN_KEY,[]);
+  recycleBin=Array.isArray(arr)?arr:[];
+}
+function saveRecycleBin(){
+  writeJSON(RECYCLE_BIN_KEY,recycleBin);
+}
+function purgeRecycleBin(){
+  const now=Date.now();
+  const before=recycleBin.length;
+  recycleBin=recycleBin.filter(item=>now-Date.parse(item.deletedAt||0)<RECYCLE_RETENTION_MS);
+  if(before!==recycleBin.length) saveRecycleBin();
+}
+function normalizeNotesTaxonomy(){
+  const tSet=new Set(types.map(t=>t.key));
+  const sSet=new Set(subjects.map(s=>s.key));
+  const cSet=new Set(chapters.map(c=>c.key));
+  const secSet=new Set(sections.map(s=>s.key));
+  notes.forEach(n=>{
+    if(!tSet.has(n.type)) n.type='';
+    n.subjects=noteSubjects(n).filter(k=>sSet.has(k));
+    n.subject=n.subjects[0]||'';
+    n.chapters=noteChapters(n).filter(k=>cSet.has(k));
+    n.chapter=n.chapters[0]||'';
+    n.sections=noteSections(n).filter(k=>secSet.has(k));
+    n.section=n.sections[0]||'';
+  });
+}
+function createArchiveSnapshot(){
   const archives=loadArchives();
-  if(op==='export'){exportData();return;}
-  if(op==='import'){const inp=g('importFile');if(inp) inp.click();return;}
-  if(op==='save'){
-    const name=(prompt('請輸入存檔名稱：',`存檔 ${new Date().toLocaleString('zh-TW')}`)||'').trim();
-    if(!name){showToast('存檔名稱不可空白');return;}
-    archives.unshift({id:Date.now(),name,createdAt:new Date().toISOString(),payload:getPayload()});
-    saveArchives(archives.slice(0,30));
-    showToast('已儲存存檔');
-    return;
-  }
-  if(!archives.length){showToast('目前沒有存檔');return;}
-  const list=archives.map((a,i)=>`${i+1}. ${a.name}`).join('\n');
-  const idxRaw=prompt(`請輸入編號：\n${list}`,'1');
-  if(!idxRaw) return;
-  const idx=Math.max(1,parseInt(idxRaw,10)||0)-1;
-  const picked=archives[idx];
-  if(!picked){showToast('找不到該存檔');return;}
-  if(op==='delete'){
-    archives.splice(idx,1);saveArchives(archives);showToast('已刪除存檔');return;
-  }
-  if(op==='load'){
-    if(!confirm(`確定載入「${picked.name}」？\n載入後會完整取代目前所有筆記資料。`)) return;
-    if(applySnapshotRaw(JSON.stringify(picked.payload||{}))) showToast('已載入存檔');
+  const name=(prompt('請輸入存檔名稱：',`存檔 ${new Date().toLocaleString('zh-TW')}`)||'').trim();
+  if(!name){showToast('存檔名稱不可空白');return;}
+  archives.unshift({id:Date.now(),name,createdAt:new Date().toISOString(),payload:getPayload()});
+  saveArchives(archives.slice(0,30));
+  renderArchivePanel();
+  showToast('已儲存存檔');
+}
+function removeNotesToRecycle(noteIds){
+  const idSet=new Set((noteIds||[]).map(Number).filter(Number.isFinite));
+  if(!idSet.size) return 0;
+  const removedNotes=notes.filter(n=>idSet.has(n.id));
+  if(!removedNotes.length) return 0;
+  const removedLinks=links.filter(l=>idSet.has(l.from)||idSet.has(l.to));
+  recycleBin.unshift({id:Date.now()+Math.floor(Math.random()*1000),deletedAt:new Date().toISOString(),notes:removedNotes,links:removedLinks});
+  recycleBin=recycleBin.slice(0,200);
+  notes=notes.filter(n=>!idSet.has(n.id));
+  links=links.filter(l=>!idSet.has(l.from)&&!idSet.has(l.to));
+  saveRecycleBin();
+  return removedNotes.length;
+}
+function restoreRecycleItem(itemId){
+  const idx=recycleBin.findIndex(x=>String(x.id)===String(itemId));
+  if(idx<0) return;
+  const item=recycleBin[idx];
+  const idMap={};
+  (item.notes||[]).forEach(n=>{
+    const newId=nid++;
+    idMap[n.id]=newId;
+    notes.push(normalizeNoteSchema({...n,id:newId}));
+  });
+  (item.links||[]).forEach(l=>{
+    const from=idMap[l.from]??l.from;
+    const to=idMap[l.to]??l.to;
+    if(!noteById(from)||!noteById(to)||from===to) return;
+    links.push({id:lid++,from,to,rel:'關聯',color:LINK_COLOR});
+  });
+  recycleBin.splice(idx,1);
+  normalizeNotesTaxonomy();
+  saveRecycleBin();
+  saveData();
+  renderArchivePanel();
+  rebuildUI();
+  render();
+  showToast('已復原筆記');
+}
+function deleteRecycleItem(itemId){
+  recycleBin=recycleBin.filter(x=>String(x.id)!==String(itemId));
+  saveRecycleBin();
+  renderArchivePanel();
+}
+function renderArchivePanel(){
+  const archiveRoot=g('archiveList'), recycleRoot=g('recycleList');
+  if(!archiveRoot||!recycleRoot) return;
+  const archives=loadArchives();
+  archiveRoot.innerHTML=archives.length?archives.map(a=>`<div class="archive-item"><div class="archive-item-title">${escapeHtml(a.name||'未命名存檔')}</div><div class="archive-item-sub">${new Date(a.createdAt||Date.now()).toLocaleString('zh-TW')}</div><div class="archive-item-actions"><button class="tool-btn" data-archive-load="${a.id}">載入</button><button class="tool-btn" data-archive-del="${a.id}">刪除</button></div></div>`).join(''):'<div class="archive-empty">目前沒有存檔</div>';
+  recycleRoot.innerHTML=recycleBin.length?recycleBin.map(r=>`<div class="archive-item"><div class="archive-item-title">${(r.notes||[]).length} 筆筆記</div><div class="archive-item-sub">刪除於 ${new Date(r.deletedAt||Date.now()).toLocaleString('zh-TW')}</div><div class="archive-item-actions"><button class="tool-btn" data-recycle-restore="${r.id}">復原</button><button class="tool-btn" data-recycle-del="${r.id}">清除此項</button></div></div>`).join(''):'<div class="archive-empty">回收區是空的</div>';
+  archiveRoot.querySelectorAll('[data-archive-load]').forEach(btn=>btn.addEventListener('click',()=>{
+    const pick=archives.find(a=>String(a.id)===String(btn.dataset.archiveLoad));
+    if(!pick) return;
+    if(!confirm(`確定載入「${pick.name}」？\n載入後會完整取代目前所有筆記資料。`)) return;
+    if(applySnapshotRaw(JSON.stringify(pick.payload||{}))) showToast('已載入存檔');
     else showToast('載入存檔失敗');
-    return;
-  }
-  showToast('不支援的操作');
+  }));
+  archiveRoot.querySelectorAll('[data-archive-del]').forEach(btn=>btn.addEventListener('click',()=>{
+    const filtered=archives.filter(a=>String(a.id)!==String(btn.dataset.archiveDel));
+    saveArchives(filtered);
+    renderArchivePanel();
+  }));
+  recycleRoot.querySelectorAll('[data-recycle-restore]').forEach(btn=>btn.addEventListener('click',()=>restoreRecycleItem(btn.dataset.recycleRestore)));
+  recycleRoot.querySelectorAll('[data-recycle-del]').forEach(btn=>btn.addEventListener('click',()=>deleteRecycleItem(btn.dataset.recycleDel)));
+}
+function manageArchives(){
+  g('ap')?.classList.add('open');
+  ['dp','fp','tp'].forEach(p=>g(p)?.classList.remove('open'));
+  renderArchivePanel();
+  syncSidePanelState();
 }
 
 // ==================== UI 建構 ====================
@@ -1166,7 +1246,7 @@ function openNote(id) {
   }).join('');
   g('dp-chips').innerHTML=subChips+chapterChips+sectionChips+tagHtml+customHtml;
   renderLinksForNote(id);
-  g('dp').classList.add('open');['fp','tp'].forEach(p=>g(p).classList.remove('open'));
+  g('dp').classList.add('open');['fp','tp','ap'].forEach(p=>g(p).classList.remove('open'));
   syncSidePanelState();
 }
 
@@ -1237,13 +1317,13 @@ function closeForm() { g('fp').classList.remove('open'); syncSidePanelState(); }
 
 function detachSidePanelsFromNotesView(){
   const host=document.body;
-  ['dp','fp','tp'].forEach(id=>{
+  ['dp','fp','tp','ap'].forEach(id=>{
     const panel=g(id);
     if(panel&&panel.parentElement!==host) host.appendChild(panel);
   });
 }
 function syncSidePanelState(){
-  const hasOpen=['dp','fp','tp'].some(id=>g(id)?.classList.contains('open'));
+  const hasOpen=['dp','fp','tp','ap'].some(id=>g(id)?.classList.contains('open'));
   document.body.classList.toggle('side-panel-open',hasOpen);
 }
 
@@ -1493,14 +1573,23 @@ async function copyNoteToClipboard() {
     showToast('複製失敗，請稍後再試');
   }
 }
-function deleteNote() { if(!openId||!confirm('確定刪除這筆筆記？相關關聯也會一起刪除。')) return; links=links.filter(l=>l.from!==openId&&l.to!==openId);notes=notes.filter(n=>n.id!==openId);saveData();closeDetail();render();showToast('已刪除'); }
+function deleteNote() {
+  if(!openId||!confirm('確定刪除這筆筆記？可到回收區復原（保留 7 天）。')) return;
+  const removed=removeNotesToRecycle([openId]);
+  if(!removed) return;
+  saveData();
+  closeDetail();
+  renderArchivePanel();
+  render();
+  showToast('已移至回收區');
+}
 // ==================== 標籤管理 ====================
 function openTagMgr() {
   chapterSubjectFilter='';
   sectionChapterFilter='';
   activeTagCategory='type';
   g('tp').classList.add('open');
-  ['dp','fp'].forEach(p=>g(p).classList.remove('open'));
+  ['dp','fp','ap'].forEach(p=>g(p).classList.remove('open'));
   renderTagLists();
   renderTagStats();
   syncSidePanelState();
@@ -1708,6 +1797,39 @@ function moveTag(idx,kind,dir){
   [arr[idx],arr[target]]=[arr[target],arr[idx]];
   saveData();renderTagLists();rebuildUI();render();
 }
+function autoCleanupUnusedTags(){
+  const now=Date.now();
+  const usage={
+    type:new Set(notes.map(n=>n.type).filter(Boolean)),
+    subject:new Set(notes.flatMap(n=>noteSubjects(n)).filter(Boolean)),
+    chapter:new Set(notes.flatMap(n=>noteChapters(n)).filter(Boolean)),
+    section:new Set(notes.flatMap(n=>noteSections(n)).filter(Boolean))
+  };
+  const nextTracker={};
+  const keepOrTrack=(kind,key)=>{
+    if(usage[kind].has(key)) return true;
+    const trackerKey=`${kind}:${key}`;
+    const since=unusedTagTracker[trackerKey]||now;
+    nextTracker[trackerKey]=since;
+    return now-since<UNUSED_TAG_PURGE_MS;
+  };
+  const before=types.length+subjects.length+chapters.length+sections.length;
+  types=types.filter(t=>keepOrTrack('type',t.key));
+  subjects=subjects.filter(s=>keepOrTrack('subject',s.key));
+  chapters=chapters.filter(c=>keepOrTrack('chapter',c.key));
+  sections=sections.filter(s=>keepOrTrack('section',s.key));
+  unusedTagTracker=nextTracker;
+  localStorage.setItem(UNUSED_TAG_TRACK_KEY,JSON.stringify(unusedTagTracker));
+  normalizeNotesTaxonomy();
+  const after=types.length+subjects.length+chapters.length+sections.length;
+  if(after!==before){
+    saveData();
+    if(g('tp')?.classList.contains('open')) renderTagLists();
+    rebuildUI();
+    render();
+    showToast(`已自動清理 ${before-after} 個未使用標籤`);
+  }
+}
 function clearUnusedTags(){
   const usedTypes=new Set(notes.map(n=>n.type)),usedSubs=new Set(notes.flatMap(n=>noteSubjects(n))),usedChapters=new Set(notes.flatMap(n=>noteChapters(n))),usedSections=new Set(notes.flatMap(n=>noteSections(n)));
   const before={types:types.length,subs:subjects.length,chapters:chapters.length,sections:sections.length};
@@ -1715,6 +1837,9 @@ function clearUnusedTags(){
   subjects=subjects.filter(s=>usedSubs.has(s.key));
   chapters=chapters.filter(c=>usedChapters.has(c.key));
   sections=sections.filter(s=>usedSections.has(s.key));
+  normalizeNotesTaxonomy();
+  unusedTagTracker={};
+  localStorage.setItem(UNUSED_TAG_TRACK_KEY,JSON.stringify(unusedTagTracker));
   const removed=(before.types-types.length)+(before.subs-subjects.length)+(before.chapters-chapters.length)+(before.sections-sections.length);
   saveData();renderTagLists();rebuildUI();render();showToast(removed?`已清理 ${removed} 個未使用標籤`:'沒有可清理的標籤');
 }
@@ -1763,9 +1888,14 @@ function deleteTag(idx,kind) {
   if(kind==='chapter'){
     const removed=arr[idx]; if(!removed) return;
     if(!confirm(`確定刪除章「${removed.label}」？已使用此章的筆記會改為未分類。`)) return;
-    arr.splice(idx,1);notes.forEach(n=>{n.chapters=noteChapters(n).filter(ch=>ch!==removed.key);n.chapter=n.chapters[0]||'';});
+    const removedSectionKeys=sections.filter(s=>s.chapter===removed.key).map(s=>s.key);
+    arr.splice(idx,1);notes.forEach(n=>{
+      n.chapters=noteChapters(n).filter(ch=>ch!==removed.key);n.chapter=n.chapters[0]||'';
+      n.sections=noteSections(n).filter(sec=>!removedSectionKeys.includes(sec));n.section=n.sections[0]||'';
+    });
     sections=sections.filter(s=>s.chapter!==removed.key);
     if(cch===removed.key)cch='all';if(mapFilter.chapter===removed.key)mapFilter.chapter='all';
+    if(sectionChapterFilter===removed.key) sectionChapterFilter='';
     saveData();renderTagLists();rebuildUI();render();showToast('章已刪除');return;
   }
   if(kind==='section'){
@@ -1778,7 +1908,25 @@ function deleteTag(idx,kind) {
   const removed=arr[idx];
   if(!confirm(`確定刪除標籤「${removed.label}」？`)) return;
   arr.splice(idx,1);
-  if(kind==='type'&&removed) delete typeFieldConfigs[removed.key];
+  if(kind==='type'&&removed){
+    delete typeFieldConfigs[removed.key];
+    notes.forEach(n=>{if(n.type===removed.key)n.type='';});
+    if(cv===removed.key) cv='all';
+  }
+  if(kind==='sub'&&removed){
+    const removedChapterKeys=chapters.filter(ch=>ch.subject===removed.key).map(ch=>ch.key);
+    const removedSectionKeys=sections.filter(sec=>removedChapterKeys.includes(sec.chapter)).map(sec=>sec.key);
+    chapters=chapters.filter(ch=>ch.subject!==removed.key);
+    sections=sections.filter(sec=>!removedChapterKeys.includes(sec.chapter));
+    notes.forEach(n=>{
+      n.subjects=noteSubjects(n).filter(sk=>sk!==removed.key);n.subject=n.subjects[0]||'';
+      n.chapters=noteChapters(n).filter(ch=>!removedChapterKeys.includes(ch));n.chapter=n.chapters[0]||'';
+      n.sections=noteSections(n).filter(sec=>!removedSectionKeys.includes(sec));n.section=n.sections[0]||'';
+    });
+    if(selectedSubjects.includes(removed.key)) selectedSubjects=selectedSubjects.filter(k=>k!==removed.key);
+    if(chapterSubjectFilter===removed.key) chapterSubjectFilter='';
+  }
+  normalizeNotesTaxonomy();
   saveData();renderTagLists();rebuildUI();render();showToast('標籤已刪除');
 }
 
@@ -2036,8 +2184,17 @@ function importData(file) {
         saveData();rebuildUI();render();showToast(`已覆蓋，共 ${notes.length} 筆筆記`);
       } else {
         // ★ 合併模式：同樣不覆蓋 types/subjects/chapters
-        const existing=notes.map(n=>n.id);let added=0;
-        d.notes.forEach(n=>{if(!existing.includes(n.id)){notes.push(n);added++;if(n.id>=nid)nid=n.id+1;}});
+        const existing=new Set(notes.map(n=>n.id));let added=0;
+        d.notes.forEach(n=>{
+          let nextId=n.id;
+          if(existing.has(nextId)||!Number.isFinite(nextId)){
+            nextId=Math.max(nid,notes.reduce((m,x)=>Math.max(m,x.id||0),0)+1);
+          }
+          existing.add(nextId);
+          notes.push({...n,id:nextId});
+          added++;
+          if(nextId>=nid) nid=nextId+1;
+        });
         if(d.links)links=d.links;
         if(d.nodeSizes)nodeSizes={...nodeSizes,...d.nodeSizes};if(d.mapCenterNodeId)mapCenterNodeId=d.mapCenterNodeId;
         if(d.mapCenterNodeIds&&typeof d.mapCenterNodeIds==='object') mapCenterNodeIds={...mapCenterNodeIds,...d.mapCenterNodeIds};
@@ -2089,7 +2246,7 @@ function execShortcut(id) {
       if(target){target.focus();target.select?.();}
     },
     map:()=>{if(!isMapOpen)toggleMapView(true);},back:()=>{if(isMapOpen)toggleMapView(false);},
-    close:()=>{if(g('scp').style.display==='block')closeShortcutMgr();else if(g('tp').classList.contains('open')){g('tp').classList.remove('open');syncSidePanelState();}else if(g('fp').classList.contains('open'))closeForm();else if(g('dp').classList.contains('open'))closeDetail();},
+    close:()=>{if(g('scp').style.display==='block')closeShortcutMgr();else if(g('ap').classList.contains('open')){g('ap').classList.remove('open');syncSidePanelState();}else if(g('tp').classList.contains('open')){g('tp').classList.remove('open');syncSidePanelState();}else if(g('fp').classList.contains('open'))closeForm();else if(g('dp').classList.contains('open'))closeDetail();},
     edit:()=>{if(openId)openForm(true);},link:()=>{if(openId)openForm(true);},
     export:()=>manageArchives(),stats:()=>{if(!isMapOpen)openStats();},shortcuts:()=>openShortcutMgr()
   };
@@ -2326,7 +2483,7 @@ function checkReminders(){
 function enterMultiSel() {
   multiSelMode=true;selectedIds={};
   g('selectBar').classList.add('open');
-  ['dp','fp'].forEach(p=>g(p).classList.remove('open'));
+  ['dp','fp','ap'].forEach(p=>g(p).classList.remove('open'));
   syncSidePanelState();
   updateSelBar();
   render();
@@ -2343,7 +2500,16 @@ function selectAll() {
   updateSelBar();
   render();
 }
-function deleteSelected() { const ids=Object.keys(selectedIds);if(!ids.length)return;if(!confirm(`確定刪除這 ${ids.length} 筆筆記？此操作無法復原。`))return;const idNums=ids.map(Number);links=links.filter(l=>!idNums.includes(l.from)&&!idNums.includes(l.to));notes=notes.filter(n=>!selectedIds[n.id]);saveData();exitMultiSel();showToast(`已刪除 ${ids.length} 筆筆記`); }
+function deleteSelected() {
+  const ids=Object.keys(selectedIds);
+  if(!ids.length) return;
+  if(!confirm(`確定刪除這 ${ids.length} 筆筆記？可到回收區復原（保留 7 天）。`)) return;
+  const removed=removeNotesToRecycle(ids.map(Number));
+  saveData();
+  renderArchivePanel();
+  exitMultiSel();
+  showToast(`已移至回收區 ${removed} 筆`);
+}
 function bindCardInteractions(card,id){
   const checkBtn=card.querySelector('.sel-check');
   let pressTimer=null;
@@ -3079,6 +3245,10 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   bindTagManagerNav();
   on('undoBtn','click',undoLastAction);
   on('archiveBtn','click',manageArchives);
+  on('apClose','click',()=>{g('ap').classList.remove('open');syncSidePanelState();});
+  on('archiveSaveBtn','click',createArchiveSnapshot);
+  on('archiveExportBtn','click',exportData);
+  on('archiveImportBtn','click',()=>g('importFile')?.click());
   g('tpClose').addEventListener('click',()=>{g('tp').classList.remove('open');syncSidePanelState();});
   on('tagSearchInput','input',debounce(()=>{tagSearchQ=(val('tagSearchInput')||'').toLowerCase().trim();renderTagLists();},150));
   on('tagUnusedOnly','change',()=>{tagUnusedOnly=!!g('tagUnusedOnly').checked;renderTagLists();});
@@ -3109,6 +3279,10 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   g('shortcutMgrBtn').addEventListener('click',openShortcutMgr);g('scpClose').addEventListener('click',closeShortcutMgr);g('scpDone').addEventListener('click',closeShortcutMgr);
   g('scpReset').addEventListener('click',()=>{shortcuts=DEFAULT_SHORTCUTS.map(s=>({...s}));saveShortcuts();renderShortcutList();showToast('已恢復預設快捷鍵');});
   loadShortcuts();document.addEventListener('keydown',handleGlobalKey);
+  loadRecycleBin();
+  purgeRecycleBin();
+  try{unusedTagTracker=JSON.parse(localStorage.getItem(UNUSED_TAG_TRACK_KEY)||'{}')||{};}catch(e){unusedTagTracker={};}
+  setInterval(()=>{purgeRecycleBin();autoCleanupUnusedTags();},60000);
   const isInsideMapCanvas = target => !!(target&&target.closest&&target.closest('#mapCanvas'));
   let lastTouchEndTs=0, lastTouchTs=0, lastTouchX=0, lastTouchY=0;
   document.addEventListener('dblclick',e=>{ if(!isInsideMapCanvas(e.target)) e.preventDefault(); },{capture:true,passive:false});

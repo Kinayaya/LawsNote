@@ -196,6 +196,26 @@
     </div>
   </div>
   </div>
+
+  <!-- Archive / Recycle Panel -->
+  <div class="panel" id="ap">
+    <div class="ph"><span class="ph-title">存檔與回收區</span><button class="pcls" id="apClose">&#215;</button></div>
+    <div class="archive-toolbar">
+      <button class="tool-btn" id="archiveSaveBtn">+ 建立存檔</button>
+      <button class="tool-btn" id="archiveExportBtn">下載備份</button>
+      <button class="tool-btn" id="archiveImportBtn">匯入備份</button>
+    </div>
+    <div class="archive-cols">
+      <div class="archive-col">
+        <div class="archive-col-title">存檔快照</div>
+        <div id="archiveList"></div>
+      </div>
+      <div class="archive-col">
+        <div class="archive-col-title">回收區（7 天自動清空）</div>
+        <div id="recycleList"></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Calendar View -->

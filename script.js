@@ -1257,16 +1257,26 @@ function applyCompactFilterMode(enabled){
 function createRelationLink(fromId,toId){
   const a=parseInt(fromId,10),b=parseInt(toId,10);
   if(!Number.isFinite(a)||!Number.isFinite(b)||a===b) return false;
-  if(!noteById(a)||!noteById(b)) return false;
+  if(!mapNodeById(a)||!mapNodeById(b)) return false;
   if(links.some(l=>(l.from===a&&l.to===b)||(l.from===b&&l.to===a))) return false;
   links.push({id:lid++,from:a,to:b,rel:'關聯',color:LINK_COLOR});
   return true;
 }
-function findNotesByKeyword(keyword,excludeId){
+function findMapNodesByKeyword(keyword,excludeId){
   const q=safeStr(keyword).replace(/^@/,'').trim().toLowerCase();
   if(!q) return [];
   const blocked=Number(excludeId);
-  return notes.filter(n=>n.id!==blocked&&`${n.title} ${noteSubjectText(n)} ${typeByKey(n.type).label}`.toLowerCase().includes(q)).slice(0,18);
+  return [...notes,...mapRelays].filter(n=>n.id!==blocked&&`${n.title} ${noteSubjectText(n)} ${isRelayNode(n)?'中繼站':typeByKey(n.type).label}`.toLowerCase().includes(q)).slice(0,18);
+}
+function openMapNodeFromLink(id){
+  if(!relayById(id)){ showToast('中繼站已被刪除'); return; }
+  if(!isMapOpen) toggleMapView(true);
+  setTimeout(()=>{
+    if(!nodePos[id]) initNodePos();
+    showMapInfo(id);
+    openMapPopup(id);
+    highlightNode(id);
+  },130);
 }
 function renderDetailQuickLinkSearch(){
   const root=g('dp-link-results');
@@ -1274,9 +1284,12 @@ function renderDetailQuickLinkSearch(){
   const q=(g('dp-link-search')?.value||'').trim();
   if(!q){root.innerHTML='<div class="dp-link-empty">輸入關鍵字即可快速建立關聯</div>';return;}
   const existingIds=new Set(links.filter(l=>l.from===openId||l.to===openId).map(l=>l.from===openId?l.to:l.from));
-  const pool=findNotesByKeyword(q,openId).filter(n=>!existingIds.has(n.id));
+  const pool=findMapNodesByKeyword(q,openId).filter(n=>!existingIds.has(n.id));
   if(!pool.length){root.innerHTML='<div class="dp-link-empty">找不到可關聯的筆記</div>';return;}
-  root.innerHTML=pool.map(n=>`<div class="fl-result-item quick-add" data-quick-link-id="${n.id}"><span class="fl-result-type" style="background:${typeByKey(n.type).color}">${typeByKey(n.type).label}</span><span class="fl-result-title">${escapeHtml(n.title)}</span><button class="tool-btn" type="button">+ 關聯</button></div>`).join('');
+  root.innerHTML=pool.map(n=>{
+    const tp=isRelayNode(n)?{label:'中繼站',color:'#A855F7'}:typeByKey(n.type);
+    return `<div class="fl-result-item quick-add" data-quick-link-id="${n.id}"><span class="fl-result-type" style="background:${tp.color}">${tp.label}</span><span class="fl-result-title">${escapeHtml(n.title)}</span><button class="tool-btn" type="button">+ 關聯</button></div>`;
+  }).join('');
   root.querySelectorAll('[data-quick-link-id]').forEach(row=>row.addEventListener('click',()=>{
     const targetId=parseInt(row.dataset.quickLinkId,10);
     if(!openId||!targetId) return;
@@ -1386,10 +1399,14 @@ function renderLinksForNote(id) {
   const el=g('dp-links');
   if(!related.length){el.innerHTML='<span style="font-size:12px;color:#bbb">尚無關聯</span>';return;}
   el.innerHTML=related.map(l=>{
-    const otherId=l.from===id?l.to:l.from,other=noteById(otherId),dir=l.from===id?'→':'←';
+    const otherId=l.from===id?l.to:l.from,other=mapNodeById(otherId),dir=l.from===id?'→':'←';
     return `<div class="link-item"><div class="link-dot" style="background:${LINK_COLOR}"></div><span class="link-rel" style="background:${LINK_COLOR}">${dir} 關聯</span><span class="link-title link-jump" data-nid="${otherId}" style="cursor:pointer;color:#007AFF;text-decoration:underline;">${other?other.title:'（已刪除）'}</span><button class="link-del" data-lid="${l.id}">✕</button></div>`;
   }).join('');
-  el.querySelectorAll('.link-jump').forEach(btn=>btn.addEventListener('click',()=>{const nid2=parseInt(btn.dataset.nid);noteById(nid2)?openNote(nid2):showToast('筆記已被刪除');}));
+  el.querySelectorAll('.link-jump').forEach(btn=>btn.addEventListener('click',()=>{
+    const nid2=parseInt(btn.dataset.nid,10);
+    if(noteById(nid2)){ openNote(nid2); return; }
+    openMapNodeFromLink(nid2);
+  }));
   el.querySelectorAll('.link-del').forEach(btn=>btn.addEventListener('click',()=>{links=links.filter(l=>l.id!==parseInt(btn.dataset.lid));saveData();renderLinksForNote(id);renderDetailQuickLinkSearch();render();showToast('關聯已刪除');}));
 }
 
@@ -1477,7 +1494,7 @@ function renderFormLinks() {
   if(!el||!openId){if(el)el.innerHTML='';return;}
   const related=links.filter(l=>l.from===openId||l.to===openId);
   if(!related.length){el.innerHTML='<span style="font-size:12px;color:#bbb">尚無關聯</span>';return;}
-  el.innerHTML=related.map(l=>{const otherId=l.from===openId?l.to:l.from,other=noteById(otherId);return `<div class="fl-item"><span class="fl-item-title">${other?other.title:'（已刪除）'}</span><button class="fl-del" data-lid="${l.id}">✕</button></div>`;}).join('');
+  el.innerHTML=related.map(l=>{const otherId=l.from===openId?l.to:l.from,other=mapNodeById(otherId),tag=isRelayNode(other)?'<span class="chip" style="margin-right:6px;background:#F2E8FF;color:#7A34B0;border-color:#D4B5EF">中繼站</span>':'';return `<div class="fl-item">${tag}<span class="fl-item-title">${other?other.title:'（已刪除）'}</span><button class="fl-del" data-lid="${l.id}">✕</button></div>`;}).join('');
   el.querySelectorAll('.fl-del').forEach(btn=>btn.addEventListener('click',()=>{links=links.filter(l=>l.id!==parseInt(btn.dataset.lid));saveData();renderFormLinks();if(isMapOpen)scheduleMapRedraw(100);showToast('關聯已刪除');}));
 }
 function renderFormLinkSearch() {
@@ -1485,9 +1502,9 @@ function renderFormLinkSearch() {
   const q=(val('fl-search')||'').toLowerCase().trim();
   if(!q){el.innerHTML='';updateFormLinkBulkActions();return;}
   const existIds=links.filter(l=>openId&&(l.from===openId||l.to===openId)).map(l=>l.from===openId?l.to:l.from);
-  const pool=notes.filter(n=>n.id!==openId&&!existIds.includes(n.id)&&`${n.title} ${noteSubjectText(n)} ${typeByKey(n.type).label}`.toLowerCase().includes(q)).slice(0,24);
+  const pool=[...notes,...mapRelays].filter(n=>n.id!==openId&&!existIds.includes(n.id)&&`${n.title} ${noteSubjectText(n)} ${isRelayNode(n)?'中繼站':typeByKey(n.type).label}`.toLowerCase().includes(q)).slice(0,24);
   if(!pool.length){el.innerHTML='<div style="font-size:12px;color:#bbb;padding:4px 0;">找不到符合的筆記</div>';updateFormLinkBulkActions();return;}
-  el.innerHTML=pool.map(n=>`<div class="fl-result-item ${formLinkSelections[n.id]?'selected':''}" data-nid="${n.id}"><input type="checkbox" ${formLinkSelections[n.id]?'checked':''}><span class="fl-result-type" style="background:${typeByKey(n.type).color}">${typeByKey(n.type).label}</span><span class="fl-result-title">${n.title}</span></div>`).join('');
+  el.innerHTML=pool.map(n=>{const tp=isRelayNode(n)?{label:'中繼站',color:'#A855F7'}:typeByKey(n.type);return `<div class="fl-result-item ${formLinkSelections[n.id]?'selected':''}" data-nid="${n.id}"><input type="checkbox" ${formLinkSelections[n.id]?'checked':''}><span class="fl-result-type" style="background:${tp.color}">${tp.label}</span><span class="fl-result-title">${n.title}</span></div>`;}).join('');
   el.querySelectorAll('.fl-result-item').forEach(item=>{
     item.addEventListener('click',()=>{
       const toId=parseInt(item.dataset.nid);
@@ -1512,11 +1529,7 @@ function addSelectedFormLinks(){
   const targetIds=Object.keys(formLinkSelections).filter(id=>formLinkSelections[id]).map(Number);
   if(!targetIds.length){showToast('請先選擇要關聯的筆記');return;}
   let added=0;
-  targetIds.forEach(toId=>{
-    if(!links.some(l=>(l.from===openId&&l.to===toId)||(l.from===toId&&l.to===openId))){
-      links.push({id:lid++,from:openId,to:toId,rel:'關聯',color:LINK_COLOR}); added++;
-    }
-  });
+  targetIds.forEach(toId=>{ if(createRelationLink(openId,toId)) added++; });
   formLinkSelections={};saveData();renderFormLinks();renderFormLinkSearch();showToast(`已建立 ${added} 筆關聯`);if(isMapOpen)scheduleMapRedraw(100);
 }
 

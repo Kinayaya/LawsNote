@@ -18,6 +18,7 @@ const DEFAULTS = {
 };
 const LINK_COLOR = '#378ADD', SKEY = 'legal_notes_v4', PAGE_SIZE = 24;
 const ARCHIVES_KEY = 'klaws_archives_v1';
+const ARCHIVE_SNAPSHOT_LIMIT = 30;
 const RECYCLE_BIN_KEY = 'klaws_recycle_bin_v1';
 const UNUSED_TAG_TRACK_KEY = 'klaws_unused_tag_tracker_v1';
 const RECYCLE_RETENTION_MS = 7*24*60*60*1000;
@@ -474,16 +475,21 @@ const raw=mapLaneConfigs[key]||{};
   mapLaneConfigs[key]={count,names};
   return {key,count,names};
 };
+const estimateMapTextLines = (text, charsPerLine) => {
+  const rows=safeStr(text).split('\n');
+  return rows.reduce((sum,row)=>sum+Math.max(1,Math.ceil((row.length||1)/charsPerLine)),0);
+};
 const getMapCardBox = id => {
   const scale=Math.max(0.7,Math.min(2.3,getNodeRadius(id)/MAP_NODE_RADIUS_DEFAULT));
   const width=Math.round(210*scale);
   const note=noteById(id)||{};
-  const bodyText=safeStr(note.body).trim();
-  if(!bodyText) return {width,height:86,bodyLines:0};
+  const keys=getTypeFieldKeys(note.type).filter(key=>key!=='tags');
+  const previewTexts=keys.map(key=>mapCardFieldText(note,key)).filter(text=>!!text);
+  if(!previewTexts.length) return {width,height:86,bodyLines:0};
   const charsPerLine=Math.max(9,Math.floor((width-24)/10));
-  const manualLines=bodyText?bodyText.split('\n'):[];
-  const bodyLines=Math.max(2,(manualLines.length?manualLines:[bodyText||'']).reduce((sum,line)=>sum+Math.max(1,Math.ceil((line.length||1)/charsPerLine)),0));
-  const height=96+bodyLines*18;
+  const bodyLines=previewTexts.reduce((sum,text)=>sum+estimateMapTextLines(text,charsPerLine),0);
+  const segmentExtra=Math.max(0,previewTexts.length-1)*9;
+  const height=86+bodyLines*18+segmentExtra;
   return {width,height,bodyLines};
 };
 const ensureUsageStart = () => {
@@ -879,12 +885,17 @@ function undoLastAction(){
   }else showToast('恢復失敗');
 }
 function loadArchives(){
-  const arr=readJSON(ARCHIVES_KEY,[]);
-  return Array.isArray(arr)?arr:[];
+  const raw=readJSON(ARCHIVES_KEY,[]);
+  if(Array.isArray(raw)) return raw;
+  if(raw&&typeof raw==='object'&&raw.payload){
+    return [{...raw,id:raw.id||Date.now(),name:raw.name||'舊版存檔',createdAt:raw.createdAt||new Date().toISOString()}];
+  }
+  return [];
 }
 
 function saveArchives(arr){
-  writeJSON(ARCHIVES_KEY,Array.isArray(arr)?arr:[]);
+  const next=Array.isArray(arr)?arr:[];
+  writeJSON(ARCHIVES_KEY,next.slice(0,ARCHIVE_SNAPSHOT_LIMIT));
 }
 function loadRecycleBin(){
   const arr=readJSON(RECYCLE_BIN_KEY,[]);
@@ -918,8 +929,8 @@ function createArchiveSnapshot(){
   const archives=loadArchives();
   const name=(prompt('請輸入存檔名稱：',`存檔 ${new Date().toLocaleString('zh-TW')}`)||'').trim();
   if(!name){showToast('存檔名稱不可空白');return;}
-  archives.unshift({id:Date.now(),name,createdAt:new Date().toISOString(),payload:getPayload()});
-  saveArchives(archives.slice(0,30));
+  archives.unshift({id:Date.now()+Math.floor(Math.random()*1000),name,createdAt:new Date().toISOString(),payload:getPayload()});
+  saveArchives(archives);
   renderArchivePanel();
   showToast('已儲存存檔');
 }

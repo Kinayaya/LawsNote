@@ -2940,7 +2940,7 @@ const sectionIndexMap = () => {
   return map;
 };
 const nodePreferredRank = (nodeId,chIdxMap,secIdxMap) => {
-  const note=noteById(nodeId)||{};
+  const note=mapNodeById(nodeId)||{};
   const chIdxs=noteChapters(note).map(key=>chIdxMap[key]).filter(idx=>Number.isFinite(idx));
   const secIdxs=noteSections(note).map(key=>secIdxMap[key]).filter(idx=>Number.isFinite(idx));
   const minChIdx=chIdxs.length?Math.min(...chIdxs):9999;
@@ -2953,7 +2953,7 @@ function forceLayout() {
   const layoutNotes=visibleNotes(),visIds={};layoutNotes.forEach(n=>visIds[n.id]=true);
   const visLinks=visibleLinks(visIds),n2=layoutNotes.length;if(!n2)return;
   const scopedCenterId=getMapCenterFromScopes();
-  const hasStoredCenter=!!scopedCenterId&&notes.some(n=>n.id===scopedCenterId);
+  const hasStoredCenter=!!scopedCenterId&&!!mapNodeById(scopedCenterId);
   if(!hasStoredCenter){
     const linkCount={};layoutNotes.forEach(n=>linkCount[n.id]=0);visLinks.forEach(lk=>{linkCount[lk.from]=(linkCount[lk.from]||0)+1;linkCount[lk.to]=(linkCount[lk.to]||0)+1;});
     setMapCenterForCurrentScope(layoutNotes.reduce((max,n)=>linkCount[n.id]>linkCount[max.id]?n:max,layoutNotes[0]).id);

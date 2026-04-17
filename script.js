@@ -1195,19 +1195,31 @@ function noteMatchesSearch(note, q, normalizedDate='') {
   const hay=`${note.title} ${note.body} ${subs.join(' ')} ${chs.join(' ')} ${secs.join(' ')} ${noteTags(note).join(' ')} ${note.date||''}`.toLowerCase();
   return hay.includes(q)||(normalizedDate&&formatDate(note.date)===normalizedDate);
 }
+function relayMatchesSearch(relay, q) {
+  if(!q) return true;
+  const subs=noteSubjects(relay), chs=noteChapters(relay), secs=noteSections(relay);
+  const hay=`${relay.title} ${relay.body||''} ${subs.join(' ')} ${chs.join(' ')} ${secs.join(' ')}`.toLowerCase();
+  return hay.includes(q);
+}
 function expandWithLinkedNotes(seedIds) {
-  const expanded=new Set(seedIds);
-  links.forEach(l=>{
-    if(expanded.has(l.from)) expanded.add(l.to);
-    if(expanded.has(l.to)) expanded.add(l.from);
-  });
+  const expanded=new Set(seedIds), queue=[...expanded];
+  while(queue.length){
+    const current=queue.shift();
+    links.forEach(l=>{
+      if(l.from===current&&!expanded.has(l.to)){expanded.add(l.to);queue.push(l.to);}
+      if(l.to===current&&!expanded.has(l.from)){expanded.add(l.from);queue.push(l.from);}
+    });
+  }
   return expanded;
 }
 function expandWithChildLinkedNotes(seedIds) {
-  const expanded=new Set(seedIds);
-  links.forEach(l=>{
-    if(expanded.has(l.from)) expanded.add(l.to);
-  });
+  const expanded=new Set(seedIds), queue=[...expanded];
+  while(queue.length){
+    const current=queue.shift();
+    links.forEach(l=>{
+      if(l.from===current&&!expanded.has(l.to)){expanded.add(l.to);queue.push(l.to);}
+    });
+  }
   return expanded;
 }
 
@@ -3161,15 +3173,16 @@ function visibleNotes(){
     return (mapFilter.sub==='all'||subs.includes(mapFilter.sub))
       &&chapterMatch
       &&sectionMatch
-      &&(!q||`${n.title}${n.body||''}${subs.join('')}${chs.join('')}${secs.join('')}`.toLowerCase().includes(q));
+      &&relayMatchesSearch(n,q);
   });
   const shouldExpandLinked=scopeLinkedEnabled&&mapHasTaxonomyFilter();
-  let filtered=baseFiltered;
+  let filtered=baseFiltered, relayVisible=relayFiltered;
   if(shouldExpandLinked){
-    const expandedIds=expandWithChildLinkedNotes(new Set(baseFiltered.map(n=>n.id)));
+    const expandedIds=expandWithChildLinkedNotes(new Set([...baseFiltered,...relayFiltered].map(n=>n.id)));
     filtered=notes.filter(n=>expandedIds.has(n.id)&&noteMatchesSearch(n,q));
+    relayVisible=mapRelays.filter(n=>expandedIds.has(n.id)&&relayMatchesSearch(n,q));
   }
-  let base=[...filtered,...relayFiltered].filter(n=>!mapLinkedOnly||linkedIds[n.id]);
+  let base=[...filtered,...relayVisible].filter(n=>!mapLinkedOnly||linkedIds[n.id]);
   if(isInMapSubpage()){
     const rootId=currentSubpageRootId();
     const allowed=getDescendantIds(rootId);

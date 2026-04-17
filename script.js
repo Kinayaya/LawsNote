@@ -16,7 +16,7 @@ const DEFAULTS = {
   ],
   sections: []
 };
-const LINK_COLOR = '#378ADD', SKEY = 'legal_notes_v4', PAGE_SIZE = 24;
+const LINK_COLOR = '#378ADD', SKEY = 'legal_notes_v4', PAGE_SIZE = 30;
 const ARCHIVES_KEY = 'klaws_archives_v1';
 const ARCHIVE_SNAPSHOT_LIMIT = 30;
 const RECYCLE_BIN_KEY = 'klaws_recycle_bin_v1';
@@ -484,7 +484,7 @@ const estimateMapTextLines = (text, charsPerLine) => {
 };
 const getMapCardBox = id => {
   const scale=Math.max(0.7,Math.min(2.3,getNodeRadius(id)/MAP_NODE_RADIUS_DEFAULT));
-  const width=Math.round(210*scale);
+  const width=Math.round(250*scale);
   const note=noteById(id)||{};
   const keys=getTypeFieldKeys(note.type).filter(key=>key!=='tags');
   const previewTexts=keys.map(key=>mapCardFieldText(note,key)).filter(text=>!!text);

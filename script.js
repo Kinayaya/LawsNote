@@ -82,6 +82,7 @@ let mapRedrawTimer=null, mapResizeObserver=null, mapCenterNodeId=null, mapCenter
 let mapTimer=null, currentView='notes';
 let mapAdvancedOpen=false;
 let mapCollapsed={};
+let mapLinkSourceId=null;
 let mapSubpages={}, mapPageStack=[];
 let typeFieldConfigs={}, customFieldDefs={};
 let undoSnapshotRaw='', lastSavedPayloadRaw='', isUndoApplying=false;
@@ -1282,6 +1283,38 @@ function createRelationLink(fromId,toId){
   if(!mapNodeById(a)||!mapNodeById(b)) return false;
   if(links.some(l=>(l.from===a&&l.to===b)||(l.from===b&&l.to===a))) return false;
   links.push({id:lid++,from:a,to:b,rel:'關聯',color:LINK_COLOR});
+  return true;
+}
+function clearMapLinkSource(opts={}){
+  const {silent=false}=opts;
+  if(!mapLinkSourceId) return;
+  mapLinkSourceId=null;
+  if(isMapOpen) drawMap();
+  if(!silent) showToast('已取消地圖連線起點');
+}
+function setMapLinkSource(id){
+  if(!mapNodeById(id)) return;
+  mapLinkSourceId=id;
+  if(isMapOpen) drawMap();
+  showToast('已選擇地圖連線起點，請再點一個節點建立關聯');
+}
+function handleMapNodeLinkTap(targetId){
+  if(!mapLinkSourceId) return false;
+  if(mapLinkSourceId===targetId){
+    clearMapLinkSource();
+    return true;
+  }
+  const src=mapLinkSourceId;
+  const created=createRelationLink(src,targetId);
+  if(!created){
+    showToast('關聯已存在或無效');
+    return true;
+  }
+  mapLinkSourceId=targetId;
+  saveData();
+  drawMap();
+  if(openId===src||openId===targetId) renderLinksForNote(openId);
+  showToast('已建立關聯，可繼續點下一個節點串接');
   return true;
 }
 function findMapNodesByKeyword(keyword,excludeId){
@@ -3199,6 +3232,7 @@ function deleteMapRelay(id){
   const relay=relayById(id);
   if(!relay) return;
   if(!confirm(`確定刪除中繼站「${relay.title||'未命名'}」？`)) return;
+  if(mapLinkSourceId===id) mapLinkSourceId=null;
   mapRelays=mapRelays.filter(r=>r.id!==id);
   links=links.filter(l=>l.from!==id&&l.to!==id);
   delete nodePos[id];
@@ -3247,6 +3281,7 @@ function drawMap(){
     const pos=nodePos[n.id];if(!pos)return;
     const type=isRelayNode(n)?{label:'中繼站',color:'#A855F7'}:typeByKey(n.type),box=getMapCardBox(n.id),halfW=box.width/2,halfH=box.height/2;
     const grp=document.createElementNS('http://www.w3.org/2000/svg','g');grp.classList.add('map-node');grp.dataset.id=String(n.id);
+    if(mapLinkSourceId===n.id) grp.classList.add('map-link-source');
     const card=document.createElementNS('http://www.w3.org/2000/svg','rect');
     card.classList.add('node-card');
     card.setAttribute('x',String(pos.x-halfW));card.setAttribute('y',String(pos.y-halfH));
@@ -3310,7 +3345,11 @@ function drawMap(){
       subEnterSign.addEventListener('click',enterSubpage);
       grp.appendChild(subEnterBtn);grp.appendChild(subEnterSign);
     }
-    grp.addEventListener('click',e=>{e.stopPropagation();showMapInfo(n.id);openMapPopup(n.id);highlightNode(n.id);});
+    grp.addEventListener('click',e=>{
+      e.stopPropagation();
+      if(handleMapNodeLinkTap(n.id)) return;
+      showMapInfo(n.id);openMapPopup(n.id);highlightNode(n.id);
+    });
     grp.addEventListener('mousedown',e=>startDrag(e,n.id));grp.addEventListener('touchstart',e=>startDragTouch(e,n.id),{passive:true});
     nodesLayer.appendChild(grp);nodeEls[n.id]=grp;
   });
@@ -3389,9 +3428,19 @@ function showMapInfo(id){
     updateMapPagePath();
     showToast('已取消子頁面設定');
   };
+  const linkStartBtn=document.createElement('button');
+  linkStartBtn.className='mp-link-start-btn';
+  linkStartBtn.textContent=mapLinkSourceId===id?'✖ 取消連線起點':'🔗 以此為連線起點';
+  linkStartBtn.style.cssText='width:100%;padding:8px;margin:4px 0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ddd;'+(mapLinkSourceId===id?'background:#fff2f2;color:#c43d3d;border-color:#f3c7c7;':'background:#eef6ff;color:#0C447C;border-color:#b5d4f4;');
+  linkStartBtn.onclick=()=>{
+    if(mapLinkSourceId===id) clearMapLinkSource({silent:true});
+    else setMapLinkSource(id);
+    closeMapPopup();
+  };
   if(goBtn&&goBtn.parentNode){
-    goBtn.parentNode.querySelectorAll('.mp-set-center,.mp-subpage-btn,.mp-subpage-cancel-btn').forEach(el=>el.remove());
+    goBtn.parentNode.querySelectorAll('.mp-set-center,.mp-subpage-btn,.mp-subpage-cancel-btn,.mp-link-start-btn').forEach(el=>el.remove());
     goBtn.parentNode.insertBefore(setCenterBtn,goBtn);
+    goBtn.parentNode.insertBefore(linkStartBtn,goBtn);
     if(!relay&&isNodeInCurrentSubpage(id)) goBtn.parentNode.insertBefore(subpageBtn,goBtn);
     if(!relay&&hasSubpage&&isNodeInCurrentSubpage(id)) goBtn.parentNode.insertBefore(cancelSubpageBtn,goBtn);
     let relayEditBtn=goBtn.parentNode.querySelector('.mp-relay-edit-btn');

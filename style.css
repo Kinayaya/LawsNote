@@ -207,6 +207,7 @@ body.compact-filters .filter-row,body.compact-filters #subbar,body.compact-filte
 #zoomLabel{font-size:11px;color:#9aa3b2;min-width:44px;text-align:center}
 .map-node-dimmed{opacity:.65!important}
 .map-node-highlight .node-card{stroke:#FFD700!important;stroke-width:3.5px!important}
+.map-node.map-link-source .node-card{stroke:#0C447C!important;stroke-width:3.2px!important}
 #mapCanvas{width:100%;height:calc(100vh - 106px);min-height:480px;position:relative;overflow:hidden;background:#f9f9f9;touch-action:none;user-select:none}
 #mapSvg{position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible}
 .map-node{cursor:grab}

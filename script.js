@@ -149,7 +149,7 @@ function saveFormTaxonomyPref(subject='', chapter='', section=''){
 }
 function saveLastViewState(){
   const view=(currentView==='map'||currentView==='calendar'||currentView==='level')?currentView:'notes';
-  const mapStack=(view==='map'&&Array.isArray(mapPageStack))?mapPageStack.filter(id=>noteById(id)).slice(-12):[];
+  const mapStack=(view==='map'&&Array.isArray(mapPageStack))?mapPageStack.filter(id=>mapNodeById(id)).slice(-12):[];
   localStorage.setItem(LAST_VIEW_STATE_KEY,JSON.stringify({view,mapPageStack:mapStack}));
 }
 function restoreLastViewState(){
@@ -157,7 +157,7 @@ function restoreLastViewState(){
   try{
     const raw=JSON.parse(localStorage.getItem(LAST_VIEW_STATE_KEY)||'{}');
     if(['notes','map','calendar','level'].includes(raw.view)) state.view=raw.view;
-    if(Array.isArray(raw.mapPageStack)) state.mapPageStack=raw.mapPageStack.map(v=>parseInt(v,10)).filter(id=>noteById(id));
+    if(Array.isArray(raw.mapPageStack)) state.mapPageStack=raw.mapPageStack.map(v=>parseInt(v,10)).filter(id=>mapNodeById(id));
   }catch(e){}
   if(state.view==='map'){
     toggleMapView(true);
@@ -796,11 +796,11 @@ function normalizeNoteIds(forceReindexAll=false) {
     const item=(mapSubpages[key]&&typeof mapSubpages[key]==='object'&&!Array.isArray(mapSubpages[key]))?mapSubpages[key]:{};
     const oldId=parseInt(String(key).split('::').pop(),10);
     const newId=firstMap[oldId];
-    if(newId===undefined||!noteById(newId)) return;
+    if(newId===undefined||!mapNodeById(newId)) return;
     remappedSubpages[mapSubpageKey(newId)]={...item,rootId:newId,createdAt:item.createdAt||new Date().toISOString()};
   });
   mapSubpages=remappedSubpages;
-  mapPageStack=(Array.isArray(mapPageStack)?mapPageStack:[]).map(id=>firstMap[id]).filter(id=>Number.isFinite(id)&&noteById(id));
+  mapPageStack=(Array.isArray(mapPageStack)?mapPageStack:[]).map(id=>firstMap[id]).filter(id=>Number.isFinite(id)&&mapNodeById(id));
   mapFocusedNodeId=firstMap[mapFocusedNodeId]??null;
   openId=firstMap[openId]??null;
   nid=nextId;
@@ -3027,11 +3027,11 @@ function getDescendantIds(rootId,limitIds=null){
 function updateMapPagePath(){
   const el=g('mapPagePath'); if(!el) return;
   if(!mapPageStack.length){el.textContent='主頁';return;}
-  const labels=mapPageStack.map(id=>noteById(id)?.title||`筆記#${id}`);
+  const labels=mapPageStack.map(id=>mapNodeById(id)?.title||`節點#${id}`);
   el.textContent=`主頁 / ${labels.join(' / ')}`;
 }
 function enterMapSubpage(rootId){
-  if(!noteById(rootId)) return;
+  if(!mapNodeById(rootId)) return;
   if(mapPageStack[mapPageStack.length-1]===rootId) return;
   mapPageStack.push(rootId);
   setMapCenterForCurrentScope(rootId);
@@ -3327,7 +3327,7 @@ function drawMap(){
       <div class="map-card-head"><span class="map-card-type" style="background:${lightC(type.color)};color:${darkC(type.color)}">${type.label}</span><span class="map-card-title">${escapeHtml(markedTitle)}</span></div>
       ${previewHtml}
     </div>`;
-    const hasChildren=links.some(l=>l.from===n.id&&noteById(l.to));
+    const hasChildren=links.some(l=>l.from===n.id&&mapNodeById(l.to));
     grp.appendChild(card);grp.appendChild(cardBody);
     if(hasChildren){
       const foldBtnR=9;
@@ -3435,13 +3435,12 @@ function showMapInfo(id){
   setCenterBtn.style.cssText='width:100%;padding:8px;margin:8px 0 4px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ddd;'+(currentCenterId===id?'background:#EAF3DE;color:#3B6D11;border-color:#97C459;':'background:#f5f5f5;color:#555;');
   setCenterBtn.onclick=()=>{setMapCenterForCurrentScope(id);nodePos={};forceLayout();drawMap();saveData();closeMapPopup();showToast(`已將「${n.title}」設為核心節點（僅此科目/章）`);};
   const goBtn=g('mpGoto');
-  const hasSubpage=!relay&&hasSubpageForNode(id);
+  const hasSubpage=hasSubpageForNode(id);
   const subpageBtn=document.createElement('button');
   subpageBtn.className='mp-subpage-btn';
   subpageBtn.textContent=hasSubpage?'📄 進入子頁面':'📄 設定子頁面';
   subpageBtn.style.cssText='width:100%;padding:8px;margin:4px 0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ddd;background:#f5f5f5;color:#555;';
   subpageBtn.onclick=()=>{
-    if(relay) return;
     if(!hasSubpage){
       mapSubpages[mapSubpageKey(id)]={rootId:id,createdAt:new Date().toISOString()};
       saveData();
@@ -3479,8 +3478,8 @@ function showMapInfo(id){
     goBtn.parentNode.querySelectorAll('.mp-set-center,.mp-subpage-btn,.mp-subpage-cancel-btn,.mp-link-start-btn').forEach(el=>el.remove());
     goBtn.parentNode.insertBefore(setCenterBtn,goBtn);
     goBtn.parentNode.insertBefore(linkStartBtn,goBtn);
-    if(!relay&&isNodeInCurrentSubpage(id)) goBtn.parentNode.insertBefore(subpageBtn,goBtn);
-    if(!relay&&hasSubpage&&isNodeInCurrentSubpage(id)) goBtn.parentNode.insertBefore(cancelSubpageBtn,goBtn);
+    if(isNodeInCurrentSubpage(id)) goBtn.parentNode.insertBefore(subpageBtn,goBtn);
+    if(hasSubpage&&isNodeInCurrentSubpage(id)) goBtn.parentNode.insertBefore(cancelSubpageBtn,goBtn);
     let relayEditBtn=goBtn.parentNode.querySelector('.mp-relay-edit-btn');
     let relayDeleteBtn=goBtn.parentNode.querySelector('.mp-relay-delete-btn');
     relayEditBtn?.remove();relayDeleteBtn?.remove();

@@ -1355,6 +1355,34 @@ function renderDetailQuickLinkSearch(){
     }else showToast('此關聯已存在或無效');
   }));
 }
+function renderMapPopupQuickLinkSearch(sourceId=null){
+  const input=g('mp-link-search'),root=g('mp-link-results');
+  if(!input||!root) return;
+  const srcId=parseInt(sourceId??input.dataset.sourceId,10);
+  if(!srcId||!relayById(srcId)){root.innerHTML='';return;}
+  input.dataset.sourceId=String(srcId);
+  const q=(input.value||'').trim();
+  if(!q){root.innerHTML='<div class="dp-link-empty">輸入關鍵字即可快速建立關聯</div>';return;}
+  const existingIds=new Set(links.filter(l=>l.from===srcId||l.to===srcId).map(l=>l.from===srcId?l.to:l.from));
+  const pool=findMapNodesByKeyword(q,srcId).filter(n=>!existingIds.has(n.id)&&!isRelayNode(n));
+  if(!pool.length){root.innerHTML='<div class="dp-link-empty">找不到可關聯的筆記</div>';return;}
+  root.innerHTML=pool.map(n=>{
+    const tp=typeByKey(n.type);
+    return `<div class="fl-result-item quick-add" data-mp-quick-link-id="${n.id}"><span class="fl-result-type" style="background:${tp.color}">${tp.label}</span><span class="fl-result-title">${escapeHtml(n.title)}</span><button class="tool-btn" type="button">+ 關聯</button></div>`;
+  }).join('');
+  root.querySelectorAll('[data-mp-quick-link-id]').forEach(row=>row.addEventListener('click',()=>{
+    const targetId=parseInt(row.dataset.mpQuickLinkId,10);
+    if(!srcId||!targetId) return;
+    if(createRelationLink(srcId,targetId)){
+      saveData();
+      showMapInfo(srcId);
+      if(isMapOpen) drawMap();
+      if(openId&&(openId===srcId||openId===targetId)) renderLinksForNote(openId);
+      showToast('已建立關聯');
+      renderMapPopupQuickLinkSearch(srcId);
+    }else showToast('此關聯已存在或無效');
+  }));
+}
 function setLinkMode(enabled){
   linkModeActive=!!enabled;
   if(!linkModeActive) linkSourceId=null;
@@ -3383,8 +3411,18 @@ function showMapInfo(id){
   const n=mapNodeById(id);if(!n)return;
   const relay=isRelayNode(n);
   const tp=relay?{label:'中繼站',color:'#A855F7'}:typeByKey(n.type),sb=subByKey(n.subject),related=links.filter(l=>l.from===id||l.to===id);
+  const quickWrap=g('mp-link-quick-wrap');
+  const quickInput=g('mp-link-search');
   g('mpBadge').textContent=tp.label;g('mpBadge').style.background=tp.color;g('mpTitle').textContent=n.title;
   g('mpSubject').textContent=sb.label;g('mpSubject').style.background=sb.color+'22';g('mpSubject').style.color=sb.color;
+  if(quickWrap){
+    quickWrap.style.display=relay?'flex':'none';
+    if(quickInput){
+      quickInput.value='';
+      quickInput.dataset.sourceId=relay?String(id):'';
+    }
+    renderMapPopupQuickLinkSearch(relay?id:null);
+  }
   const sizeNumInput=g('mpNodeSizeNum');
   if(sizeNumInput){
     sizeNumInput.value=String(Math.round(getNodeRadius(id)));
@@ -3594,6 +3632,7 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   }
   g('selAllBtn').addEventListener('click',selectAll);g('selDeleteBtn').addEventListener('click',deleteSelected);g('selCancelBtn').addEventListener('click',exitMultiSel);
   on('dp-link-search','input',debounce(renderDetailQuickLinkSearch,180));
+  on('mp-link-search','input',debounce(()=>renderMapPopupQuickLinkSearch(),180));
   on('calendarBtn','click',()=>toggleCalendarView(true));
   on('levelSystemBtn','click',()=>toggleLevelSystemView(true));
   on('ft','change',()=>renderDynamicFields(g('ft').value,editMode&&openId?noteById(openId):null));

@@ -248,6 +248,8 @@ body.compact-filters .filter-row,body.compact-filters #subbar,body.compact-filte
 .mp-link-row{display:flex;align-items:center;gap:6px;font-size:11px}
 .mp-link-badge{padding:1px 6px;border-radius:99px;color:#fff;font-size:10px;font-weight:600}
 .mp-link-name{color:#007AFF;cursor:pointer;text-decoration:underline;word-break:break-word}
+.mp-link-quick-wrap{margin-top:6px;margin-bottom:8px;display:flex;flex-direction:column;gap:6px}
+#mp-link-search{padding:7px 9px;font-size:12px;min-height:36px}
 .mp-goto{width:100%;padding:7px;background:#007AFF;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer}
 .mp-goto:active{background:#0062cc}
 .mp-close{position:absolute;top:7px;right:9px;background:none;border:none;font-size:17px;color:#aaa;cursor:pointer;line-height:1;padding:2px 4px}

@@ -29,7 +29,7 @@
     <div id="headerTitleWrap" class="header-achievement-wrap"><span class="brand-title" id="brandTitleBadge">LV1・節點觀測員</span></div>
     <div class="search-wrap">
       <span class="search-icon">&#128269;</span>
-      <input id="searchInput" placeholder="搜尋法條、關鍵詞、標籤...">
+      <input id="searchInput" placeholder="搜尋法條、關鍵詞...">
       <button class="search-clear" id="searchClear">&#215;</button>
     </div>
     <div class="tool-btns">
@@ -59,6 +59,11 @@
     </div>
   </div>
   <div class="filter-row" id="typeRow"></div>
+  <div class="touch-quick-filters" id="touchQuickFilters">
+    <button class="tab" data-qf="today">今天</button>
+    <button class="tab" data-qf="todo">待辦</button>
+    <button class="tab" data-qf="recent">最近 7 天</button>
+  </div>
 </div>
 <div id="selectBar"><span id="selectCount"></span><button class="sel-btn" id="selAllBtn">全選</button><button class="sel-btn" id="selDeleteBtn">&#128465; 刪除</button><button class="sel-btn" id="selCancelBtn">取消</button></div>
 <div id="subbar"></div>
@@ -85,17 +90,12 @@
     <div class="dp-lbl">摘要</div><div id="dp-body" class="dp-txt"></div>
     <div class="dp-lbl">詳細筆記</div><div id="dp-detail" class="dp-txt"></div>
     <div class="dp-lbl" id="dp-todo-label" style="display:none;">&#128221; 待辦清單</div><div id="dp-todo" class="dp-txt" style="display:none;"></div>
-    <div class="dp-lbl">標籤</div><div id="dp-chips" class="dp-chips"></div>
+    <div class="dp-lbl">資訊</div><div id="dp-chips" class="dp-chips"></div>
+    <div id="dp-inline-actions" class="dp-inline-actions"></div>
     <div class="dp-lbl">關聯筆記</div><div id="dp-links"></div>
     <div id="dp-link-quick-wrap" class="dp-link-quick-wrap">
       <input class="fi" id="dp-link-search" placeholder="輸入 @關鍵字 或名稱，快速建立關聯...">
       <div id="dp-link-results" class="dp-link-results"></div>
-    </div>
-    <div class="action-row">
-      <button class="edit-btn" id="editBtn">&#9998; 編輯</button>
-      <button class="copy-btn" id="copyBtn">&#128203; 複製內容</button>
-      <button class="dup-btn" id="dupBtn">&#128209; 建立副本</button>
-      <button class="del-btn" id="delBtn">&#128465; 刪除</button>
     </div>
   </div>
 
@@ -374,8 +374,44 @@
 </div>
 
 <div id="toast"></div>
+<div id="actionToast"><span id="actionToastText"></span><button id="actionToastUndoBtn">復原</button></div>
 <div class="shortcut-hint" id="scHint"></div>
 <button id="debugToggle" title="開啟偵錯工具">🐞</button>
+
+<div id="quickAddSheet">
+  <div class="quick-sheet-box">
+    <div class="quick-sheet-title">快速新增</div>
+    <div class="quick-template-grid">
+      <button class="quick-template-btn" data-template="article">📘 條文</button>
+      <button class="quick-template-btn" data-template="case">⚖️ 判決</button>
+      <button class="quick-template-btn" data-template="concept">🧠 爭點</button>
+      <button class="quick-template-btn" data-template="diary">📝 日記</button>
+    </div>
+    <button class="tool-btn" id="quickAddCloseBtn">取消</button>
+  </div>
+</div>
+
+<div id="commandSheet">
+  <div class="quick-sheet-box">
+    <div class="quick-sheet-title">快速指令</div>
+    <div class="command-sheet-list">
+      <button class="tool-btn" data-cmd="search">🔎 搜尋筆記</button>
+      <button class="tool-btn" data-cmd="new">➕ 新增筆記</button>
+      <button class="tool-btn" data-cmd="map">🧭 切換體系圖</button>
+      <button class="tool-btn" data-cmd="calendar">📅 切換日曆</button>
+      <button class="tool-btn" data-cmd="duplicate">📄 複製目前筆記</button>
+      <button class="tool-btn" data-cmd="delete">🗑️ 刪除目前筆記</button>
+    </div>
+    <button class="tool-btn" id="commandSheetCloseBtn">關閉</button>
+  </div>
+</div>
+
+<div id="touchQuickBar">
+  <button class="tool-btn" id="touchQuickAddBtn">＋ 新增</button>
+  <button class="tool-btn" id="touchQuickSearchBtn">🔎 搜尋</button>
+  <button class="tool-btn" id="touchQuickRecentBtn">🕘 最近</button>
+  <button class="tool-btn" id="touchQuickMoreBtn">⋯</button>
+</div>
 
 <!-- Exam View -->
 <div id="examView">

@@ -3120,7 +3120,7 @@ function drawMap(){
     nodeLinksIndex[lk.from].push(lk.id);nodeLinksIndex[lk.to].push(lk.id);
     const pathData=calcLinkPath(lk);if(!pathData)return;
     const path=document.createElementNS('http://www.w3.org/2000/svg','path');
-    path.setAttribute('d',pathData.d);path.setAttribute('stroke',LINK_COLOR);path.setAttribute('stroke-width','1.35');path.setAttribute('fill','none');path.setAttribute('marker-end','url(#arrowBlue)');path.style.opacity='0.18';linksLayer.appendChild(path);linkElsMap[lk.id]={p:path};
+    path.setAttribute('d',pathData.d);path.setAttribute('stroke',LINK_COLOR);path.setAttribute('stroke-width','1.35');path.setAttribute('fill','none');path.setAttribute('marker-end','url(#arrowBlue)');path.style.opacity='0.3';linksLayer.appendChild(path);linkElsMap[lk.id]={p:path};
   });
   visNotes.forEach(n=>{
     const pos=nodePos[n.id];if(!pos)return;
@@ -3282,8 +3282,8 @@ function applyFocusStyles(){
     const isSelectedRelated=!!mapFocusedNodeId&&(lk.from===mapFocusedNodeId||lk.to===mapFocusedNodeId);
     const c=calcLinkPath(lk,{unbundled:isSelectedRelated});
     if(c) path.setAttribute('d',c.d);
-    path.style.opacity=isSelectedRelated?'0.98':(active?'0.72':'0.05');
-    path.setAttribute('stroke-width',isSelectedRelated?'3.3':(active?'2.1':'0.9'));
+    path.style.opacity=isSelectedRelated?'0.95':(active?'0.3':'0.12');
+    path.setAttribute('stroke-width',isSelectedRelated?'3.2':(active?'1.35':'1'));
   });
 }
 function highlightNode(id){ mapFocusedNodeId=id;applyFocusStyles(); }

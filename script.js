@@ -738,18 +738,18 @@ function rollbackTaskCompletion(task,skill){
 
 function normalizeNoteIds(forceReindexAll=false) {
   const seen={}, duplicates=new Set();
-  notes.forEach(n=>{
-  if(!Number.isFinite(n.id) || seen[n.id]) duplicates.add(n.id);
-  seen[n.id]=true;
+  [...notes,...mapRelays].forEach(n=>{
+    if(!Number.isFinite(n.id) || seen[n.id]) duplicates.add(n.id);
+    seen[n.id]=true;
   });
   if(!forceReindexAll && !duplicates.size) {
-    nid=Math.max(nid||1,notes.reduce((m,n)=>Math.max(m,n.id||0),0)+1);
+    nid=Math.max(nid||1,[...notes,...mapRelays].reduce((m,n)=>Math.max(m,n.id||0),0)+1);
     lid=Math.max(lid||1,links.reduce((m,l)=>Math.max(m,l.id||0),0)+1);
     return false;
   }
   const fromBuckets={}, toBuckets={}, firstMap={}, remapPos={}, remapSize={}, remapSelected={};
   let nextId=1;
-  notes.forEach(n=>{
+  const assignNodeId = n => {
     const oldId=n.id, newId=nextId++;
     n.id=newId;
     if(!fromBuckets[oldId]) fromBuckets[oldId]=[];
@@ -757,7 +757,9 @@ function normalizeNoteIds(forceReindexAll=false) {
     fromBuckets[oldId].push(newId);
     toBuckets[oldId].push(newId);
     if(firstMap[oldId]===undefined) firstMap[oldId]=newId;
-  });
+  };
+  notes.forEach(assignNodeId);
+  mapRelays.forEach(assignNodeId);
   links=links.map(l=>{
     const fromList=fromBuckets[l.from],toList=toBuckets[l.to];
     const from=fromList&&fromList.length?fromList.shift():(firstMap[l.from]??null);
@@ -778,6 +780,26 @@ function normalizeNoteIds(forceReindexAll=false) {
     });
     mapCenterNodeIds=remappedCenters;
   }
+  const remappedCollapsed={};
+  Object.keys(mapCollapsed||{}).forEach(key=>{
+    if(!mapCollapsed[key]) return;
+    const parts=String(key).split('::');
+    const oldId=parseInt(parts.pop(),10);
+    const newId=firstMap[oldId];
+    if(newId===undefined) return;
+    remappedCollapsed[`${parts.join('::')}::${newId}`]=true;
+  });
+  mapCollapsed=remappedCollapsed;
+  const remappedSubpages={};
+  Object.keys(mapSubpages||{}).forEach(key=>{
+    const item=(mapSubpages[key]&&typeof mapSubpages[key]==='object'&&!Array.isArray(mapSubpages[key]))?mapSubpages[key]:{};
+    const oldId=parseInt(String(key).split('::').pop(),10);
+    const newId=firstMap[oldId];
+    if(newId===undefined||!noteById(newId)) return;
+    remappedSubpages[mapSubpageKey(newId)]={...item,rootId:newId,createdAt:item.createdAt||new Date().toISOString()};
+  });
+  mapSubpages=remappedSubpages;
+  mapPageStack=(Array.isArray(mapPageStack)?mapPageStack:[]).map(id=>firstMap[id]).filter(id=>Number.isFinite(id)&&noteById(id));
   mapFocusedNodeId=firstMap[mapFocusedNodeId]??null;
   openId=firstMap[openId]??null;
   nid=nextId;

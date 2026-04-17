@@ -62,7 +62,7 @@ const { fmtDateKey, dueTimeText, relativeDateLabel } = window.KLawsCalendar;
 
 
 // ==================== 全域變數 ====================
-let notes=[], links=[], nid=10, lid=10, types=[], subjects=[], chapters=[], sections=[];
+let notes=[], mapRelays=[], links=[], nid=10, lid=10, types=[], subjects=[], chapters=[], sections=[];
 let recycleBin=[], unusedTagTracker={};
 let cv='all', cs='all', cch='all', csec='all', searchQ='', openId=null, editMode=false;
 let selectedSubjects=[], selectedChapters=[], selectedSections=[];
@@ -280,6 +280,9 @@ const tagUsageCount = (kind,key) => {
   return notes.filter(n=>noteChapters(n).includes(key)).length;
 };
 const noteById = id => notes.find(n=>n.id===id);
+const relayById = id => mapRelays.find(n=>n.id===id);
+const mapNodeById = id => noteById(id)||relayById(id);
+const isRelayNode = n => !!(n&&n.isRelay);
 const noteTags = n => Array.isArray(n&&n.tags)?n.tags:[];
 const noteHasVisibleContent = n => !!(safeStr(n.body).trim()||safeStr(n.detail).trim()||noteTags(n).length||(Array.isArray(n.todos)&&n.todos.length));
 const noteExtraFields = n => (n&&n.extraFields&&typeof n.extraFields==='object'&&!Array.isArray(n.extraFields))?n.extraFields:{};
@@ -408,15 +411,15 @@ const mapTitleMarkers = noteId => {
 const getMapCenterFromScopes = () => {
   const key=getMapCenterContextKey();
   const scopedId=mapCenterNodeIds[key];
-  if(scopedId&&notes.some(n=>n.id===scopedId)) return scopedId;
-  return (mapCenterNodeId&&notes.some(n=>n.id===mapCenterNodeId))?mapCenterNodeId:null;
+  if(scopedId&&mapNodeById(scopedId)) return scopedId;
+  return (mapCenterNodeId&&mapNodeById(mapCenterNodeId))?mapCenterNodeId:null;
 };
 const setMapCenterForCurrentScope = id => {
   if(!Number.isFinite(id)) return;
   mapCenterNodeIds[getMapCenterContextKey()]=id;
   mapCenterNodeId=id;
 };
-const getPayload = () => ({notes,links,nid,lid,types,subjects,chapters,sections,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,mapSubpages,typeFieldConfigs,customFieldDefs,calendarEvents,calendarSettings,achievements,levelSystem,panelDir:getPanelDir(),updatedAt:new Date().toISOString()});
+const getPayload = () => ({notes,mapRelays,links,nid,lid,types,subjects,chapters,sections,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,mapSubpages,typeFieldConfigs,customFieldDefs,calendarEvents,calendarSettings,achievements,levelSystem,panelDir:getPanelDir(),updatedAt:new Date().toISOString()});
 const parseUpdatedAt = raw => {
   const n=Date.parse(raw||'');
   return Number.isFinite(n)?n:0;
@@ -485,7 +488,7 @@ const estimateMapTextLines = (text, charsPerLine) => {
 const getMapCardBox = id => {
   const scale=Math.max(0.7,Math.min(2.3,getNodeRadius(id)/MAP_NODE_RADIUS_DEFAULT));
   const width=Math.round(250*scale);
-  const note=noteById(id)||{};
+  const note=mapNodeById(id)||{};
   const keys=getTypeFieldKeys(note.type).filter(key=>key!=='tags');
   const previewTexts=keys.map(key=>mapCardFieldText(note,key)).filter(text=>!!text);
   if(!previewTexts.length) return {width,height:86,bodyLines:0};
@@ -788,9 +791,19 @@ function loadData() {
     const d=readJSON(SKEY,null);
     if(d) {
       notes=(Array.isArray(d.notes)?d.notes:DEFAULTS.notes.slice()).map(normalizeNoteSchema);
+      mapRelays=(Array.isArray(d.mapRelays)?d.mapRelays:[]).map(r=>({
+        id:Number(r.id),
+        title:safeStr(r.title)||'未命名中繼站',
+        body:safeStr(r.body),
+        subject:safeStr(r.subject)||'',
+        chapter:safeStr(r.chapter)||'',
+        section:safeStr(r.section)||'',
+        isRelay:true,
+        type:'relay'
+      })).filter(r=>Number.isFinite(r.id));
       links=Array.isArray(d.links)?d.links:DEFAULTS.links.slice();
       links.forEach(l=>{l.rel='關聯';l.color=LINK_COLOR;});
-      nid=Number.isFinite(d.nid)?d.nid:Math.max(10,notes.reduce((m,n)=>Math.max(m,n.id||0),0)+1);
+      nid=Number.isFinite(d.nid)?d.nid:Math.max(10,[...notes,...mapRelays].reduce((m,n)=>Math.max(m,n.id||0),0)+1);
       lid=Number.isFinite(d.lid)?d.lid:Math.max(10,links.reduce((m,l)=>Math.max(m,l.id||0),0)+1);
       types=Array.isArray(d.types)?d.types:DEFAULTS.types.slice();
       if(!types.some(t=>t.key==='diary')) types.push({key:'diary',label:'日記',color:'#D85A30'});
@@ -855,10 +868,10 @@ function loadData() {
       applyPanelDir(d.panelDir||getPanelDir());
       lastSavedPayloadRaw=JSON.stringify(getPayload());
     } else {
-      notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};calendarEvents=[];calendarSettings={emails:[]};achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0};levelSystem={skills:[],tasks:[],achievements:[],settings:{xpByDifficulty:{E:30,N:55,H:90},xpBoost150Applied:true}};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());saveData();
+      notes=DEFAULTS.notes.slice();mapRelays=[];links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};calendarEvents=[];calendarSettings={emails:[]};achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0};levelSystem={skills:[],tasks:[],achievements:[],settings:{xpByDifficulty:{E:30,N:55,H:90},xpBoost150Applied:true}};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());saveData();
     }
   } catch(e) {
-    notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};calendarEvents=[];calendarSettings={emails:[]};achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0};levelSystem={skills:[],tasks:[],achievements:[],settings:{xpByDifficulty:{E:30,N:55,H:90},xpBoost150Applied:true}};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());
+    notes=DEFAULTS.notes.slice();mapRelays=[];links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};calendarEvents=[];calendarSettings={emails:[]};achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0};levelSystem={skills:[],tasks:[],achievements:[],settings:{xpByDifficulty:{E:30,N:55,H:90},xpBoost150Applied:true}};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());
   }
 }
 function saveData() {
@@ -1613,7 +1626,7 @@ function saveNote() {
         Object.assign(target,{type:typeKey,subject:primarySubject,subjects:[...selectedSubs],chapter:primaryChapter,chapters:[...selectedChs],section:primarySection,sections:[...selectedSecs],tags:[...fieldData.tags]});
       });
     }
-    saveData();closeForm();render();showToast(`筆記已更新！${mentionAdded?`（@ 自動建立 ${mentionAdded} 筆關聯）`:''}`);
+    saveData();closeForm();render();if(isMapOpen) scheduleMapRedraw(0);showToast(`筆記已更新！${mentionAdded?`（@ 自動建立 ${mentionAdded} 筆關聯）`:''}`);
     setTimeout(()=>openNote(openId),150);
   } else {
     const d=new Date(),dt=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -1624,7 +1637,7 @@ function saveNote() {
     refreshAchievementProgress();
     notes.unshift(newNote);openId=newNote.id;
     const mentionAdded=autoLinkMentionsForNote(newNote);
-    saveData();closeForm();render();showToast(`筆記已儲存！${mentionAdded?`（@ 自動建立 ${mentionAdded} 筆關聯）`:''}`);
+    saveData();closeForm();render();if(isMapOpen) scheduleMapRedraw(0);showToast(`筆記已儲存！${mentionAdded?`（@ 自動建立 ${mentionAdded} 筆關聯）`:''}`);
     if(isMapOpen) setTimeout(()=>openNote(newNote.id),120);
     else setTimeout(()=>{window.scrollTo(0,0);setTimeout(()=>openNote(notes[0].id),300);},100);
   }
@@ -2271,7 +2284,7 @@ function toggleSubtaskCompletion(taskIdx,subIdx,checked){
 
 // ==================== 匯入/匯出 ====================
 function exportData() {
-  const json=JSON.stringify({notes,links,nid,lid,types,subjects,chapters,sections,nodeSizes,mapCenterNodeId,mapCenterNodeIds,mapCollapsed,mapSubpages,exported:new Date().toISOString()},null,2);
+  const json=JSON.stringify({notes,mapRelays,links,nid,lid,types,subjects,chapters,sections,nodeSizes,mapCenterNodeId,mapCenterNodeIds,mapCollapsed,mapSubpages,exported:new Date().toISOString()},null,2);
   const blob=new Blob([json],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
   const d=new Date();
   a.download=`法律筆記備份_${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}.json`;
@@ -2298,15 +2311,16 @@ function importData(file) {
       if(confirm('確定 = 完整覆蓋（取代所有現有筆記，保留現有科目/章設定）\n取消 = 合併（只加入新筆記）')) {
         // ★ 覆蓋模式：不覆蓋 types/subjects/chapters
         notes=d.notes;links=d.links||[];
+        mapRelays=Array.isArray(d.mapRelays)?d.mapRelays.map(r=>({...r,isRelay:true,type:'relay'})):[];
         nodeSizes=d.nodeSizes||{};mapCenterNodeId=d.mapCenterNodeId||null;mapCenterNodeIds=(d.mapCenterNodeIds&&typeof d.mapCenterNodeIds==='object')?d.mapCenterNodeIds:{};mapCollapsed=(d.mapCollapsed&&typeof d.mapCollapsed==='object')?d.mapCollapsed:{};
         mapSubpages=(d.mapSubpages&&typeof d.mapSubpages==='object')?d.mapSubpages:{};
-        nid=d.nid||notes.length+100;lid=d.lid||10;notes.sort((a,b)=>b.id-a.id);
+        nid=d.nid||Math.max([...notes,...mapRelays].reduce((m,n)=>Math.max(m,n.id||0),0)+1,10);lid=d.lid||10;notes.sort((a,b)=>b.id-a.id);
         normalizeNoteIds(true);
         saveData();rebuildUI();render();showToast(`已覆蓋，共 ${notes.length} 筆筆記`);
       } else {
         // ★ 合併模式：同樣不覆蓋 types/subjects/chapters
         const existing=new Set(notes.map(n=>n.id));let added=0;
-        let maxNoteId=notes.reduce((m,x)=>Math.max(m,x.id||0),0);
+        let maxNoteId=[...notes,...mapRelays].reduce((m,x)=>Math.max(m,x.id||0),0);
         const importedIdMap={};
         d.notes.forEach(n=>{
           const oldId=Number(n.id);
@@ -2321,6 +2335,18 @@ function importData(file) {
           added++;
           if(nextId>=nid) nid=nextId+1;
         });
+        if(Array.isArray(d.mapRelays)){
+          d.mapRelays.forEach(r=>{
+            const oldId=Number(r.id);
+            let nextId=oldId;
+            if(existing.has(nextId)||!Number.isFinite(nextId)) nextId=Math.max(nid,maxNoteId+1);
+            existing.add(nextId);
+            if(Number.isFinite(oldId)) importedIdMap[oldId]=nextId;
+            if(nextId>maxNoteId) maxNoteId=nextId;
+            mapRelays.push({...r,id:nextId,isRelay:true,type:'relay'});
+            if(nextId>=nid) nid=nextId+1;
+          });
+        }
         if(Array.isArray(d.links)){
           const edgeSet=new Set(links.map(l=>`${Math.min(l.from,l.to)}-${Math.max(l.from,l.to)}`));
           d.links.forEach(l=>{
@@ -3032,13 +3058,22 @@ function visibleNotes(){
       &&sectionMatch
       &&(!q||`${n.title}${subs.join('')}${chs.join('')}${secs.join('')}${noteTags(n).join('')}`.toLowerCase().includes(q));
   });
+  const relayFiltered=mapRelays.filter(n=>{
+    const subs=noteSubjects(n),chs=noteChapters(n),secs=noteSections(n);
+    const chapterMatch=mapFilter.chapter==='all'?true:(mapFilter.chapter==='none'?!chs.length:chs.includes(mapFilter.chapter));
+    const sectionMatch=mapFilter.section==='all'?true:(mapFilter.section==='none'?!secs.length:secs.includes(mapFilter.section));
+    return (mapFilter.sub==='all'||subs.includes(mapFilter.sub))
+      &&chapterMatch
+      &&sectionMatch
+      &&(!q||`${n.title}${n.body||''}${subs.join('')}${chs.join('')}${secs.join('')}`.toLowerCase().includes(q));
+  });
   const shouldExpandLinked=scopeLinkedEnabled&&mapHasTaxonomyFilter();
   let filtered=baseFiltered;
   if(shouldExpandLinked){
     const expandedIds=expandWithChildLinkedNotes(new Set(baseFiltered.map(n=>n.id)));
     filtered=notes.filter(n=>expandedIds.has(n.id)&&noteMatchesSearch(n,q));
   }
-  let base=filtered.filter(n=>!mapLinkedOnly||linkedIds[n.id]);
+  let base=[...filtered,...relayFiltered].filter(n=>!mapLinkedOnly||linkedIds[n.id]);
   if(isInMapSubpage()){
     const rootId=currentSubpageRootId();
     const allowed=getDescendantIds(rootId);
@@ -3087,6 +3122,57 @@ function visibleNotes(){
   while(q2.length){const id=q2.shift(),depth=seen[id];if(depth>=maxDepth)continue;(adj[id]||[]).forEach(nid=>{if(seen[nid]===undefined){seen[nid]=depth+1;q2.push(nid);}});}
   return base.filter(n=>seen[n.id]!==undefined);
 }
+function createMapRelay(){
+  const title=prompt('中繼站名稱：','新中繼站');
+  if(title===null) return;
+  const name=title.trim();
+  if(!name){showToast('中繼站名稱不能空白');return;}
+  const relay={
+    id:nid++,
+    type:'relay',
+    isRelay:true,
+    title:name,
+    body:'',
+    subject:mapFilter.sub==='all'?'':mapFilter.sub,
+    subjects:mapFilter.sub==='all'?[]:[mapFilter.sub],
+    chapter:mapFilter.chapter==='all'||mapFilter.chapter==='none'?'':mapFilter.chapter,
+    chapters:(mapFilter.chapter==='all'||mapFilter.chapter==='none')?[]:[mapFilter.chapter],
+    section:mapFilter.section==='all'||mapFilter.section==='none'?'':mapFilter.section,
+    sections:(mapFilter.section==='all'||mapFilter.section==='none')?[]:[mapFilter.section]
+  };
+  mapRelays.push(relay);
+  saveData();
+  if(isMapOpen){
+    if(!nodePos[relay.id]) nodePos[relay.id]={x:mapW/2,y:mapH/2};
+    scheduleMapRedraw(30);
+  }
+  showToast('已新增中繼站');
+}
+function editMapRelay(id){
+  const relay=relayById(id);
+  if(!relay) return;
+  const title=prompt('編輯中繼站名稱：',relay.title||'');
+  if(title===null) return;
+  const name=title.trim();
+  if(!name){showToast('中繼站名稱不能空白');return;}
+  relay.title=name;
+  saveData();
+  if(isMapOpen) scheduleMapRedraw(0);
+  showToast('中繼站已更新');
+}
+function deleteMapRelay(id){
+  const relay=relayById(id);
+  if(!relay) return;
+  if(!confirm(`確定刪除中繼站「${relay.title||'未命名'}」？`)) return;
+  mapRelays=mapRelays.filter(r=>r.id!==id);
+  links=links.filter(l=>l.from!==id&&l.to!==id);
+  delete nodePos[id];
+  delete nodeSizes[id];
+  closeMapPopup();
+  saveData();
+  if(isMapOpen) scheduleMapRedraw(0);
+  showToast('已刪除中繼站');
+}
 function scheduleMapRedraw(ms=60){ if(mapRedrawTimer)clearTimeout(mapRedrawTimer);if(mapTimer)clearTimeout(mapTimer);mapRedrawTimer=setTimeout(()=>drawMap(),ms);mapTimer=mapRedrawTimer; }
 function drawMap(){
   if(!isMapOpen)return;
@@ -3124,7 +3210,7 @@ function drawMap(){
   });
   visNotes.forEach(n=>{
     const pos=nodePos[n.id];if(!pos)return;
-    const type=typeByKey(n.type),box=getMapCardBox(n.id),halfW=box.width/2,halfH=box.height/2;
+    const type=isRelayNode(n)?{label:'中繼站',color:'#A855F7'}:typeByKey(n.type),box=getMapCardBox(n.id),halfW=box.width/2,halfH=box.height/2;
     const grp=document.createElementNS('http://www.w3.org/2000/svg','g');grp.classList.add('map-node');grp.dataset.id=String(n.id);
     const card=document.createElementNS('http://www.w3.org/2000/svg','rect');
     card.classList.add('node-card');
@@ -3208,11 +3294,21 @@ function openMapPopup(id){
   const maxLeft=Math.max(8,mapW-320),maxTop=Math.max(8,mapH-250);
   const left=Math.max(8,Math.min(maxLeft,pos.x*mapScale+mapOffX+14)),top=Math.max(8,Math.min(maxTop,pos.y*mapScale+mapOffY+14));
   popup.style.left=`${left}px`;popup.style.top=`${top}px`;popup.classList.add('open');
-  const goBtn=g('mpGoto');if(goBtn)goBtn.onclick=()=>{openNote(id);closeMapPopup();};
+  const goBtn=g('mpGoto');
+  const node=mapNodeById(id);
+  if(goBtn){
+    if(isRelayNode(node)){
+      goBtn.style.display='none';
+    }else{
+      goBtn.style.display='block';
+      goBtn.onclick=()=>{openNote(id);closeMapPopup();};
+    }
+  }
 }
 function showMapInfo(id){
-  const n=noteById(id);if(!n)return;
-  const tp=typeByKey(n.type),sb=subByKey(n.subject),related=links.filter(l=>l.from===id||l.to===id);
+  const n=mapNodeById(id);if(!n)return;
+  const relay=isRelayNode(n);
+  const tp=relay?{label:'中繼站',color:'#A855F7'}:typeByKey(n.type),sb=subByKey(n.subject),related=links.filter(l=>l.from===id||l.to===id);
   g('mpBadge').textContent=tp.label;g('mpBadge').style.background=tp.color;g('mpTitle').textContent=n.title;
   g('mpSubject').textContent=sb.label;g('mpSubject').style.background=sb.color+'22';g('mpSubject').style.color=sb.color;
   const sizeNumInput=g('mpNodeSizeNum');
@@ -3227,12 +3323,13 @@ function showMapInfo(id){
   setCenterBtn.style.cssText='width:100%;padding:8px;margin:8px 0 4px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ddd;'+(currentCenterId===id?'background:#EAF3DE;color:#3B6D11;border-color:#97C459;':'background:#f5f5f5;color:#555;');
   setCenterBtn.onclick=()=>{setMapCenterForCurrentScope(id);nodePos={};forceLayout();drawMap();saveData();closeMapPopup();showToast(`已將「${n.title}」設為核心節點（僅此科目/章）`);};
   const goBtn=g('mpGoto');
-  const hasSubpage=hasSubpageForNode(id);
+  const hasSubpage=!relay&&hasSubpageForNode(id);
   const subpageBtn=document.createElement('button');
   subpageBtn.className='mp-subpage-btn';
   subpageBtn.textContent=hasSubpage?'📄 進入子頁面':'📄 設定子頁面';
   subpageBtn.style.cssText='width:100%;padding:8px;margin:4px 0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ddd;background:#f5f5f5;color:#555;';
   subpageBtn.onclick=()=>{
+    if(relay) return;
     if(!hasSubpage){
       mapSubpages[mapSubpageKey(id)]={rootId:id,createdAt:new Date().toISOString()};
       saveData();
@@ -3260,13 +3357,30 @@ function showMapInfo(id){
   if(goBtn&&goBtn.parentNode){
     goBtn.parentNode.querySelectorAll('.mp-set-center,.mp-subpage-btn,.mp-subpage-cancel-btn').forEach(el=>el.remove());
     goBtn.parentNode.insertBefore(setCenterBtn,goBtn);
-    if(isNodeInCurrentSubpage(id)) goBtn.parentNode.insertBefore(subpageBtn,goBtn);
-    if(hasSubpage&&isNodeInCurrentSubpage(id)) goBtn.parentNode.insertBefore(cancelSubpageBtn,goBtn);
+    if(!relay&&isNodeInCurrentSubpage(id)) goBtn.parentNode.insertBefore(subpageBtn,goBtn);
+    if(!relay&&hasSubpage&&isNodeInCurrentSubpage(id)) goBtn.parentNode.insertBefore(cancelSubpageBtn,goBtn);
+    let relayEditBtn=goBtn.parentNode.querySelector('.mp-relay-edit-btn');
+    let relayDeleteBtn=goBtn.parentNode.querySelector('.mp-relay-delete-btn');
+    relayEditBtn?.remove();relayDeleteBtn?.remove();
+    if(relay){
+      relayEditBtn=document.createElement('button');
+      relayEditBtn.className='mp-relay-edit-btn';
+      relayEditBtn.textContent='✏️ 編輯中繼站';
+      relayEditBtn.style.cssText='width:100%;padding:8px;margin:4px 0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ddd;background:#f5f5f5;color:#555;';
+      relayEditBtn.onclick=()=>editMapRelay(id);
+      relayDeleteBtn=document.createElement('button');
+      relayDeleteBtn.className='mp-relay-delete-btn';
+      relayDeleteBtn.textContent='🗑️ 刪除中繼站';
+      relayDeleteBtn.style.cssText='width:100%;padding:8px;margin:4px 0 8px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #f3c7c7;background:#fff2f2;color:#c43d3d;';
+      relayDeleteBtn.onclick=()=>deleteMapRelay(id);
+      goBtn.parentNode.insertBefore(relayEditBtn,goBtn);
+      goBtn.parentNode.insertBefore(relayDeleteBtn,goBtn);
+    }
   }
   const linksEl=g('mpLinks');
   if(!related.length){linksEl.innerHTML='<span class="mp-no-links">尚無關聯</span>';}
   else{
-    linksEl.innerHTML=related.map(l=>{const otherId=l.from===id?l.to:l.from,other=noteById(otherId),dir=l.from===id?'→':'←',name=other?other.title:'（已刪除）';return `<div class="mp-link-row"><span class="mp-link-badge" style="background:${LINK_COLOR}">${dir} 關聯</span><span class="mp-link-name" data-nid="${otherId}">${name}</span></div>`;}).join('');
+    linksEl.innerHTML=related.map(l=>{const otherId=l.from===id?l.to:l.from,other=mapNodeById(otherId),dir=l.from===id?'→':'←',name=other?other.title:'（已刪除）';return `<div class="mp-link-row"><span class="mp-link-badge" style="background:${LINK_COLOR}">${dir} 關聯</span><span class="mp-link-name" data-nid="${otherId}">${name}</span></div>`;}).join('');
     linksEl.querySelectorAll('.mp-link-name').forEach(el=>{el.addEventListener('click',()=>{closeMapPopup();showMapInfo(parseInt(el.dataset.nid));highlightNode(parseInt(el.dataset.nid));});});
   }
 }
@@ -3482,6 +3596,7 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   g('mapToggleBtn').addEventListener('click',()=>toggleMapView(true));
   g('mapBackBtn').addEventListener('click',()=>{if(isMapOpen&&leaveMapSubpage())return;toggleMapView(false);});
   on('mapAddNoteBtn','click',()=>openForm(false));
+  on('mapAddRelayBtn','click',createMapRelay);
   on('mapSearchInput','input',debounce(()=>{mapFilter.q=g('mapSearchInput').value;saveDataDeferred();if(isMapOpen)drawMap();},250));
   on('mapFilterSub','change',()=>{mapFilter.sub=g('mapFilterSub').value;mapPageStack=[];updateMapPagePath();buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
   on('mapFilterChapter','change',()=>{mapFilter.chapter=g('mapFilterChapter').value;mapPageStack=[];updateMapPagePath();buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
@@ -3491,7 +3606,7 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   mapFocusMode=false;
   const setZoom=z=>{mapScale=Math.max(.15,Math.min(3.5,z));g('zoomLabel').textContent=Math.round(mapScale*100)+'%';drawMap();};
   on('zoomIn','click',()=>setZoom(mapScale+.15));on('zoomOut','click',()=>setZoom(mapScale-.15));
-  on('zoomFit','click',()=>{if(!notes.length)return;const xs=notes.map(n=>nodePos[n.id]?nodePos[n.id].x:mapW/2),ys=notes.map(n=>nodePos[n.id]?nodePos[n.id].y:mapH/2);const minX=Math.min(...xs)-40,maxX=Math.max(...xs)+40,minY=Math.min(...ys)-40,maxY=Math.max(...ys)+40;const sc=Math.min(mapW/(maxX-minX||1),mapH/(maxY-minY||1),2.5);mapScale=sc;mapOffX=-minX*sc+(mapW-(maxX-minX)*sc)/2;mapOffY=-minY*sc+(mapH-(maxY-minY)*sc)/2;g('zoomLabel').textContent=Math.round(sc*100)+'%';drawMap();});
+  on('zoomFit','click',()=>{const vis=visibleNotes();if(!vis.length)return;const xs=vis.map(n=>nodePos[n.id]?nodePos[n.id].x:mapW/2),ys=vis.map(n=>nodePos[n.id]?nodePos[n.id].y:mapH/2);const minX=Math.min(...xs)-40,maxX=Math.max(...xs)+40,minY=Math.min(...ys)-40,maxY=Math.max(...ys)+40;const sc=Math.min(mapW/(maxX-minX||1),mapH/(maxY-minY||1),2.5);mapScale=sc;mapOffX=-minX*sc+(mapW-(maxX-minX)*sc)/2;mapOffY=-minY*sc+(mapH-(maxY-minY)*sc)/2;g('zoomLabel').textContent=Math.round(sc*100)+'%';drawMap();});
   on('mpClose','click',closeMapPopup);
   on('mapLinkedOnlyBtn','click',()=>{mapLinkedOnly=!mapLinkedOnly;setMapLinkedOnlyBtnStyle();nodePos={};forceLayout();drawMap();saveDataDeferred();showToast(mapLinkedOnly?`顯示 ${visibleNotes().length} 個有關聯節點`:'顯示全部節點');});
   on('mapAutoBtn','click',()=>{const btn=g('mapAutoBtn'),orig=btn.textContent;btn.textContent='排列中...';btn.disabled=true;setTimeout(()=>{nodePos={};mapScale=1;mapOffX=mapOffY=0;forceLayout();drawMap();saveDataDeferred();g('zoomLabel').textContent='100%';btn.textContent=orig;btn.disabled=false;showToast('已自動排列（保留核心節點）');},30);});

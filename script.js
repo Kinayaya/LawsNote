@@ -2844,7 +2844,8 @@ function bindCardInteractions(card,id){
   card.addEventListener('click',()=>{
     if(longPressed) return;
     if(linkModeActive){handleLinkModeCardTap(id);return;}
-    openNote(id);
+    openId=id;
+    openForm(true);
   });
 }
 
@@ -3236,26 +3237,35 @@ function createMapRelay(){
   if(title===null) return;
   const name=title.trim();
   if(!name){showToast('中繼站名稱不能空白');return;}
+  const subpageRootId=currentSubpageRootId();
+  const subpageRoot=subpageRootId?mapNodeById(subpageRootId):null;
+  const defaultSubjects=subpageRoot?noteSubjects(subpageRoot):(mapFilter.sub==='all'?[]:[mapFilter.sub]);
+  const defaultChapters=subpageRoot?noteChapters(subpageRoot):((mapFilter.chapter==='all'||mapFilter.chapter==='none')?[]:[mapFilter.chapter]);
+  const defaultSections=subpageRoot?noteSections(subpageRoot):((mapFilter.section==='all'||mapFilter.section==='none')?[]:[mapFilter.section]);
   const relay={
     id:nid++,
     type:'relay',
     isRelay:true,
     title:name,
     body:'',
-    subject:mapFilter.sub==='all'?'':mapFilter.sub,
-    subjects:mapFilter.sub==='all'?[]:[mapFilter.sub],
-    chapter:mapFilter.chapter==='all'||mapFilter.chapter==='none'?'':mapFilter.chapter,
-    chapters:(mapFilter.chapter==='all'||mapFilter.chapter==='none')?[]:[mapFilter.chapter],
-    section:mapFilter.section==='all'||mapFilter.section==='none'?'':mapFilter.section,
-    sections:(mapFilter.section==='all'||mapFilter.section==='none')?[]:[mapFilter.section]
+    subject:defaultSubjects[0]||'',
+    subjects:defaultSubjects,
+    chapter:defaultChapters[0]||'',
+    chapters:defaultChapters,
+    section:defaultSections[0]||'',
+    sections:defaultSections
   };
   mapRelays.push(relay);
+  if(subpageRootId) createRelationLink(subpageRootId,relay.id);
   saveData();
   if(isMapOpen){
-    if(!nodePos[relay.id]) nodePos[relay.id]={x:mapW/2,y:mapH/2};
+    if(!nodePos[relay.id]){
+      if(subpageRootId&&nodePos[subpageRootId]) nodePos[relay.id]={x:nodePos[subpageRootId].x+120,y:nodePos[subpageRootId].y+70};
+      else nodePos[relay.id]={x:mapW/2,y:mapH/2};
+    }
     scheduleMapRedraw(30);
   }
-  showToast('已新增中繼站');
+  showToast(subpageRootId?'已新增中繼站（已放入目前子頁面）':'已新增中繼站');
 }
 function switchMapNodeType(id){
   const relay=relayById(id);

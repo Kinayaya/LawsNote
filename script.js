@@ -817,7 +817,7 @@ function loadData() {
       mapRelays=(Array.isArray(d.mapRelays)?d.mapRelays:[]).map(r=>({
         id:Number(r.id),
         title:safeStr(r.title)||'未命名中繼站',
-        body:safeStr(r.body),
+        body:'',
         subject:safeStr(r.subject)||'',
         chapter:safeStr(r.chapter)||'',
         section:safeStr(r.section)||'',
@@ -1321,7 +1321,7 @@ function findMapNodesByKeyword(keyword,excludeId){
   const q=safeStr(keyword).replace(/^@/,'').trim().toLowerCase();
   if(!q) return [];
   const blocked=Number(excludeId);
-  return [...notes,...mapRelays].filter(n=>n.id!==blocked&&`${n.title} ${noteSubjectText(n)} ${isRelayNode(n)?'中繼站':typeByKey(n.type).label}`.toLowerCase().includes(q)).slice(0,18);
+  return notes.filter(n=>n.id!==blocked&&`${n.title} ${noteSubjectText(n)} ${typeByKey(n.type).label}`.toLowerCase().includes(q)).slice(0,18);
 }
 function openMapNodeFromLink(id){
   if(!relayById(id)){ showToast('中繼站已被刪除'); return; }
@@ -1476,6 +1476,32 @@ function openNote(id) {
   g('dp').classList.add('open');['fp','tp','ap'].forEach(p=>g(p).classList.remove('open'));
   syncSidePanelState();
 }
+function openRelayDetail(id){
+  const relay=relayById(id); if(!relay) return;
+  openId=id;
+  g('dp-badge').textContent='中繼站'; g('dp-badge').style.background='#A855F7';
+  g('dp-title').textContent=relay.title||'未命名中繼站';
+  const bodyLabel=g('dp-body')?.previousElementSibling,detailLabel=g('dp-detail')?.previousElementSibling;
+  const todoWrap=g('dp-todo'),todoLabel=g('dp-todo-label');
+  if(bodyLabel) bodyLabel.style.display='none';
+  if(detailLabel) detailLabel.style.display='none';
+  if(todoLabel) todoLabel.style.display='none';
+  if(todoWrap){todoWrap.style.display='none';todoWrap.innerHTML='';}
+  const bodyEl=g('dp-body'),detailEl=g('dp-detail');
+  if(bodyEl) bodyEl.style.display='none';
+  if(detailEl) detailEl.style.display='none';
+  const subs=noteSubjects(relay),chs=noteChapters(relay),secs=noteSections(relay);
+  const subChips=subs.map(sk=>{const sb=subByKey(sk);return `<span class="chip" style="background:${lightC(sb.color)};color:${darkC(sb.color)}">${sb.label}</span>`;}).join('');
+  const chapterChips=chs.map(ch=>`<span class="chip" style="background:#E6F1FB;color:#0C447C">${chapterByKey(ch).label}</span>`).join('');
+  const sectionChips=secs.map(sec=>`<span class="chip" style="background:#EEF7FF;color:#1E5AA5">${sectionByKey(sec).label}</span>`).join('');
+  g('dp-chips').innerHTML=(subChips+chapterChips+sectionChips)||'<span class="chip">中繼站不可輸入內容</span>';
+  const quickInput=g('dp-link-search');
+  if(quickInput) quickInput.value='';
+  renderLinksForNote(id);
+  renderDetailQuickLinkSearch();
+  g('dp').classList.add('open');['fp','tp','ap'].forEach(p=>g(p).classList.remove('open'));
+  syncSidePanelState();
+}
 
 function renderLinksForNote(id) {
   const related=links.filter(l=>l.from===id||l.to===id);
@@ -1585,9 +1611,9 @@ function renderFormLinkSearch() {
   const q=(val('fl-search')||'').toLowerCase().trim();
   if(!q){el.innerHTML='';updateFormLinkBulkActions();return;}
   const existIds=links.filter(l=>openId&&(l.from===openId||l.to===openId)).map(l=>l.from===openId?l.to:l.from);
-  const pool=[...notes,...mapRelays].filter(n=>n.id!==openId&&!existIds.includes(n.id)&&`${n.title} ${noteSubjectText(n)} ${isRelayNode(n)?'中繼站':typeByKey(n.type).label}`.toLowerCase().includes(q)).slice(0,24);
+  const pool=notes.filter(n=>n.id!==openId&&!existIds.includes(n.id)&&`${n.title} ${noteSubjectText(n)} ${typeByKey(n.type).label}`.toLowerCase().includes(q)).slice(0,24);
   if(!pool.length){el.innerHTML='<div style="font-size:12px;color:#bbb;padding:4px 0;">找不到符合的筆記</div>';updateFormLinkBulkActions();return;}
-  el.innerHTML=pool.map(n=>{const tp=isRelayNode(n)?{label:'中繼站',color:'#A855F7'}:typeByKey(n.type);return `<div class="fl-result-item ${formLinkSelections[n.id]?'selected':''}" data-nid="${n.id}"><input type="checkbox" ${formLinkSelections[n.id]?'checked':''}><span class="fl-result-type" style="background:${tp.color}">${tp.label}</span><span class="fl-result-title">${n.title}</span></div>`;}).join('');
+  el.innerHTML=pool.map(n=>{const tp=typeByKey(n.type);return `<div class="fl-result-item ${formLinkSelections[n.id]?'selected':''}" data-nid="${n.id}"><input type="checkbox" ${formLinkSelections[n.id]?'checked':''}><span class="fl-result-type" style="background:${tp.color}">${tp.label}</span><span class="fl-result-title">${n.title}</span></div>`;}).join('');
   el.querySelectorAll('.fl-result-item').forEach(item=>{
     item.addEventListener('click',()=>{
       const toId=parseInt(item.dataset.nid);
@@ -2407,7 +2433,7 @@ function importData(file) {
       if(confirm('確定 = 完整覆蓋（取代所有現有筆記，保留現有科目/章設定）\n取消 = 合併（只加入新筆記）')) {
         // ★ 覆蓋模式：不覆蓋 types/subjects/chapters
         notes=d.notes;links=d.links||[];
-        mapRelays=Array.isArray(d.mapRelays)?d.mapRelays.map(r=>({...r,isRelay:true,type:'relay'})):[];
+        mapRelays=Array.isArray(d.mapRelays)?d.mapRelays.map(r=>({...r,body:'',detail:'',tags:[],todos:[],extraFields:{},isRelay:true,type:'relay'})):[];
         nodeSizes=d.nodeSizes||{};mapCenterNodeId=d.mapCenterNodeId||null;mapCenterNodeIds=(d.mapCenterNodeIds&&typeof d.mapCenterNodeIds==='object')?d.mapCenterNodeIds:{};mapCollapsed=(d.mapCollapsed&&typeof d.mapCollapsed==='object')?d.mapCollapsed:{};
         mapSubpages=(d.mapSubpages&&typeof d.mapSubpages==='object')?d.mapSubpages:{};
         nid=d.nid||Math.max([...notes,...mapRelays].reduce((m,n)=>Math.max(m,n.id||0),0)+1,10);lid=d.lid||10;notes.sort((a,b)=>b.id-a.id);
@@ -2439,7 +2465,7 @@ function importData(file) {
             existing.add(nextId);
             if(Number.isFinite(oldId)) importedIdMap[oldId]=nextId;
             if(nextId>maxNoteId) maxNoteId=nextId;
-            mapRelays.push({...r,id:nextId,isRelay:true,type:'relay'});
+            mapRelays.push({...r,id:nextId,body:'',detail:'',tags:[],todos:[],extraFields:{},isRelay:true,type:'relay'});
             if(nextId>=nid) nid=nextId+1;
           });
         }
@@ -3155,13 +3181,13 @@ function visibleNotes(){
       &&(!q||`${n.title}${subs.join('')}${chs.join('')}${secs.join('')}${noteTags(n).join('')}`.toLowerCase().includes(q));
   });
   const relayFiltered=mapRelays.filter(n=>{
+    if(q) return false;
     const subs=noteSubjects(n),chs=noteChapters(n),secs=noteSections(n);
     const chapterMatch=mapFilter.chapter==='all'?true:(mapFilter.chapter==='none'?!chs.length:chs.includes(mapFilter.chapter));
     const sectionMatch=mapFilter.section==='all'?true:(mapFilter.section==='none'?!secs.length:secs.includes(mapFilter.section));
     return (mapFilter.sub==='all'||subs.includes(mapFilter.sub))
       &&chapterMatch
-      &&sectionMatch
-      &&(!q||`${n.title}${n.body||''}${subs.join('')}${chs.join('')}${secs.join('')}`.toLowerCase().includes(q));
+      &&sectionMatch;
   });
   const shouldExpandLinked=scopeLinkedEnabled&&mapHasTaxonomyFilter();
   let filtered=baseFiltered;
@@ -3399,12 +3425,13 @@ function openMapPopup(id){
   const goBtn=g('mpGoto');
   const node=mapNodeById(id);
   if(goBtn){
-    if(isRelayNode(node)){
-      goBtn.style.display='none';
-    }else{
-      goBtn.style.display='block';
-      goBtn.onclick=()=>{openNote(id);closeMapPopup();};
-    }
+    goBtn.style.display='block';
+    goBtn.textContent=isRelayNode(node)?'🔍 查看中繼站':'🔍 查看完整筆記 →';
+    goBtn.onclick=()=>{
+      if(isRelayNode(node)) openRelayDetail(id);
+      else openNote(id);
+      closeMapPopup();
+    };
   }
 }
 function showMapInfo(id){
@@ -3591,7 +3618,11 @@ function bindCoreButtons(){
   const bind=(id,fn)=>{const el=g(id);if(el)el.onclick=fn;};
   bind('addBtn',()=>openForm(false));
   bind('linkModeBtn',()=>setLinkMode(!linkModeActive));
-  bind('editBtn',()=>{if(!openId){showToast('請先開啟一筆筆記');return;}openForm(true);});
+  bind('editBtn',()=>{
+    if(!openId){showToast('請先開啟一筆筆記');return;}
+    if(!noteById(openId)){showToast('中繼站不能輸入內容');return;}
+    openForm(true);
+  });
   bind('copyBtn',copyNoteToClipboard);
   bind('dupBtn',duplicateNote);
   bind('dpClose',closeDetail);bind('fpClose',closeForm);bind('fpCancel',closeForm);

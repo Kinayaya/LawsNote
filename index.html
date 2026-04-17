@@ -36,16 +36,16 @@
       <div class="primary-tools">
         <button class="tool-btn" id="compactToggleBtn" title="切換分類列顯示">&#9776; 分類</button>
         <button class="tool-btn" id="tagMgrBtn">管理</button>
-        <button class="tool-btn" id="levelSystemBtn">等級系統</button>
-        <button class="tool-btn" id="calendarBtn">日曆</button>
-        <button class="tool-btn" id="linkModeBtn">🔗 連線模式</button>
         <button class="map-btn" id="mapToggleBtn">&#128279; 體系圖</button>
-        <button class="tool-btn" id="panelDirBtn" title="切換筆記展開方向">&#8646; 面板方向</button>
         <button class="add-btn" id="addBtn">+ 新增</button>
       </div>
       <div class="more-wrap">
         <button class="tool-btn more-btn" id="moreToolsBtn">&#8942; 更多</button>
         <div class="more-menu" id="moreToolsMenu">
+          <button class="tool-btn more-menu-item" id="calendarBtn">&#128197; 日曆</button>
+          <button class="tool-btn more-menu-item" id="levelSystemBtn">&#11088; 等級系統</button>
+          <button class="tool-btn more-menu-item" id="linkModeBtn">&#128279; 連線模式</button>
+          <button class="tool-btn more-menu-item" id="panelDirBtn" title="切換筆記展開方向">&#8646; 面板方向</button>
           <button class="tool-btn ai-btn-style more-menu-item" id="aiSettingsBtn">&#129302; AI</button>
           <button class="tool-btn exam-btn-style more-menu-item" id="examBtn">&#9997; 申論</button>
           <button class="tool-btn more-menu-item" id="focusTimerBtn">&#9201; 計時器</button>
@@ -303,13 +303,14 @@
 <div id="mapView">
   <div id="mapToolbar">
     <button class="tool-btn map-primary-action" id="mapAddNoteBtn">+ 新增筆記</button>
+    <button class="tool-btn" id="mapAddRelayBtn">+ 新增中繼站</button>
     <div class="map-search-wrap">
       <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:#aaa;font-size:12px;pointer-events:none;">&#128269;</span>
       <input id="mapSearchInput" placeholder="搜尋節點..." autocomplete="off">
     </div>
     <select id="mapFilterSub" class="map-filter-sel"><option value="all">全部科目</option></select>
-    <select id="mapFilterChapter" class="map-filter-sel"><option value="all">全部章</option></select>
-    <select id="mapFilterSection" class="map-filter-sel"><option value="all">全部節</option></select>
+    <select id="mapFilterChapter" class="map-filter-sel map-adv-item"><option value="all">全部章</option></select>
+    <select id="mapFilterSection" class="map-filter-sel map-adv-item"><option value="all">全部節</option></select>
     <button class="tool-btn" id="mapAdvancedToggleBtn" style="background:#f5f5f5;color:#555;border-color:#ddd;">⚙️ 進階</button>
     <button class="tool-btn" id="mapAutoBtn">&#10024; 自動排列</button>
     <button class="tool-btn map-adv-item" id="mapLinkedOnlyBtn" style="background:#3B6D11;color:#fff;border-color:#3B6D11;">&#128279; 只顯示關聯</button>

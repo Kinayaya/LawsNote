@@ -18,9 +18,9 @@ input[type="checkbox"]{-webkit-appearance:auto;appearance:auto}
 .search-wrap input:focus{outline:none;border-color:#007AFF;background:#fff}
 .search-icon{position:absolute;left:8px;top:50%;transform:translateY(-50%);color:#aaa;font-size:12px;pointer-events:none}
 .search-clear{position:absolute;right:7px;top:50%;transform:translateY(-50%);color:#aaa;font-size:16px;cursor:pointer;display:none;background:none;border:none;line-height:1}
-.tool-btns{display:flex;gap:6px;align-items:center;flex-shrink:0;position:relative}
+.tool-btns{display:flex;gap:8px;align-items:center;flex-shrink:0;position:relative}
 .header-achievement-wrap{display:flex;align-items:center;min-height:0;padding:0;background:transparent;border:none}
-.primary-tools{display:flex;gap:6px;align-items:center}
+.primary-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .more-wrap{position:relative}
 .more-btn{min-width:72px}
 .more-menu{display:none;position:absolute;right:0;top:calc(100% + 6px);background:#fff;border:1px solid #e4e8ef;border-radius:10px;padding:6px;box-shadow:0 10px 20px rgba(15,23,42,.12);min-width:148px;z-index:90}
@@ -189,7 +189,7 @@ body.compact-filters .filter-row,body.compact-filters #subbar,body.compact-filte
 /* Map View */
 #mapView{display:none;flex-direction:column}
 #mapView.open{display:flex}
-#mapToolbar{background:#fff;padding:7px 12px;border-bottom:1px solid #e5e5e5;display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+#mapToolbar{background:#fff;padding:8px 12px;border-bottom:1px solid #e5e5e5;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .map-adv-item{display:none}
 #mapView.map-advanced-open .map-adv-item{display:inline-flex}
 .map-primary-action{background:#0C447C;color:#fff;border-color:#0C447C;font-weight:600}
@@ -200,6 +200,7 @@ body.compact-filters .filter-row,body.compact-filters #subbar,body.compact-filte
 #mapSearchInput{width:100%;padding:5px 10px 5px 26px;border:1px solid #ddd;border-radius:8px;font-size:12px;background:#f5f5f5}
 #mapSearchInput:focus{border-color:#007AFF;background:#fff}
 .map-filter-sel{padding:4px 7px;border:1px solid #ddd;border-radius:7px;font-size:11px;background:#f5f5f5;cursor:pointer}
+#mapAddRelayBtn{background:#F3E8FF;color:#6B21A8;border-color:#D8B4FE}
 #mapZoomBar{background:#fff;padding:4px 12px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px}
 .zoom-btn{padding:3px 10px;border:1px solid #ddd;border-radius:6px;background:#f5f5f5;font-size:13px;cursor:pointer}
 .zoom-btn:active{background:#e5e5e5}

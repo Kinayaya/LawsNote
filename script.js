@@ -47,11 +47,10 @@ const DEFAULT_SHORTCUTS = [
 const BUILTIN_FIELD_DEFS = {
   body:{key:'body',label:'摘要',kind:'textarea',placeholder:'條文或重點摘要...'},
   detail:{key:'detail',label:'詳細筆記',kind:'textarea',placeholder:'構成要件、學說、實務見解...'},
-  todos:{key:'todos',label:'📝 待辦清單（每行一項，開頭 [x] 代表已完成）',kind:'textarea',placeholder:'[ ] 完成筆記整理\n[x] 複習例題第 3 題'},
-  tags:{key:'tags',label:'標籤（單一）',kind:'text',placeholder:'例：侵權行為'}
+  todos:{key:'todos',label:'📝 待辦清單（每行一項，開頭 [x] 代表已完成）',kind:'textarea',placeholder:'[ ] 完成筆記整理\n[x] 複習例題第 3 題'}
 };
-const DEFAULT_TYPE_FIELD_KEYS = {diary:['body','todos','tags']};
-const DEFAULT_NORMAL_FIELD_KEYS = ['body','detail','tags'];
+const DEFAULT_TYPE_FIELD_KEYS = {diary:['body','todos']};
+const DEFAULT_NORMAL_FIELD_KEYS = ['body','detail'];
 
 
 const { safeStr, uniq, pad2, escapeHtml, hl, parseTodos, formatTodosForEdit, parseSearchDateVariants, formatDate, normalizeNoteSchema } = window.KLawsUtils;
@@ -83,6 +82,7 @@ let mapTimer=null, currentView='notes';
 let mapAdvancedOpen=false;
 let mapCollapsed={};
 let mapLinkSourceId=null;
+let touchRadialMenu=null, actionUndoTimer=null, lastCardTap={id:0,time:0};
 let mapSubpages={}, mapPageStack=[];
 let typeFieldConfigs={}, customFieldDefs={};
 let undoSnapshotRaw='', lastSavedPayloadRaw='', isUndoApplying=false;
@@ -129,6 +129,20 @@ const on = (id, evt, fn) => { const el=g(id); if(el) el.addEventListener(evt,fn)
 const val = id => { const el=g(id); return el?el.value:''; };
 const debounce = (fn,ms) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; };
 const showToast = m => { let t=g('toast'); t.textContent=m; t.style.display='block'; setTimeout(()=>t.style.display='none',2200); };
+function showActionToast(msg, undoFn=null){
+  const wrap=g('actionToast'),txt=g('actionToastText'),undoBtn=g('actionToastUndoBtn');
+  if(!wrap||!txt||!undoBtn){showToast(msg);return;}
+  txt.textContent=msg;
+  undoBtn.style.display=undoFn?'inline-flex':'none';
+  undoBtn.onclick=()=>{
+    if(typeof undoFn==='function') undoFn();
+    wrap.classList.remove('open');
+    clearTimeout(actionUndoTimer);
+  };
+  wrap.classList.add('open');
+  clearTimeout(actionUndoTimer);
+  actionUndoTimer=setTimeout(()=>wrap.classList.remove('open'),3200);
+}
 function loadFormTaxonomyPref(){
   try{
     const raw=JSON.parse(localStorage.getItem(FORM_TAXONOMY_PREF_KEY)||'{}');
@@ -284,7 +298,7 @@ const noteById = id => notes.find(n=>n.id===id);
 const relayById = id => mapRelays.find(n=>n.id===id);
 const mapNodeById = id => noteById(id)||relayById(id);
 const isRelayNode = n => !!(n&&n.isRelay);
-const noteTags = n => Array.isArray(n&&n.tags)?n.tags:[];
+const noteTags = _n => [];
 const noteHasVisibleContent = n => !!(safeStr(n.body).trim()||safeStr(n.detail).trim()||noteTags(n).length||(Array.isArray(n.todos)&&n.todos.length));
 const noteExtraFields = n => (n&&n.extraFields&&typeof n.extraFields==='object'&&!Array.isArray(n.extraFields))?n.extraFields:{};
 const getFieldDef = key => BUILTIN_FIELD_DEFS[key]||customFieldDefs[key]||{key,label:key,kind:'text',placeholder:''};
@@ -296,7 +310,6 @@ const renderFieldValue = (n,key) => {
   if(key==='body') return n.body||'';
   if(key==='detail') return n.detail||'';
   if(key==='todos') return renderTodoHtml(n.todos);
-  if(key==='tags') return noteTags(n).join('、')||'（無標籤）';
   return noteExtraFields(n)[key]||'';
 };
 const mapCardFieldText = (n,key) => {
@@ -316,7 +329,6 @@ const noteFieldValueForEdit = (n,key) => {
   if(key==='body') return n.body||'';
   if(key==='detail') return n.detail||'';
   if(key==='todos') return formatTodosForEdit(n.todos);
-  if(key==='tags') return noteTags(n)[0]||'';
   return noteExtraFields(n)[key]||'';
 };
 const hexRgb = hex => { if(hex.length===4) hex='#'+hex[1]+hex[1]+hex[2]+hex[2]+hex[3]+hex[3]; return [parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)]; };
@@ -1192,7 +1204,7 @@ function baseScopeMatch(note) {
 function noteMatchesSearch(note, q, normalizedDate='') {
   if(!q) return true;
   const subs=noteSubjects(note), chs=noteChapters(note), secs=noteSections(note);
-  const hay=`${note.title} ${note.body} ${subs.join(' ')} ${chs.join(' ')} ${secs.join(' ')} ${noteTags(note).join(' ')} ${note.date||''}`.toLowerCase();
+  const hay=`${note.title} ${note.body} ${subs.join(' ')} ${chs.join(' ')} ${secs.join(' ')} ${note.date||''}`.toLowerCase();
   return hay.includes(q)||(normalizedDate&&formatDate(note.date)===normalizedDate);
 }
 function relayMatchesSearch(relay, q) {
@@ -1256,12 +1268,12 @@ function render() {
     const subChips=subs.map(sk=>{const sb2=subByKey(sk);return `<span class="chip" style="background:${lightC(sb2.color)};color:${darkC(sb2.color)}">${sb2.label}</span>`;}).join('');
     const chapterChips=chs.map(chk=>`<span class="chip">${chapterByKey(chk).label}</span>`).join('');
     const sectionChips=secs.map(sk=>`<span class="chip">${sectionByKey(sk).label}</span>`).join('');
-    const tags=(isReminder?[`到期 ${dueTimeText(n)}`]:noteTags(n).slice(0,1)).map(t=>`<span class="chip">${hl(t,q)}</span>`).join('');
+    const noteActionChips=isReminder?'':`<span class="chip card-action-chip" data-action="duplicate">建立副本</span><span class="chip card-action-chip" data-action="copy">複製內容</span><span class="chip card-action-chip" data-action="delete">刪除</span>`;
     const linkedChip=(shouldExpand&&!seedIds.has(n.id))?'<span class="chip" style="background:#EAF3DE;color:#3B6D11;border-color:#97C459">跨科關聯</span>':'';
     const hasContent=isReminder?!!safeStr(n.body):noteHasVisibleContent(n);
     const linkModeClass=linkModeActive?'link-mode':'';
     const linkSourceClass=linkSourceId===n.id?'link-source':'';
-    return `<div class="card ${hasContent?'':'card-empty-content'} ${isReminder?'calendar-reminder-card':''} ${linkModeClass} ${linkSourceClass}" data-id="${n.id}" data-reminder-id="${isReminder?n.eventId:''}" style="--type-color:${tp.color}"><button class="sel-check" type="button" aria-label="勾選筆記"></button><div class="ctop"><span class="ctag">${tp.label}</span><div class="ctitle-inline">${hl(n.title,q)}</div></div>${hasContent?`<div class="cbody">${escapeHtml(n.body)}</div>`:''}<div class="cfoot">${subChips}${chapterChips}${sectionChips}${tags}${linkedChip}</div></div>`;
+    return `<div class="card ${hasContent?'':'card-empty-content'} ${isReminder?'calendar-reminder-card':''} ${linkModeClass} ${linkSourceClass}" data-id="${n.id}" data-reminder-id="${isReminder?n.eventId:''}" style="--type-color:${tp.color}"><button class="sel-check" type="button" aria-label="勾選筆記"></button><div class="ctop"><span class="ctag">${tp.label}</span><div class="ctitle-inline">${hl(n.title,q)}</div></div>${hasContent?`<div class="cbody">${escapeHtml(n.body)}</div>`:''}<div class="cfoot">${subChips}${chapterChips}${sectionChips}${linkedChip}${noteActionChips}</div></div>`;
   }).join('');
   grid.querySelectorAll('.card').forEach(c=>{
     const rid=c.dataset.reminderId?parseInt(c.dataset.reminderId,10):0;
@@ -1475,12 +1487,21 @@ function openNote(id) {
   const subChips=subs.map(sk=>{const sb=subByKey(sk);return `<span class="chip" style="background:${lightC(sb.color)};color:${darkC(sb.color)}">${sb.label}</span>`;}).join('');
   const chapterChips=chs.map(ch=>`<span class="chip" style="background:#E6F1FB;color:#0C447C">${chapterByKey(ch).label}</span>`).join('');
   const sectionChips=secs.map(sec=>`<span class="chip" style="background:#EEF7FF;color:#1E5AA5">${sectionByKey(sec).label}</span>`).join('');
-  const tagHtml=fields.includes('tags')?noteTags(n).map(t=>`<span class="chip">${t}</span>`).join(''):'';
   const customHtml=fields.filter(k=>!BUILTIN_FIELD_DEFS[k]).map(k=>{
     const v=renderFieldValue(n,k);
     return `<span class="chip" title="${getFieldDef(k).label}">${getFieldDef(k).label}：${String(v).slice(0,20)||'（空）'}</span>`;
   }).join('');
-  g('dp-chips').innerHTML=subChips+chapterChips+sectionChips+tagHtml+customHtml;
+  g('dp-chips').innerHTML=subChips+chapterChips+sectionChips+customHtml;
+  g('dp-inline-actions').innerHTML=`<button class="inline-note-action" data-action="edit">✏️ 編輯</button><button class="inline-note-action" data-action="duplicate">📄 建立副本</button><button class="inline-note-action" data-action="copy">📋 複製內容</button><button class="inline-note-action" data-action="delete">🗑️ 刪除</button>`;
+  g('dp-inline-actions').querySelectorAll('.inline-note-action').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const action=btn.dataset.action;
+      if(action==='edit') openForm(true);
+      else if(action==='duplicate') duplicateNote(id);
+      else if(action==='copy') copyNoteToClipboard(id);
+      else if(action==='delete') deleteNote(id);
+    });
+  });
   const quickInput=g('dp-link-search');
   if(quickInput) quickInput.value='';
   renderLinksForNote(id);
@@ -1629,14 +1650,13 @@ function addSelectedFormLinks(){
 }
 
 function collectFormValuesByType(typeKey){
-  const result={body:'',detail:'',tags:[],todos:[],extraFields:{}};
+  const result={body:'',detail:'',todos:[],extraFields:{}};
   getTypeFieldKeys(typeKey).forEach(key=>{
     const el=g(`f-field-${key}`);
     if(!el) return;
     const raw=(el.value||'').trim();
     if(key==='body') result.body=raw;
     else if(key==='detail') result.detail=raw;
-    else if(key==='tags') result.tags=raw?[raw]:[];
     else if(key==='todos') result.todos=parseTodos(raw);
     else result.extraFields[key]=raw;
   });
@@ -1719,7 +1739,7 @@ function saveNote() {
     const selectedIdNums=Object.keys(selectedIds||{}).map(Number).filter(id=>selectedIds[id]);
     const shouldSyncMeta=multiSelMode&&selectedIds[openId]&&selectedIdNums.length>1;
     const prevDone=idx!==-1?doneTodoCount(notes[idx].todos):0;
-    if(idx!==-1) notes[idx]=normalizeNoteSchema({...notes[idx],type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,body:fieldData.body,detail:fieldData.detail,tags:fieldData.tags,todos:fieldData.todos,extraFields:fieldData.extraFields});
+    if(idx!==-1) notes[idx]=normalizeNoteSchema({...notes[idx],type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,body:fieldData.body,detail:fieldData.detail,todos:fieldData.todos,extraFields:fieldData.extraFields});
     const mentionAdded=idx!==-1?autoLinkMentionsForNote(notes[idx]):0;
     const nextDone=idx!==-1?doneTodoCount(notes[idx].todos):0;
     if(nextDone>prevDone&&levelSystem.tasks.length&&levelSystem.skills.length){
@@ -1731,14 +1751,14 @@ function saveNote() {
         if(id===openId) return;
         const target=noteById(id);
         if(!target) return;
-        Object.assign(target,{type:typeKey,subject:primarySubject,subjects:[...selectedSubs],chapter:primaryChapter,chapters:[...selectedChs],section:primarySection,sections:[...selectedSecs],tags:[...fieldData.tags]});
+        Object.assign(target,{type:typeKey,subject:primarySubject,subjects:[...selectedSubs],chapter:primaryChapter,chapters:[...selectedChs],section:primarySection,sections:[...selectedSecs]});
       });
     }
     saveData();closeForm();render();if(isMapOpen) scheduleMapRedraw(0);showToast(`筆記已更新！${mentionAdded?`（@ 自動建立 ${mentionAdded} 筆關聯）`:''}`);
     setTimeout(()=>openNote(openId),150);
   } else {
     const d=new Date(),dt=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    const newNote=normalizeNoteSchema({id:nid++,type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,body:fieldData.body,detail:fieldData.detail,tags:fieldData.tags,date:dt,todos:fieldData.todos,extraFields:fieldData.extraFields});
+    const newNote=normalizeNoteSchema({id:nid++,type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,body:fieldData.body,detail:fieldData.detail,date:dt,todos:fieldData.todos,extraFields:fieldData.extraFields});
     if(doneTodoCount(newNote.todos)>0&&levelSystem.tasks.length&&levelSystem.skills.length){
       completeLevelTask(levelSystem.tasks[0].id,levelSystem.skills[0].id);
     }
@@ -1750,9 +1770,21 @@ function saveNote() {
     else setTimeout(()=>{window.scrollTo(0,0);setTimeout(()=>openNote(notes[0].id),300);},100);
   }
 }
-function duplicateNote() {
-  if(!openId){showToast('請先開啟要複製的筆記');return;}
-  const src=noteById(openId);
+function saveNoteDraftFromForm(){
+  if(!(editMode&&openId)) return;
+  const target=noteById(openId);
+  if(!target) return;
+  const title=(g('fti').value||'').trim();
+  if(!title) return;
+  const typeKey=g('ft').value;
+  const fieldData=collectFormValuesByType(typeKey);
+  const selectedSubs=selectedValues('fs2').slice(0,1),selectedChs=selectedValues('fc').slice(0,1),selectedSecs=selectedValues('fsec').slice(0,1);
+  Object.assign(target,normalizeNoteSchema({...target,type:typeKey,subject:selectedSubs[0]||'',subjects:selectedSubs,chapter:selectedChs[0]||'',chapters:selectedChs,section:selectedSecs[0]||'',sections:selectedSecs,title,body:fieldData.body,detail:fieldData.detail,todos:fieldData.todos,extraFields:fieldData.extraFields}));
+  saveDataDeferred();
+}
+function duplicateNote(targetId=openId) {
+  if(!targetId){showToast('請先開啟要複製的筆記');return;}
+  const src=noteById(targetId);
   if(!src){showToast('找不到要複製的筆記');return;}
   const d=new Date(),dt=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const copyTitle=`${src.title}（複製）`;
@@ -1768,7 +1800,6 @@ function duplicateNote() {
     title:copyTitle,
     body:src.body||'',
     detail:src.detail||'',
-    tags:[...noteTags(src)],
     date:dt,
     todos:Array.isArray(src.todos)?src.todos.map(t=>({text:t.text||'',done:!!t.done})):[],
     extraFields:{...noteExtraFields(src)}
@@ -1780,11 +1811,10 @@ function duplicateNote() {
   showToast('已複製筆記');
   setTimeout(()=>{window.scrollTo(0,0);setTimeout(()=>openNote(newNote.id),220);},80);
 }
-async function copyNoteToClipboard() {
-  if(!openId){showToast('請先開啟要複製的筆記');return;}
-  const n=noteById(openId);
+async function copyNoteToClipboard(targetId=openId) {
+  if(!targetId){showToast('請先開啟要複製的筆記');return;}
+  const n=noteById(targetId);
   if(!n){showToast('找不到要複製的筆記');return;}
-  const tagText=noteTags(n).join('、')||'無';
   const text=[
     n.title||'（未命名）',
     '',
@@ -1792,9 +1822,7 @@ async function copyNoteToClipboard() {
     n.body||'',
     '',
     '詳細筆記',
-    n.detail||'',
-    '',
-    `標籤：${tagText}`
+    n.detail||''
   ].join('\n');
   try{
     if(navigator.clipboard?.writeText){
@@ -1815,15 +1843,16 @@ async function copyNoteToClipboard() {
     showToast('複製失敗，請稍後再試');
   }
 }
-function deleteNote() {
-  if(!openId||!confirm('確定刪除這筆筆記？可到回收區復原（保留 7 天）。')) return;
-  const removed=removeNotesToRecycle([openId]);
+function deleteNote(targetId=openId) {
+  if(!targetId||!confirm('確定刪除這筆筆記？可到回收區復原（保留 7 天）。')) return;
+  const removed=removeNotesToRecycle([targetId]);
   if(!removed) return;
+  const recycleId=recycleBin[0]?.id;
   saveData();
-  closeDetail();
+  if(openId===targetId) closeDetail();
   renderArchivePanel();
   render();
-  showToast('已移至回收區');
+  showActionToast('已移至回收區',recycleId?()=>restoreRecycleItem(recycleId):null);
 }
 // ==================== 標籤管理 ====================
 function openTagMgr() {
@@ -2406,7 +2435,7 @@ function importData(file) {
       // ★ 修復匯入日期格式
       d.notes.forEach(n=>{
         if(!n.dispute)n.dispute='';if(!n.f_article)n.f_article='';if(!n.f_elements)n.f_elements='';if(!n.f_conclusion)n.f_conclusion='';
-        if(!n.tags)n.tags=[];if(!n.detail)n.detail='';if(!Array.isArray(n.todos))n.todos=[];
+        if(!n.detail)n.detail='';if(!Array.isArray(n.todos))n.todos=[];
         if(!Array.isArray(n.subjects)) n.subjects=typeof n.subject==='string'&&n.subject?[n.subject]:[];
         if(!Array.isArray(n.chapters)) n.chapters=typeof n.chapter==='string'&&n.chapter?[n.chapter]:[];
         if(!Array.isArray(n.sections)) n.sections=typeof n.section==='string'&&n.section?[n.section]:[];
@@ -2727,7 +2756,7 @@ function saveCalendarEvent(){
   else calendarEvents.push(ev);
   if(type==='diary'&&idx<0){
     const d=activeCalendarDate;
-    notes.unshift({id:nid++,type:'diary',subject:'',subjects:[],chapter:'',chapters:[],section:'',sections:[],title,body,detail:body,tags:['日記'],date:d,todos:[],extraFields:{}});
+    notes.unshift({id:nid++,type:'diary',subject:'',subjects:[],chapter:'',chapters:[],section:'',sections:[],title,body,detail:body,date:d,todos:[],extraFields:{}});
   }
   saveData();rebuildUI();renderCalendar();g('calendarEventModal').classList.remove('open');
   const dayBox=g('calendarDayDetail');if(dayBox?.classList.contains('open')) toggleCalendarDayDetail(activeCalendarDate);
@@ -2802,34 +2831,98 @@ function selectAll() {
   updateSelBar();
   render();
 }
+async function copySelectedNotes(){
+  const ids=Object.keys(selectedIds).map(Number).filter(id=>selectedIds[id]);
+  if(!ids.length){showToast('請先選擇筆記');return;}
+  const text=ids.map(id=>{
+    const n=noteById(id);
+    return n?`${n.title}\n${n.body||''}\n${n.detail||''}`:'';
+  }).filter(Boolean).join('\n\n----------------\n\n');
+  try{
+    await navigator.clipboard.writeText(text);
+    showToast(`已複製 ${ids.length} 筆`);
+  }catch(e){showToast('複製失敗');}
+}
 function deleteSelected() {
   const ids=Object.keys(selectedIds);
   if(!ids.length) return;
   if(!confirm(`確定刪除這 ${ids.length} 筆筆記？可到回收區復原（保留 7 天）。`)) return;
   const removed=removeNotesToRecycle(ids.map(Number));
+  const recycleId=recycleBin[0]?.id;
   saveData();
   renderArchivePanel();
   exitMultiSel();
-  showToast(`已移至回收區 ${removed} 筆`);
+  showActionToast(`已移至回收區 ${removed} 筆`,recycleId?()=>restoreRecycleItem(recycleId):null);
 }
 function bindCardInteractions(card,id){
   const checkBtn=card.querySelector('.sel-check');
+  card.querySelectorAll('[data-action]').forEach(btn=>btn.addEventListener('click',e=>{
+    e.stopPropagation();
+    const action=btn.dataset.action;
+    if(action==='duplicate') duplicateNote(id);
+    else if(action==='copy') copyNoteToClipboard(id);
+    else if(action==='delete') deleteNote(id);
+  }));
   let pressTimer=null;
   let longPressed=false;
+  let startX=0,startY=0,trackingSwipe=false;
+  const closeRadialMenu=()=>touchRadialMenu?.classList.remove('open');
+  const openRadialMenu=(x,y)=>{
+    if(!('ontouchstart' in window)) return;
+    if(!touchRadialMenu){
+      touchRadialMenu=document.createElement('div');
+      touchRadialMenu.className='touch-radial-menu';
+      touchRadialMenu.innerHTML='<button data-radial="edit">✏️ 編輯</button><button data-radial="copy">📋 複製</button><button data-radial="duplicate">📄 副本</button><button data-radial="delete">🗑️ 刪除</button><button data-radial="select">☑️ 多選</button>';
+      document.body.appendChild(touchRadialMenu);
+      touchRadialMenu.querySelectorAll('[data-radial]').forEach(btn=>btn.addEventListener('click',()=>{
+        const action=btn.dataset.radial;
+        if(action==='edit'){openId=id;openForm(true);}
+        if(action==='copy') copyNoteToClipboard(id);
+        if(action==='duplicate') duplicateNote(id);
+        if(action==='delete') deleteNote(id);
+        if(action==='select'){enterMultiSel();selectedIds[id]=true;updateSelBar();render();}
+        closeRadialMenu();
+      }));
+      document.addEventListener('click',closeRadialMenu,{passive:true});
+    }
+    touchRadialMenu.style.left=`${Math.max(8,Math.min(window.innerWidth-220,x-100))}px`;
+    touchRadialMenu.style.top=`${Math.max(8,y-56)}px`;
+    touchRadialMenu.classList.add('open');
+  };
   const clearPress=()=>{ if(pressTimer){clearTimeout(pressTimer);pressTimer=null;} };
   const triggerLongPress=()=>{
     if(multiSelMode) return;
     longPressed=true;
-    enterMultiSel();
-    selectedIds[id]=true;
-    updateSelBar();
-    render();
+    openRadialMenu(startX||window.innerWidth/2,startY||120);
   };
   card.addEventListener('mousedown',()=>{longPressed=false;clearPress();pressTimer=setTimeout(triggerLongPress,450);});
-  card.addEventListener('touchstart',()=>{longPressed=false;clearPress();pressTimer=setTimeout(triggerLongPress,450);},{passive:true});
+  card.addEventListener('touchstart',e=>{
+    const t=e.touches&&e.touches[0];
+    if(t){startX=t.clientX;startY=t.clientY;trackingSwipe=true;}
+    longPressed=false;clearPress();pressTimer=setTimeout(triggerLongPress,420);
+  },{passive:true});
+  card.addEventListener('touchmove',e=>{
+    if(!trackingSwipe) return;
+    const t=e.touches&&e.touches[0];if(!t) return;
+    const dx=t.clientX-startX,dy=t.clientY-startY;
+    if(Math.abs(dy)>26){trackingSwipe=false;card.classList.remove('swipe-left','swipe-right');return;}
+    if(Math.abs(dx)>16){
+      clearPress();
+      card.classList.toggle('swipe-left',dx<-26);
+      card.classList.toggle('swipe-right',dx>26);
+    }
+  },{passive:true});
   card.addEventListener('mouseup',clearPress);
   card.addEventListener('mouseleave',clearPress);
-  card.addEventListener('touchend',clearPress,{passive:true});
+  card.addEventListener('touchend',e=>{
+    clearPress();
+    const changed=e.changedTouches&&e.changedTouches[0];
+    const dx=changed?changed.clientX-startX:0;
+    if(card.classList.contains('swipe-left')&&dx<-72){card.classList.remove('swipe-left');card.dataset.touchActionTaken='1';deleteNote(id);return;}
+    if(card.classList.contains('swipe-right')&&dx>72){card.classList.remove('swipe-right');card.dataset.touchActionTaken='1';duplicateNote(id);return;}
+    card.classList.remove('swipe-left','swipe-right');
+    trackingSwipe=false;
+  },{passive:true});
   card.addEventListener('touchcancel',clearPress,{passive:true});
   if(checkBtn){
     const stopCardEvent=(e)=>{e.stopPropagation();};
@@ -2842,8 +2935,22 @@ function bindCardInteractions(card,id){
     });
   }
   card.addEventListener('click',()=>{
+    if(card.dataset.touchActionTaken==='1'){card.dataset.touchActionTaken='0';return;}
     if(longPressed) return;
     if(linkModeActive){handleLinkModeCardTap(id);return;}
+    const now=Date.now();
+    if(('ontouchstart' in window)&&lastCardTap.id===id&&(now-lastCardTap.time)<360){
+      openId=id;
+      openForm(true);
+      lastCardTap={id:0,time:0};
+      return;
+    }
+    if('ontouchstart' in window){
+      openId=id;
+      openNote(id);
+      lastCardTap={id,time:now};
+      return;
+    }
     openId=id;
     openForm(true);
   });
@@ -3256,7 +3363,6 @@ function createMapRelay(){
     sections:defaultSections
   };
   mapRelays.push(relay);
-  if(subpageRootId) createRelationLink(subpageRootId,relay.id);
   saveData();
   if(isMapOpen){
     if(!nodePos[relay.id]){
@@ -3430,6 +3536,12 @@ function drawMap(){
     grp.addEventListener('click',e=>{
       e.stopPropagation();
       if(handleMapNodeLinkTap(n.id)) return;
+      if(!isRelayNode(n)){
+        openId=n.id;
+        openForm(true);
+        closeMapPopup();
+        return;
+      }
       showMapInfo(n.id);openMapPopup(n.id);highlightNode(n.id);
     });
     grp.addEventListener('mousedown',e=>startDrag(e,n.id));grp.addEventListener('touchstart',e=>startDragTouch(e,n.id),{passive:true});
@@ -3646,10 +3758,66 @@ const count=normalizeLaneCount(g('laneCountInput')?.value||cfg.count);
   mapLaneConfigs[cfg.key]={count,names};saveDataDeferred();closeLanePanel();nodePos={};forceLayout();drawMap();showToast('已儲存泳道設定');
 }
 function resetLanePanel(){ const cfg=getLaneConfig();mapLaneConfigs[cfg.key]={count:DEFAULT_LANE_NAMES.length,names:DEFAULT_LANE_NAMES.slice()};renderLanePanel();saveDataDeferred(); }
+function openCommandSheet(){ g('commandSheet')?.classList.add('open'); }
+function closeCommandSheet(){ g('commandSheet')?.classList.remove('open'); }
+function openQuickAddSheet(){ g('quickAddSheet')?.classList.add('open'); }
+function closeQuickAddSheet(){ g('quickAddSheet')?.classList.remove('open'); }
+function openQuickTemplate(typeKey){
+  closeQuickAddSheet();
+  openForm(false);
+  if(g('ft')&&typeKey){
+    g('ft').value=typeKey;
+    renderDynamicFields(typeKey,null);
+  }
+}
+function bindTouchQuickActions(){
+  on('quickAddCloseBtn','click',closeQuickAddSheet);
+  on('commandSheetCloseBtn','click',closeCommandSheet);
+  g('quickAddSheet')?.addEventListener('click',e=>{if(e.target.id==='quickAddSheet') closeQuickAddSheet();});
+  g('commandSheet')?.addEventListener('click',e=>{if(e.target.id==='commandSheet') closeCommandSheet();});
+  g('quickAddSheet')?.querySelectorAll('[data-template]').forEach(btn=>btn.addEventListener('click',()=>openQuickTemplate(btn.dataset.template)));
+  g('commandSheet')?.querySelectorAll('[data-cmd]').forEach(btn=>btn.addEventListener('click',()=>{
+    const cmd=btn.dataset.cmd;
+    if(cmd==='search') g('searchInput')?.focus();
+    else if(cmd==='new') openQuickAddSheet();
+    else if(cmd==='map') toggleMapView(!isMapOpen);
+    else if(cmd==='calendar') toggleCalendarView(currentView!=='calendar');
+    else if(cmd==='duplicate') duplicateNote();
+    else if(cmd==='delete') deleteNote();
+    closeCommandSheet();
+  }));
+  on('touchQuickAddBtn','click',openQuickAddSheet);
+  on('touchQuickSearchBtn','click',()=>g('searchInput')?.focus());
+  on('touchQuickRecentBtn','click',()=>{sortMode='date_desc';g('sortSelect').value='date_desc';render();});
+  on('touchQuickMoreBtn','click',openCommandSheet);
+  g('touchQuickFilters')?.querySelectorAll('[data-qf]').forEach(btn=>btn.addEventListener('click',()=>{
+    const kind=btn.dataset.qf;
+    if(kind==='today'){
+      const d=new Date();searchQ=`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;g('searchInput').value=searchQ;
+    }else if(kind==='todo'){
+      searchQ='[ ]';g('searchInput').value=searchQ;
+    }else{
+      sortMode='date_desc';g('sortSelect').value='date_desc';searchQ='';g('searchInput').value='';
+    }
+    render();
+  }));
+  document.addEventListener('keydown',e=>{
+    if((e.metaKey||e.altKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openCommandSheet();}
+  });
+  let edgeStartX=0;
+  document.addEventListener('touchstart',e=>{
+    const t=e.touches&&e.touches[0];if(!t) return;
+    edgeStartX=t.clientX;
+  },{passive:true});
+  document.addEventListener('touchend',e=>{
+    const t=e.changedTouches&&e.changedTouches[0];if(!t) return;
+    if(edgeStartX>window.innerWidth-22&&(edgeStartX-t.clientX)>30) openCommandSheet();
+  },{passive:true});
+}
 
 function bindCoreButtons(){
   const bind=(id,fn)=>{const el=g(id);if(el)el.onclick=fn;};
-  bind('addBtn',()=>openForm(false));
+  bind('addBtn',()=>{ if('ontouchstart' in window) openQuickAddSheet(); else openForm(false); });
   bind('linkModeBtn',()=>setLinkMode(!linkModeActive));
   bind('editBtn',()=>{if(!openId){showToast('請先開啟一筆筆記');return;}openForm(true);});
   bind('copyBtn',copyNoteToClipboard);
@@ -3689,7 +3857,8 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
       showToast(scopeLinkedEnabled?'已啟用跨科目關聯顯示':'已關閉跨科目關聯顯示');
     });
   }
-  g('selAllBtn').addEventListener('click',selectAll);g('selDeleteBtn').addEventListener('click',deleteSelected);g('selCancelBtn').addEventListener('click',exitMultiSel);
+  if(g('selAllBtn')) g('selAllBtn').textContent='複製';
+  g('selAllBtn').addEventListener('click',copySelectedNotes);g('selDeleteBtn').addEventListener('click',deleteSelected);g('selCancelBtn').addEventListener('click',exitMultiSel);
   on('dp-link-search','input',debounce(renderDetailQuickLinkSearch,180));
   on('mp-link-search','input',debounce(()=>renderMapPopupQuickLinkSearch(),180));
   on('calendarBtn','click',()=>toggleCalendarView(true));
@@ -3708,6 +3877,10 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   on('compactToggleBtn','click',()=>applyCompactFilterMode(!document.body.classList.contains('compact-filters')));
   on('tagMgrBtn','click',openTagMgr);
   bindCoreButtons();
+  bindTouchQuickActions();
+  const draftSaver=debounce(saveNoteDraftFromForm,900);
+  g('fp')?.addEventListener('input',()=>{ if(editMode) draftSaver(); });
+  g('fp')?.addEventListener('focusout',()=>{ if(editMode) saveNoteDraftFromForm(); });
   applyBrandTitle();
   bindTagManagerNav();
   on('undoBtn','click',undoLastAction);

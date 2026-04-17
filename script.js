@@ -814,16 +814,16 @@ function loadData() {
     const d=readJSON(SKEY,null);
     if(d) {
       notes=(Array.isArray(d.notes)?d.notes:DEFAULTS.notes.slice()).map(normalizeNoteSchema);
-      mapRelays=(Array.isArray(d.mapRelays)?d.mapRelays:[]).map(r=>({
-        id:Number(r.id),
-        title:safeStr(r.title)||'未命名中繼站',
-        body:safeStr(r.body),
-        subject:safeStr(r.subject)||'',
-        chapter:safeStr(r.chapter)||'',
-        section:safeStr(r.section)||'',
-        isRelay:true,
-        type:'relay'
-      })).filter(r=>Number.isFinite(r.id));
+      mapRelays=(Array.isArray(d.mapRelays)?d.mapRelays:[]).map(r=>{
+        const base=normalizeNoteSchema({...r,id:Number(r.id)});
+        return {
+          ...base,
+          title:base.title||'未命名中繼站',
+          isRelay:true,
+          type:'relay',
+          noteTypeBackup:safeStr(r.noteTypeBackup)||safeStr(r.type)||'article'
+        };
+      }).filter(r=>Number.isFinite(r.id));
       links=Array.isArray(d.links)?d.links:DEFAULTS.links.slice();
       links.forEach(l=>{l.rel='關聯';l.color=LINK_COLOR;});
       nid=Number.isFinite(d.nid)?d.nid:Math.max(10,[...notes,...mapRelays].reduce((m,n)=>Math.max(m,n.id||0),0)+1);
@@ -3244,6 +3244,37 @@ function createMapRelay(){
   }
   showToast('已新增中繼站');
 }
+function switchMapNodeType(id){
+  const relay=relayById(id);
+  if(relay){
+    const nextType=(safeStr(relay.noteTypeBackup)&&types.some(t=>t.key===relay.noteTypeBackup))?relay.noteTypeBackup:(types[0]?.key||'article');
+    const note=normalizeNoteSchema({...relay,isRelay:false,type:nextType});
+    mapRelays=mapRelays.filter(r=>r.id!==id);
+    notes.unshift(note);
+    openId=note.id;
+    closeMapPopup();
+    saveData();
+    render();
+    if(isMapOpen) scheduleMapRedraw(0);
+    showToast('已切換為筆記');
+    return;
+  }
+  const note=noteById(id);
+  if(!note) return;
+  const relayData={...note,isRelay:true,type:'relay',noteTypeBackup:safeStr(note.type)||'article'};
+  notes=notes.filter(n=>n.id!==id);
+  mapRelays.push(relayData);
+  if(openId===id){
+    openId=null;
+    g('dp')?.classList.remove('open');
+    syncSidePanelState();
+  }
+  closeMapPopup();
+  saveData();
+  render();
+  if(isMapOpen) scheduleMapRedraw(0);
+  showToast('已切換為中繼站');
+}
 function editMapRelay(id){
   const relay=relayById(id);
   if(!relay) return;
@@ -3413,8 +3444,14 @@ function showMapInfo(id){
   const tp=relay?{label:'中繼站',color:'#A855F7'}:typeByKey(n.type),sb=subByKey(n.subject),related=links.filter(l=>l.from===id||l.to===id);
   const quickWrap=g('mp-link-quick-wrap');
   const quickInput=g('mp-link-search');
+  const switchBtn=g('mpSwitch');
   g('mpBadge').textContent=tp.label;g('mpBadge').style.background=tp.color;g('mpTitle').textContent=n.title;
   g('mpSubject').textContent=sb.label;g('mpSubject').style.background=sb.color+'22';g('mpSubject').style.color=sb.color;
+  if(switchBtn){
+    switchBtn.textContent='切換';
+    switchBtn.title=relay?'切換為筆記':'切換為中繼站';
+    switchBtn.onclick=()=>switchMapNodeType(id);
+  }
   if(quickWrap){
     quickWrap.style.display=relay?'flex':'none';
     if(quickInput){

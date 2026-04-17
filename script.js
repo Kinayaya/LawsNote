@@ -18,6 +18,7 @@ const DEFAULTS = {
 };
 const LINK_COLOR = '#378ADD', SKEY = 'legal_notes_v4', PAGE_SIZE = 24;
 const ARCHIVES_KEY = 'klaws_archives_v1';
+const ARCHIVE_SNAPSHOT_LIMIT = 30;
 const RECYCLE_BIN_KEY = 'klaws_recycle_bin_v1';
 const UNUSED_TAG_TRACK_KEY = 'klaws_unused_tag_tracker_v1';
 const RECYCLE_RETENTION_MS = 7*24*60*60*1000;
@@ -90,8 +91,11 @@ let reminderDismissed={};
 let editingCalendarEventId=null;
 let focusTimerRemainingSec=1500, focusTimerInterval=null, focusTimerRunning=false;
 let achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0}; // backward compatibility for legacy data
-let levelSystem={skills:[],tasks:[],achievements:[],settings:{xpByDifficulty:{E:12,N:22,H:36}}};
+const XP_BOOST_MULTIPLIER = 2.5;
+const BASE_XP_BY_DIFFICULTY = {E:12,N:22,H:36};
+let levelSystem={skills:[],tasks:[],achievements:[],settings:{xpByDifficulty:{E:30,N:55,H:90},xpBoost150Applied:true}};
 let levelTaskExpanded={}, levelEditorState={kind:'',idx:-1};
+let linkModeActive=false, linkSourceId=null;
 const LEVEL_STAGES=[
   {min:0,max:20,rank:'E'},{min:21,max:40,rank:'F'},{min:41,max:50,rank:'D'},
   {min:51,max:60,rank:'C'},{min:61,max:70,rank:'B'},{min:71,max:80,rank:'B+'},
@@ -474,16 +478,21 @@ const raw=mapLaneConfigs[key]||{};
   mapLaneConfigs[key]={count,names};
   return {key,count,names};
 };
+const estimateMapTextLines = (text, charsPerLine) => {
+  const rows=safeStr(text).split('\n');
+  return rows.reduce((sum,row)=>sum+Math.max(1,Math.ceil((row.length||1)/charsPerLine)),0);
+};
 const getMapCardBox = id => {
   const scale=Math.max(0.7,Math.min(2.3,getNodeRadius(id)/MAP_NODE_RADIUS_DEFAULT));
   const width=Math.round(210*scale);
   const note=noteById(id)||{};
-  const bodyText=safeStr(note.body).trim();
-  if(!bodyText) return {width,height:86,bodyLines:0};
+  const keys=getTypeFieldKeys(note.type).filter(key=>key!=='tags');
+  const previewTexts=keys.map(key=>mapCardFieldText(note,key)).filter(text=>!!text);
+  if(!previewTexts.length) return {width,height:86,bodyLines:0};
   const charsPerLine=Math.max(9,Math.floor((width-24)/10));
-  const manualLines=bodyText?bodyText.split('\n'):[];
-  const bodyLines=Math.max(2,(manualLines.length?manualLines:[bodyText||'']).reduce((sum,line)=>sum+Math.max(1,Math.ceil((line.length||1)/charsPerLine)),0));
-  const height=96+bodyLines*18;
+  const bodyLines=previewTexts.reduce((sum,text)=>sum+estimateMapTextLines(text,charsPerLine),0);
+  const segmentExtra=Math.max(0,previewTexts.length-1)*9;
+  const height=86+bodyLines*18+segmentExtra;
   return {width,height,bodyLines};
 };
 const ensureUsageStart = () => {
@@ -548,16 +557,23 @@ const getLevelAchievementPoints=()=>((levelSystem.achievements||[]).filter(a=>a.
 function normalizeLevelSystem(){
   const base=(levelSystem&&typeof levelSystem==='object')?levelSystem:{};
   const settings=(base.settings&&typeof base.settings==='object')?base.settings:{};
+  const rawXp=settings.xpByDifficulty||{};
+  const wasBoostApplied=!!settings.xpBoost150Applied;
+  const normalizeXp=key=>{
+    const baseXp=Math.max(1,parseInt(rawXp[key],10)||BASE_XP_BY_DIFFICULTY[key]);
+    return wasBoostApplied?baseXp:Math.max(1,Math.round(baseXp*XP_BOOST_MULTIPLIER));
+  };
   levelSystem={
     skills:Array.isArray(base.skills)?base.skills:[],
     tasks:Array.isArray(base.tasks)?base.tasks:[],
     achievements:Array.isArray(base.achievements)?base.achievements:[],
     settings:{
       xpByDifficulty:{
-        E:Math.max(1,parseInt(settings.xpByDifficulty?.E,10)||12),
-        N:Math.max(1,parseInt(settings.xpByDifficulty?.N,10)||22),
-        H:Math.max(1,parseInt(settings.xpByDifficulty?.H,10)||36)
-      }
+        E:normalizeXp('E'),
+        N:normalizeXp('N'),
+        H:normalizeXp('H')
+      },
+      xpBoost150Applied:true
     }
   };
   levelSystem.skills=levelSystem.skills.map(s=>({id:s.id||Date.now()+Math.random(),name:safeStr(s.name||'未命名技能'),level:Math.max(0,Math.min(100,parseInt(s.level,10)||1)),xp:Math.max(0,parseInt(s.xp,10)||0),lastDoneByDiff:(s.lastDoneByDiff&&typeof s.lastDoneByDiff==='object')?s.lastDoneByDiff:{},lastDecayAt:s.lastDecayAt||new Date().toISOString()}));
@@ -607,7 +623,7 @@ function refreshAchievementProgress(){
   });
 }
 const getTaskRepeatLabel=cycle=>TASK_REPEAT_OPTIONS.find(opt=>opt.key===cycle)?.label||'每日';
-const getSubtaskXpGain = difficulty => Math.max(1,levelSystem.settings.xpByDifficulty[difficulty]||12);
+const getSubtaskXpGain = difficulty => Math.max(1,levelSystem.settings.xpByDifficulty[difficulty]||Math.round(BASE_XP_BY_DIFFICULTY[difficulty||'N']*XP_BOOST_MULTIPLIER));
 function snapshotSkill(skill){
   return {level:skill.level||1,xp:skill.xp||0,lastDoneByDiff:{...(skill.lastDoneByDiff||{})},lastDecayAt:skill.lastDecayAt||''};
 }
@@ -699,7 +715,7 @@ function completeLevelTask(taskId,skillId,gainOverride=0){
   const nowIso=new Date().toISOString();
   task.completions=(task.completions||0)+1;
   task.lastCompletedAt=nowIso;
-  const gain=gainOverride>0?gainOverride:(levelSystem.settings.xpByDifficulty[task.difficulty]||12);
+  const gain=gainOverride>0?gainOverride:(levelSystem.settings.xpByDifficulty[task.difficulty]||Math.round(BASE_XP_BY_DIFFICULTY[task.difficulty||'N']*XP_BOOST_MULTIPLIER));
   task.lastReward={cycleKey:getTaskCycleKey(task,new Date()),skillId:String(skill.id),skillPrev:snapshotSkill(skill),gain};
   gainSkillXp(skill,task.difficulty,gain);
   refreshAchievementProgress();
@@ -807,7 +823,7 @@ function loadData() {
       if(typeof calendarSettings.smtpToken!=='string') calendarSettings.smtpToken='';
       if(typeof calendarSettings.emailFrom!=='string') calendarSettings.emailFrom='';
       achievements=(d.achievements&&typeof d.achievements==='object'&&!Array.isArray(d.achievements))?d.achievements:{points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0};
-      levelSystem=(d.levelSystem&&typeof d.levelSystem==='object'&&!Array.isArray(d.levelSystem))?d.levelSystem:{skills:[],tasks:[],achievements:[],settings:{xpByDifficulty:{E:12,N:22,H:36}}};
+      levelSystem=(d.levelSystem&&typeof d.levelSystem==='object'&&!Array.isArray(d.levelSystem))?d.levelSystem:{skills:[],tasks:[],achievements:[],settings:{xpByDifficulty:{E:30,N:55,H:90},xpBoost150Applied:true}};
       normalizeLevelSystem();
       migrateLegacyAchievements();
       applySkillDecay();
@@ -839,10 +855,10 @@ function loadData() {
       applyPanelDir(d.panelDir||getPanelDir());
       lastSavedPayloadRaw=JSON.stringify(getPayload());
     } else {
-      notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};calendarEvents=[];calendarSettings={emails:[]};achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0};levelSystem={skills:[],tasks:[],achievements:[],settings:{xpByDifficulty:{E:12,N:22,H:36}}};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());saveData();
+      notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};calendarEvents=[];calendarSettings={emails:[]};achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0};levelSystem={skills:[],tasks:[],achievements:[],settings:{xpByDifficulty:{E:30,N:55,H:90},xpBoost150Applied:true}};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());saveData();
     }
   } catch(e) {
-    notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};calendarEvents=[];calendarSettings={emails:[]};achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0};levelSystem={skills:[],tasks:[],achievements:[],settings:{xpByDifficulty:{E:12,N:22,H:36}}};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());
+    notes=DEFAULTS.notes.slice();links=DEFAULTS.links.slice();types=DEFAULTS.types.slice();subjects=DEFAULTS.subjects.slice();chapters=DEFAULTS.chapters.slice();sections=DEFAULTS.sections.slice();nodeSizes={};typeFieldConfigs={};customFieldDefs={};calendarEvents=[];calendarSettings={emails:[]};achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0};levelSystem={skills:[],tasks:[],achievements:[],settings:{xpByDifficulty:{E:30,N:55,H:90},xpBoost150Applied:true}};types.forEach(t=>{typeFieldConfigs[t.key]=getTypeFieldKeys(t.key);});applyPanelDir(getPanelDir());
   }
 }
 function saveData() {
@@ -879,12 +895,17 @@ function undoLastAction(){
   }else showToast('恢復失敗');
 }
 function loadArchives(){
-  const arr=readJSON(ARCHIVES_KEY,[]);
-  return Array.isArray(arr)?arr:[];
+  const raw=readJSON(ARCHIVES_KEY,[]);
+  if(Array.isArray(raw)) return raw;
+  if(raw&&typeof raw==='object'&&raw.payload){
+    return [{...raw,id:raw.id||Date.now(),name:raw.name||'舊版存檔',createdAt:raw.createdAt||new Date().toISOString()}];
+  }
+  return [];
 }
 
 function saveArchives(arr){
-  writeJSON(ARCHIVES_KEY,Array.isArray(arr)?arr:[]);
+  const next=Array.isArray(arr)?arr:[];
+  writeJSON(ARCHIVES_KEY,next.slice(0,ARCHIVE_SNAPSHOT_LIMIT));
 }
 function loadRecycleBin(){
   const arr=readJSON(RECYCLE_BIN_KEY,[]);
@@ -918,8 +939,8 @@ function createArchiveSnapshot(){
   const archives=loadArchives();
   const name=(prompt('請輸入存檔名稱：',`存檔 ${new Date().toLocaleString('zh-TW')}`)||'').trim();
   if(!name){showToast('存檔名稱不可空白');return;}
-  archives.unshift({id:Date.now(),name,createdAt:new Date().toISOString(),payload:getPayload()});
-  saveArchives(archives.slice(0,30));
+  archives.unshift({id:Date.now()+Math.floor(Math.random()*1000),name,createdAt:new Date().toISOString(),payload:getPayload()});
+  saveArchives(archives);
   renderArchivePanel();
   showToast('已儲存存檔');
 }
@@ -1190,7 +1211,9 @@ function render() {
     const tags=(isReminder?[`到期 ${dueTimeText(n)}`]:noteTags(n).slice(0,1)).map(t=>`<span class="chip">${hl(t,q)}</span>`).join('');
     const linkedChip=(shouldExpand&&!seedIds.has(n.id))?'<span class="chip" style="background:#EAF3DE;color:#3B6D11;border-color:#97C459">跨科關聯</span>':'';
     const hasContent=isReminder?!!safeStr(n.body):noteHasVisibleContent(n);
-    return `<div class="card ${hasContent?'':'card-empty-content'} ${isReminder?'calendar-reminder-card':''}" data-id="${n.id}" data-reminder-id="${isReminder?n.eventId:''}" style="--type-color:${tp.color}"><button class="sel-check" type="button" aria-label="勾選筆記"></button><div class="ctop"><span class="ctag">${tp.label}</span><div class="ctitle-inline">${hl(n.title,q)}</div></div>${hasContent?`<div class="cbody">${escapeHtml(n.body)}</div>`:''}<div class="cfoot">${subChips}${chapterChips}${sectionChips}${tags}${linkedChip}</div></div>`;
+    const linkModeClass=linkModeActive?'link-mode':'';
+    const linkSourceClass=linkSourceId===n.id?'link-source':'';
+    return `<div class="card ${hasContent?'':'card-empty-content'} ${isReminder?'calendar-reminder-card':''} ${linkModeClass} ${linkSourceClass}" data-id="${n.id}" data-reminder-id="${isReminder?n.eventId:''}" style="--type-color:${tp.color}"><button class="sel-check" type="button" aria-label="勾選筆記"></button><div class="ctop"><span class="ctag">${tp.label}</span><div class="ctitle-inline">${hl(n.title,q)}</div></div>${hasContent?`<div class="cbody">${escapeHtml(n.body)}</div>`:''}<div class="cfoot">${subChips}${chapterChips}${sectionChips}${tags}${linkedChip}</div></div>`;
   }).join('');
   grid.querySelectorAll('.card').forEach(c=>{
     const rid=c.dataset.reminderId?parseInt(c.dataset.reminderId,10):0;
@@ -1217,6 +1240,98 @@ function applyCompactFilterMode(enabled){
   localStorage.setItem(COMPACT_FILTER_KEY,enabled?'1':'0');
   const btn=g('compactToggleBtn');
   if(btn) btn.textContent=enabled?'☰ 顯示分類':'☰ 收合分類';
+}
+function createRelationLink(fromId,toId){
+  const a=parseInt(fromId,10),b=parseInt(toId,10);
+  if(!Number.isFinite(a)||!Number.isFinite(b)||a===b) return false;
+  if(!noteById(a)||!noteById(b)) return false;
+  if(links.some(l=>(l.from===a&&l.to===b)||(l.from===b&&l.to===a))) return false;
+  links.push({id:lid++,from:a,to:b,rel:'關聯',color:LINK_COLOR});
+  return true;
+}
+function findNotesByKeyword(keyword,excludeId){
+  const q=safeStr(keyword).replace(/^@/,'').trim().toLowerCase();
+  if(!q) return [];
+  const blocked=Number(excludeId);
+  return notes.filter(n=>n.id!==blocked&&`${n.title} ${noteSubjectText(n)} ${typeByKey(n.type).label}`.toLowerCase().includes(q)).slice(0,18);
+}
+function renderDetailQuickLinkSearch(){
+  const root=g('dp-link-results');
+  if(!root||!openId) return;
+  const q=(g('dp-link-search')?.value||'').trim();
+  if(!q){root.innerHTML='<div class="dp-link-empty">輸入關鍵字即可快速建立關聯</div>';return;}
+  const existingIds=new Set(links.filter(l=>l.from===openId||l.to===openId).map(l=>l.from===openId?l.to:l.from));
+  const pool=findNotesByKeyword(q,openId).filter(n=>!existingIds.has(n.id));
+  if(!pool.length){root.innerHTML='<div class="dp-link-empty">找不到可關聯的筆記</div>';return;}
+  root.innerHTML=pool.map(n=>`<div class="fl-result-item quick-add" data-quick-link-id="${n.id}"><span class="fl-result-type" style="background:${typeByKey(n.type).color}">${typeByKey(n.type).label}</span><span class="fl-result-title">${escapeHtml(n.title)}</span><button class="tool-btn" type="button">+ 關聯</button></div>`).join('');
+  root.querySelectorAll('[data-quick-link-id]').forEach(row=>row.addEventListener('click',()=>{
+    const targetId=parseInt(row.dataset.quickLinkId,10);
+    if(!openId||!targetId) return;
+    if(createRelationLink(openId,targetId)){
+      saveData();renderLinksForNote(openId);render();showToast('已建立關聯');
+      renderDetailQuickLinkSearch();
+      if(isMapOpen) scheduleMapRedraw(100);
+    }else showToast('此關聯已存在或無效');
+  }));
+}
+function setLinkMode(enabled){
+  linkModeActive=!!enabled;
+  if(!linkModeActive) linkSourceId=null;
+  const btn=g('linkModeBtn');
+  if(btn){
+    btn.classList.toggle('active',linkModeActive);
+    btn.textContent=linkModeActive?'🔗 連線中':'🔗 連線模式';
+  }
+  render();
+}
+function handleLinkModeCardTap(id){
+  if(!linkSourceId){
+    linkSourceId=id;
+    render();
+    showToast('已選擇起點，請再點一張卡片建立關聯');
+    return;
+  }
+  if(linkSourceId===id){
+    linkSourceId=null;
+    render();
+    showToast('已取消起點選擇');
+    return;
+  }
+  const created=createRelationLink(linkSourceId,id);
+  if(created){
+    const src=linkSourceId;
+    linkSourceId=id;
+    saveData();
+    render();
+    if(openId===src||openId===id) renderLinksForNote(openId);
+    if(isMapOpen) scheduleMapRedraw(100);
+    showToast('已建立關聯，可繼續點下一張卡片快速串接');
+  }else{
+    showToast('關聯已存在或無效');
+  }
+}
+function extractMentionTargets(raw,selfId){
+  const text=safeStr(raw);
+  const matches=[...text.matchAll(/@([^\s@#，。；、,.!?！？:：()（）\[\]【】]+)/g)].map(m=>safeStr(m[1]).trim()).filter(Boolean);
+  const uniqMatches=uniq(matches);
+  const ids=[];
+  uniqMatches.forEach(token=>{
+    const lower=token.toLowerCase();
+    const exact=notes.find(n=>n.id!==selfId&&safeStr(n.title).toLowerCase()===lower);
+    if(exact){ids.push(exact.id);return;}
+    const fuzzy=notes.find(n=>n.id!==selfId&&safeStr(n.title).toLowerCase().includes(lower));
+    if(fuzzy) ids.push(fuzzy.id);
+  });
+  return uniq(ids);
+}
+function autoLinkMentionsForNote(note){
+  if(!note||!note.id) return 0;
+  const blocks=[note.title,note.body,note.detail];
+  Object.values(noteExtraFields(note)).forEach(v=>blocks.push(safeStr(v)));
+  const mentionIds=extractMentionTargets(blocks.join('\n'),note.id);
+  let added=0;
+  mentionIds.forEach(id=>{ if(createRelationLink(note.id,id)) added++; });
+  return added;
 }
 
 function openNote(id) {
@@ -1245,7 +1360,10 @@ function openNote(id) {
     return `<span class="chip" title="${getFieldDef(k).label}">${getFieldDef(k).label}：${String(v).slice(0,20)||'（空）'}</span>`;
   }).join('');
   g('dp-chips').innerHTML=subChips+chapterChips+sectionChips+tagHtml+customHtml;
+  const quickInput=g('dp-link-search');
+  if(quickInput) quickInput.value='';
   renderLinksForNote(id);
+  renderDetailQuickLinkSearch();
   g('dp').classList.add('open');['fp','tp','ap'].forEach(p=>g(p).classList.remove('open'));
   syncSidePanelState();
 }
@@ -1259,7 +1377,7 @@ function renderLinksForNote(id) {
     return `<div class="link-item"><div class="link-dot" style="background:${LINK_COLOR}"></div><span class="link-rel" style="background:${LINK_COLOR}">${dir} 關聯</span><span class="link-title link-jump" data-nid="${otherId}" style="cursor:pointer;color:#007AFF;text-decoration:underline;">${other?other.title:'（已刪除）'}</span><button class="link-del" data-lid="${l.id}">✕</button></div>`;
   }).join('');
   el.querySelectorAll('.link-jump').forEach(btn=>btn.addEventListener('click',()=>{const nid2=parseInt(btn.dataset.nid);noteById(nid2)?openNote(nid2):showToast('筆記已被刪除');}));
-  el.querySelectorAll('.link-del').forEach(btn=>btn.addEventListener('click',()=>{links=links.filter(l=>l.id!==parseInt(btn.dataset.lid));saveData();renderLinksForNote(id);render();showToast('關聯已刪除');}));
+  el.querySelectorAll('.link-del').forEach(btn=>btn.addEventListener('click',()=>{links=links.filter(l=>l.id!==parseInt(btn.dataset.lid));saveData();renderLinksForNote(id);renderDetailQuickLinkSearch();render();showToast('關聯已刪除');}));
 }
 
 function closeDetail() { g('dp').classList.remove('open'); openId=null; syncSidePanelState(); }
@@ -1288,6 +1406,7 @@ async function toggleDebugTool(){
 
 // ==================== 表單 ====================
 function openForm(isEdit) {
+  if(linkModeActive) setLinkMode(false);
   editMode=isEdit; buildFormSelects();
   if(editMode) {
     const n=noteById(openId); if(!n) return;
@@ -1480,6 +1599,7 @@ function saveNote() {
     const shouldSyncMeta=multiSelMode&&selectedIds[openId]&&selectedIdNums.length>1;
     const prevDone=idx!==-1?doneTodoCount(notes[idx].todos):0;
     if(idx!==-1) notes[idx]=normalizeNoteSchema({...notes[idx],type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,body:fieldData.body,detail:fieldData.detail,tags:fieldData.tags,todos:fieldData.todos,extraFields:fieldData.extraFields});
+    const mentionAdded=idx!==-1?autoLinkMentionsForNote(notes[idx]):0;
     const nextDone=idx!==-1?doneTodoCount(notes[idx].todos):0;
     if(nextDone>prevDone&&levelSystem.tasks.length&&levelSystem.skills.length){
       completeLevelTask(levelSystem.tasks[0].id,levelSystem.skills[0].id);
@@ -1493,7 +1613,7 @@ function saveNote() {
         Object.assign(target,{type:typeKey,subject:primarySubject,subjects:[...selectedSubs],chapter:primaryChapter,chapters:[...selectedChs],section:primarySection,sections:[...selectedSecs],tags:[...fieldData.tags]});
       });
     }
-    saveData();closeForm();render();showToast('筆記已更新！');
+    saveData();closeForm();render();showToast(`筆記已更新！${mentionAdded?`（@ 自動建立 ${mentionAdded} 筆關聯）`:''}`);
     setTimeout(()=>openNote(openId),150);
   } else {
     const d=new Date(),dt=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -1503,7 +1623,8 @@ function saveNote() {
     }
     refreshAchievementProgress();
     notes.unshift(newNote);openId=newNote.id;
-    saveData();closeForm();render();showToast('筆記已儲存！');
+    const mentionAdded=autoLinkMentionsForNote(newNote);
+    saveData();closeForm();render();showToast(`筆記已儲存！${mentionAdded?`（@ 自動建立 ${mentionAdded} 筆關聯）`:''}`);
     if(isMapOpen) setTimeout(()=>openNote(newNote.id),120);
     else setTimeout(()=>{window.scrollTo(0,0);setTimeout(()=>openNote(notes[0].id),300);},100);
   }
@@ -1601,7 +1722,7 @@ function renderTagStats(){
   notes.forEach(n=>{byT[n.type]=(byT[n.type]||0)+1;noteSubjects(n).forEach(sk=>{byS[sk]=(byS[sk]||0)+1;});});
   const lnk={};links.forEach(l=>{lnk[l.from]=true;lnk[l.to]=true;});
   const usageText=formatUsageDuration(ensureUsageStart());
-  let html=`<div class="stats-grid"><div class="stat-card"><div class="stat-num">${total}</div><div class="stat-lbl">筆記總數</div></div><div class="stat-card"><div class="stat-num">${Object.keys(lnk).length}</div><div class="stat-lbl">有關聯筆記</div></div><div class="stat-card"><div class="stat-num">${subjects.length}</div><div class="stat-lbl">科目數</div></div></div><div class="usage-time">已使用 KLaws：${usageText}</div>`;
+  let html=`<div class="stats-grid"><div class="stat-card"><div class="stat-num">${total}</div><div class="stat-lbl">筆記總數</div></div><div class="stat-card"><div class="stat-num">${Object.keys(lnk).length}</div><div class="stat-lbl">有關聯筆記</div></div><div class="stat-card"><div class="stat-num">${subjects.length}</div><div class="stat-lbl">科目數</div></div><div class="stat-card"><div class="stat-num">${chapters.length}</div><div class="stat-lbl">章數</div></div><div class="stat-card"><div class="stat-num">${sections.length}</div><div class="stat-lbl">節數</div></div></div><div class="usage-time">已使用 KLaws：${usageText}</div>`;
   html+=`<div style="font-size:11px;font-weight:700;color:#888;margin:10px 0 6px;">各科目筆記數</div>`;
   Object.keys(byS).sort((a,b)=>byS[b]-byS[a]).forEach(sk=>{const s=subByKey(sk),c=byS[sk],p=total?Math.round(c/total*100):0;html+=`<div class="stats-bar-row"><span class="stats-bar-label">${s.label}</span><div class="stats-bar-bg"><div class="stats-bar-fill" style="width:${p}%;background:${s.color}"></div></div><span class="stats-bar-count">${c}</span></div>`;});
   box.innerHTML=html;
@@ -2527,6 +2648,7 @@ function checkReminders(){
 
 // ==================== 多選 ====================
 function enterMultiSel() {
+  if(linkModeActive) setLinkMode(false);
   multiSelMode=true;selectedIds={};
   g('selectBar').classList.add('open');
   ['dp','fp','ap'].forEach(p=>g(p).classList.remove('open'));
@@ -2587,6 +2709,7 @@ function bindCardInteractions(card,id){
   }
   card.addEventListener('click',()=>{
     if(longPressed) return;
+    if(linkModeActive){handleLinkModeCardTap(id);return;}
     openNote(id);
   });
 }
@@ -3232,6 +3355,7 @@ function resetLanePanel(){ const cfg=getLaneConfig();mapLaneConfigs[cfg.key]={co
 function bindCoreButtons(){
   const bind=(id,fn)=>{const el=g(id);if(el)el.onclick=fn;};
   bind('addBtn',()=>openForm(false));
+  bind('linkModeBtn',()=>setLinkMode(!linkModeActive));
   bind('editBtn',()=>{if(!openId){showToast('請先開啟一筆筆記');return;}openForm(true);});
   bind('copyBtn',copyNoteToClipboard);
   bind('dupBtn',duplicateNote);
@@ -3271,6 +3395,7 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
     });
   }
   g('selAllBtn').addEventListener('click',selectAll);g('selDeleteBtn').addEventListener('click',deleteSelected);g('selCancelBtn').addEventListener('click',exitMultiSel);
+  on('dp-link-search','input',debounce(renderDetailQuickLinkSearch,180));
   on('calendarBtn','click',()=>toggleCalendarView(true));
   on('levelSystemBtn','click',()=>toggleLevelSystemView(true));
   on('ft','change',()=>renderDynamicFields(g('ft').value,editMode&&openId?noteById(openId):null));

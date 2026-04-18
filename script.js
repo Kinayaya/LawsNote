@@ -415,7 +415,9 @@ const normalizeMapSubpages = raw => {
     const item=(src[key]&&typeof src[key]==='object'&&!Array.isArray(src[key]))?src[key]:{};
     const normalizedKey=mapSubpageKey(noteId);
     if(next[normalizedKey]) return;
-    next[normalizedKey]={...item,rootId:noteId,createdAt:item.createdAt||new Date().toISOString()};
+    const noteIdsRaw=Array.isArray(item.noteIds)?item.noteIds:[];
+    const noteIds=[...new Set(noteIdsRaw.map(v=>parseInt(v,10)).filter(Number.isFinite).filter(v=>v!==noteId))];
+    next[normalizedKey]={...item,rootId:noteId,createdAt:item.createdAt||new Date().toISOString(),noteIds};
   });
   return next;
 };
@@ -1419,9 +1421,18 @@ function mapPageRootOptions(){
 }
 function ensureMapSubpageRoot(rootId){
   if(!Number.isFinite(rootId)||!noteById(rootId)) return false;
-  if(hasSubpageForNode(rootId)) return true;
-  mapSubpages[mapSubpageKey(rootId)]={rootId,createdAt:new Date().toISOString()};
+  const key=findSubpageKeyByNoteId(rootId)||mapSubpageKey(rootId);
+  const existed=(mapSubpages[key]&&typeof mapSubpages[key]==='object'&&!Array.isArray(mapSubpages[key]))?mapSubpages[key]:null;
+  const noteIds=Array.isArray(existed&&existed.noteIds)?[...new Set(existed.noteIds.map(v=>parseInt(v,10)).filter(Number.isFinite).filter(v=>v!==rootId))]:[];
+  mapSubpages[key]={...(existed||{}),rootId,createdAt:(existed&&existed.createdAt)||new Date().toISOString(),noteIds};
   return true;
+}
+function getMapSubpageAssignedIds(rootId){
+  const key=findSubpageKeyByNoteId(rootId);
+  const item=key?mapSubpages[key]:null;
+  if(!item||typeof item!=='object'||Array.isArray(item)) return new Set();
+  const arr=Array.isArray(item.noteIds)?item.noteIds:[];
+  return new Set(arr.map(v=>parseInt(v,10)).filter(Number.isFinite).filter(v=>v!==rootId));
 }
 function ensureMapAssignPanel(){
   const canvas=g('mapCanvas');if(!canvas) return null;
@@ -1477,12 +1488,13 @@ function addNoteToMapPage(pageRootId,noteId){
   const root=noteById(pageRootId),note=noteById(noteId);
   if(!root||!note||root.id===note.id){showToast('加入失敗：頁面或筆記無效');return false;}
   if(!ensureMapSubpageRoot(root.id)){showToast('頁面不存在');return false;}
-  if(getDescendantIds(root.id).has(note.id)){showToast('這筆筆記已在該頁面');return false;}
-  const created=createRelationLink(root.id,note.id);
-  if(!created){showToast('加入失敗：可能已存在反向連線或重複關聯');return false;}
+  const assignedIds=getMapSubpageAssignedIds(root.id);
+  if(getDescendantIds(root.id).has(note.id)||assignedIds.has(note.id)){showToast('這筆筆記已在該頁面');return false;}
+  assignedIds.add(note.id);
+  const key=findSubpageKeyByNoteId(root.id)||mapSubpageKey(root.id);
+  mapSubpages[key]={...(mapSubpages[key]||{}),rootId:root.id,createdAt:(mapSubpages[key]&&mapSubpages[key].createdAt)||new Date().toISOString(),noteIds:[...assignedIds]};
   saveData();
-  if(openId&&(openId===root.id||openId===note.id)) renderLinksForNote(openId);
-  showToast(`已加入「${note.title||'（未命名）'}」到「${root.title||'（未命名）'}」頁面`);
+  showToast(`已加入「${note.title||'（未命名）'}」到「${root.title||'（未命名）'}」頁面（不建立關聯線）`);
   return true;
 }
 function openMapAssignPanel(){
@@ -3287,6 +3299,11 @@ function forceLayout() {
 function visibleLinks(visIds){ return links.filter(lk=>visIds[lk.from]&&visIds[lk.to]); }
 function getDescendantIds(rootId,limitIds=null){
   const seen=new Set([rootId]),queue=[rootId];
+  const assigned=getMapSubpageAssignedIds(rootId);
+  assigned.forEach(id=>{
+    if(limitIds&&!limitIds[id]) return;
+    seen.add(id);
+  });
   while(queue.length){
     const current=queue.shift();
     links.forEach(lk=>{
@@ -3773,7 +3790,7 @@ function showMapInfo(id){
   subpageBtn.style.cssText='width:100%;padding:8px;margin:4px 0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ddd;background:#f5f5f5;color:#555;';
   subpageBtn.onclick=()=>{
     if(!hasSubpage){
-      mapSubpages[mapSubpageKey(id)]={rootId:id,createdAt:new Date().toISOString()};
+      ensureMapSubpageRoot(id);
       saveData();
       drawMap();
       showToast('已設定子頁面');

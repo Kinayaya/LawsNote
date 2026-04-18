@@ -373,14 +373,12 @@ const saveSyncConfigFromInputs = () => {
   const autoPull=!!g('syncAutoPull')?.checked;
   if(token&&gistId) saveSyncConfig({token,gistId,autoPush,autoPull});
 };
-const getMapCenterContextKey = () => {
+const getMapScopeContextKey = () => {
   const pageRoot=mapPageStack.length?mapPageStack[mapPageStack.length-1]:'root';
   return `${mapFilter.sub||'all'}::${mapFilter.chapter||'all'}::${mapFilter.section||'all'}::${pageRoot}`;
 };
-const getMapCollapseContextKey = () => {
-  const pageRoot=mapPageStack.length?mapPageStack[mapPageStack.length-1]:'root';
-  return `${mapFilter.sub||'all'}::${mapFilter.chapter||'all'}::${mapFilter.section||'all'}::${pageRoot}`;
-};
+const getMapCenterContextKey = getMapScopeContextKey;
+const getMapCollapseContextKey = getMapScopeContextKey;
 const mapCollapseKey = noteId => `${getMapCollapseContextKey()}::${noteId}`;
 const getCollapsedNodesForCurrentContext = () => {
   const keyPrefix=`${getMapCollapseContextKey()}::`, collapsed={};
@@ -450,7 +448,7 @@ function isNodeInCurrentMapPage(nodeId){
     if(currentRoot) return relayRoot===currentRoot;
     return relayRoot===null;
   }
-  if(currentRoot) return getDescendantIds(currentRoot).has(nodeId);
+  if(currentRoot) return nodeId!==currentRoot&&getDescendantIds(currentRoot).has(nodeId);
   const hidden=new Set();
   Object.keys(mapSubpages||{}).forEach(key=>{
     const rootId=parseInt(String(key).split('::').pop(),10);

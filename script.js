@@ -315,13 +315,14 @@ const TAG_COLLECTIONS = {type:()=>types, sub:()=>subjects, subject:()=>subjects,
 const tagCollection = kind => (TAG_COLLECTIONS[kind]||(()=>[]))();
 const tagUsageCount = (kind,key) => {
   if(kind==='type') return notes.filter(n=>n.type===key).length;
-  if(kind==='sub') return notes.filter(n=>noteSubjects(n).includes(key)).length;
-  if(kind==='section') return notes.filter(n=>noteSections(n).includes(key)).length;
-  return notes.filter(n=>noteChapters(n).includes(key)).length;
+  if(kind==='sub') return [...notes,...mapRelays].filter(n=>noteSubjects(n).includes(key)).length;
+  if(kind==='section') return [...notes,...mapRelays].filter(n=>noteSections(n).includes(key)).length;
+  return [...notes,...mapRelays].filter(n=>noteChapters(n).includes(key)).length;
 };
 const noteById = id => notes.find(n=>n.id===id);
 const relayById = id => mapRelays.find(n=>n.id===id);
 const mapNodeById = id => noteById(id)||relayById(id);
+const allMapNodes = () => [...notes,...mapRelays];
 const isRelayNode = n => !!(n&&n.isRelay);
 const noteTags = _n => [];
 const noteHasVisibleContent = n => !!(safeStr(n.body).trim()||safeStr(n.detail).trim()||noteTags(n).length||(Array.isArray(n.todos)&&n.todos.length));
@@ -434,6 +435,30 @@ const normalizeMapCollapsed = raw => {
 };
 const currentSubpageRootId = () => mapPageStack.length?mapPageStack[mapPageStack.length-1]:null;
 const isInMapSubpage = () => !!currentSubpageRootId();
+const relayPageRootId = relay => {
+  const raw=(relay&&relay.pageRootId!==undefined&&relay.pageRootId!==null)?parseInt(relay.pageRootId,10):NaN;
+  return Number.isFinite(raw)?raw:null;
+};
+function isNodeInCurrentMapPage(nodeId){
+  const node=mapNodeById(nodeId);
+  if(!node) return false;
+  const currentRoot=currentSubpageRootId();
+  if(isRelayNode(node)){
+    const relayRoot=relayPageRootId(node);
+    if(currentRoot) return relayRoot===currentRoot;
+    return relayRoot===null;
+  }
+  if(currentRoot) return getDescendantIds(currentRoot).has(nodeId);
+  const hidden=new Set();
+  Object.keys(mapSubpages||{}).forEach(key=>{
+    const rootId=parseInt(String(key).split('::').pop(),10);
+    if(!Number.isFinite(rootId)) return;
+    const descendants=getDescendantIds(rootId);
+    descendants.delete(rootId);
+    descendants.forEach(id=>hidden.add(id));
+  });
+  return !hidden.has(nodeId);
+}
 const isNodeInCurrentSubpage = noteId => {
   if(!isInMapSubpage()) return true;
   const currentRoot=currentSubpageRootId();
@@ -798,6 +823,10 @@ function normalizeNoteIds(forceReindexAll=false) {
   };
   notes.forEach(assignNodeId);
   mapRelays.forEach(assignNodeId);
+  mapRelays.forEach(r=>{
+    const oldRoot=relayPageRootId(r);
+    r.pageRootId=oldRoot===null?null:(firstMap[oldRoot]??null);
+  });
   links=links.map(l=>{
     const fromList=fromBuckets[l.from],toList=toBuckets[l.to];
     const from=fromList&&fromList.length?fromList.shift():(firstMap[l.from]??null);
@@ -858,7 +887,8 @@ function loadData() {
           title:base.title||'未命名中繼站',
           isRelay:true,
           type:'relay',
-          noteTypeBackup:safeStr(r.noteTypeBackup)||safeStr(r.type)||'article'
+          noteTypeBackup:safeStr(r.noteTypeBackup)||safeStr(r.type)||'article',
+          pageRootId:Number.isFinite(parseInt(r.pageRootId,10))?parseInt(r.pageRootId,10):null
         };
       }).filter(r=>Number.isFinite(r.id));
       links=Array.isArray(d.links)?d.links:DEFAULTS.links.slice();
@@ -912,8 +942,8 @@ function loadData() {
       if(JSON.stringify(rawMapCollapsed)!==JSON.stringify(mapCollapsed)) repaired=true;
       if(JSON.stringify(rawMapSubpages)!==JSON.stringify(mapSubpages)) repaired=true;
       types.forEach(t=>{if(/^tag_t_/.test(t.key)){let old=t.key;t.key=t.label;notes.forEach(n=>{if(n.type===old)n.type=t.label;});repaired=true;}});
-      subjects.forEach(s=>{if(/^tag_s_/.test(s.key)){let old=s.key;s.key=s.label;notes.forEach(n=>{n.subjects=noteSubjects(n).map(x=>x===old?s.label:x);n.subject=n.subjects[0]||'';});repaired=true;}});
-      notes.forEach(n=>{
+      subjects.forEach(s=>{if(/^tag_s_/.test(s.key)){let old=s.key;s.key=s.label;allMapNodes().forEach(n=>{n.subjects=noteSubjects(n).map(x=>x===old?s.label:x);n.subject=n.subjects[0]||'';});repaired=true;}});
+      allMapNodes().forEach(n=>{
         if(!noteChapters(n).length){
           const fromTag=noteTags(n).find(t=>chapters.some(c=>c.key===t&&(noteSubjects(n).includes(c.subject)||c.subject==='all')));
           n.chapters=fromTag?[fromTag]:[];
@@ -1000,6 +1030,14 @@ function normalizeNotesTaxonomy(){
   const secSet=new Set(sections.map(s=>s.key));
   notes.forEach(n=>{
     if(!tSet.has(n.type)) n.type='';
+    n.subjects=noteSubjects(n).filter(k=>sSet.has(k));
+    n.subject=n.subjects[0]||'';
+    n.chapters=noteChapters(n).filter(k=>cSet.has(k));
+    n.chapter=n.chapters[0]||'';
+    n.sections=noteSections(n).filter(k=>secSet.has(k));
+    n.section=n.sections[0]||'';
+  });
+  mapRelays.forEach(n=>{
     n.subjects=noteSubjects(n).filter(k=>sSet.has(k));
     n.subject=n.subjects[0]||'';
     n.chapters=noteChapters(n).filter(k=>cSet.has(k));
@@ -1331,7 +1369,9 @@ function applyCompactFilterMode(enabled){
 function createRelationLink(fromId,toId){
   const a=parseInt(fromId,10),b=parseInt(toId,10);
   if(!Number.isFinite(a)||!Number.isFinite(b)||a===b) return false;
-  if(!mapNodeById(a)||!mapNodeById(b)) return false;
+  const src=mapNodeById(a),target=mapNodeById(b);
+  if(!src||!target) return false;
+  if((isRelayNode(src)||isRelayNode(target))&&(!isNodeInCurrentMapPage(a)||!isNodeInCurrentMapPage(b))) return false;
   if(links.some(l=>(l.from===a&&l.to===b)||(l.from===b&&l.to===a))) return false;
   links.push({id:lid++,from:a,to:b,rel:'關聯',color:LINK_COLOR});
   return true;
@@ -1390,7 +1430,7 @@ function renderDetailQuickLinkSearch(){
   const q=(g('dp-link-search')?.value||'').trim();
   if(!q){root.innerHTML='<div class="dp-link-empty">輸入關鍵字即可快速建立關聯</div>';return;}
   const existingIds=new Set(links.filter(l=>l.from===openId||l.to===openId).map(l=>l.from===openId?l.to:l.from));
-  const pool=findMapNodesByKeyword(q,openId).filter(n=>!existingIds.has(n.id));
+  const pool=findMapNodesByKeyword(q,openId).filter(n=>!existingIds.has(n.id)&&(!isRelayNode(n)||isNodeInCurrentMapPage(n.id)));
   if(!pool.length){root.innerHTML='<div class="dp-link-empty">找不到可關聯的筆記</div>';return;}
   root.innerHTML=pool.map(n=>{
     const tp=isRelayNode(n)?{label:'中繼站',color:'#A855F7'}:typeByKey(n.type);
@@ -1415,7 +1455,7 @@ function renderMapPopupQuickLinkSearch(sourceId=null){
   const q=(input.value||'').trim();
   if(!q){root.innerHTML='<div class="dp-link-empty">輸入關鍵字即可快速建立關聯</div>';return;}
   const existingIds=new Set(links.filter(l=>l.from===srcId||l.to===srcId).map(l=>l.from===srcId?l.to:l.from));
-  const pool=findMapNodesByKeyword(q,srcId).filter(n=>!existingIds.has(n.id)&&!isRelayNode(n));
+  const pool=findMapNodesByKeyword(q,srcId).filter(n=>!existingIds.has(n.id)&&!isRelayNode(n)&&isNodeInCurrentMapPage(n.id));
   if(!pool.length){root.innerHTML='<div class="dp-link-empty">找不到可關聯的筆記</div>';return;}
   root.innerHTML=pool.map(n=>{
     const tp=typeByKey(n.type);
@@ -1645,7 +1685,7 @@ function renderFormLinkSearch() {
   const q=(val('fl-search')||'').toLowerCase().trim();
   if(!q){el.innerHTML='';updateFormLinkBulkActions();return;}
   const existIds=links.filter(l=>openId&&(l.from===openId||l.to===openId)).map(l=>l.from===openId?l.to:l.from);
-  const pool=[...notes,...mapRelays].filter(n=>n.id!==openId&&!existIds.includes(n.id)&&`${n.title} ${noteSubjectText(n)} ${isRelayNode(n)?'中繼站':typeByKey(n.type).label}`.toLowerCase().includes(q)).slice(0,24);
+  const pool=[...notes,...mapRelays].filter(n=>n.id!==openId&&!existIds.includes(n.id)&&`${n.title} ${noteSubjectText(n)} ${isRelayNode(n)?'中繼站':typeByKey(n.type).label}`.toLowerCase().includes(q)&&(!isRelayNode(n)||isNodeInCurrentMapPage(n.id))).slice(0,24);
   if(!pool.length){el.innerHTML='<div style="font-size:12px;color:#bbb;padding:4px 0;">找不到符合的筆記</div>';updateFormLinkBulkActions();return;}
   el.innerHTML=pool.map(n=>{const tp=isRelayNode(n)?{label:'中繼站',color:'#A855F7'}:typeByKey(n.type);return `<div class="fl-result-item ${formLinkSelections[n.id]?'selected':''}" data-nid="${n.id}"><input type="checkbox" ${formLinkSelections[n.id]?'checked':''}><span class="fl-result-type" style="background:${tp.color}">${tp.label}</span><span class="fl-result-title">${n.title}</span></div>`;}).join('');
   el.querySelectorAll('.fl-result-item').forEach(item=>{
@@ -2099,9 +2139,9 @@ function autoCleanupUnusedTags(){
   const now=Date.now();
   const usage={
     type:new Set(notes.map(n=>n.type).filter(Boolean)),
-    subject:new Set(notes.flatMap(n=>noteSubjects(n)).filter(Boolean)),
-    chapter:new Set(notes.flatMap(n=>noteChapters(n)).filter(Boolean)),
-    section:new Set(notes.flatMap(n=>noteSections(n)).filter(Boolean))
+    subject:new Set(allMapNodes().flatMap(n=>noteSubjects(n)).filter(Boolean)),
+    chapter:new Set(allMapNodes().flatMap(n=>noteChapters(n)).filter(Boolean)),
+    section:new Set(allMapNodes().flatMap(n=>noteSections(n)).filter(Boolean))
   };
   const nextTracker={};
   const keepOrTrack=(kind,key)=>{
@@ -2129,7 +2169,7 @@ function autoCleanupUnusedTags(){
   }
 }
 function clearUnusedTags(){
-  const usedTypes=new Set(notes.map(n=>n.type)),usedSubs=new Set(notes.flatMap(n=>noteSubjects(n))),usedChapters=new Set(notes.flatMap(n=>noteChapters(n))),usedSections=new Set(notes.flatMap(n=>noteSections(n)));
+  const usedTypes=new Set(notes.map(n=>n.type)),usedSubs=new Set(allMapNodes().flatMap(n=>noteSubjects(n))),usedChapters=new Set(allMapNodes().flatMap(n=>noteChapters(n))),usedSections=new Set(allMapNodes().flatMap(n=>noteSections(n)));
   const before={types:types.length,subs:subjects.length,chapters:chapters.length,sections:sections.length};
   types=types.filter(t=>usedTypes.has(t.key));
   subjects=subjects.filter(s=>usedSubs.has(s.key));
@@ -2164,7 +2204,7 @@ function editChapterTag(idx) {
   if(subjectKey!=='all'&&!subjects.some(s=>s.key===subjectKey)){showToast('章科目不存在');return;}
   const oldKey=item.key;
   item.label=nv;item.subject=subjectKey;
-  if(!chapters.some((c,i)=>i!==idx&&c.key===nv)){item.key=nv;notes.forEach(n=>{const chs=noteChapters(n).map(x=>x===oldKey?nv:x);n.chapters=uniq(chs);n.chapter=n.chapters[0]||'';});sections.forEach(sec=>{if(sec.chapter===oldKey)sec.chapter=nv;});if(cch===oldKey)cch='all';if(mapFilter.chapter===oldKey)mapFilter.chapter='all';}
+  if(!chapters.some((c,i)=>i!==idx&&c.key===nv)){item.key=nv;allMapNodes().forEach(n=>{const chs=noteChapters(n).map(x=>x===oldKey?nv:x);n.chapters=uniq(chs);n.chapter=n.chapters[0]||'';});sections.forEach(sec=>{if(sec.chapter===oldKey)sec.chapter=nv;});if(cch===oldKey)cch='all';if(mapFilter.chapter===oldKey)mapFilter.chapter='all';}
   saveData();renderTagLists();rebuildUI();render();showToast('章已更新');
 }
 function editSectionTag(idx){
@@ -2178,7 +2218,7 @@ function editSectionTag(idx){
   if(chapterKey!=='all'&&!chapters.some(ch=>ch.key===chapterKey)){showToast('章不存在');return;}
   const oldKey=item.key;
   item.label=nv; item.chapter=chapterKey;
-  if(!sections.some((s,i)=>i!==idx&&s.key===nv)){item.key=nv;notes.forEach(n=>{const secs=noteSections(n).map(x=>x===oldKey?nv:x);n.sections=uniq(secs);n.section=n.sections[0]||'';});if(csec===oldKey)csec='all';}
+  if(!sections.some((s,i)=>i!==idx&&s.key===nv)){item.key=nv;allMapNodes().forEach(n=>{const secs=noteSections(n).map(x=>x===oldKey?nv:x);n.sections=uniq(secs);n.section=n.sections[0]||'';});if(csec===oldKey)csec='all';}
   saveData();renderTagLists();rebuildUI();render();showToast('節已更新');
 }
 function deleteTag(idx,kind) {
@@ -2187,7 +2227,7 @@ function deleteTag(idx,kind) {
     const removed=arr[idx]; if(!removed) return;
     if(!confirm(`確定刪除章「${removed.label}」？已使用此章的筆記會改為未分類。`)) return;
     const removedSectionKeys=sections.filter(s=>s.chapter===removed.key).map(s=>s.key);
-    arr.splice(idx,1);notes.forEach(n=>{
+    arr.splice(idx,1);allMapNodes().forEach(n=>{
       n.chapters=noteChapters(n).filter(ch=>ch!==removed.key);n.chapter=n.chapters[0]||'';
       n.sections=noteSections(n).filter(sec=>!removedSectionKeys.includes(sec));n.section=n.sections[0]||'';
     });
@@ -2199,7 +2239,7 @@ function deleteTag(idx,kind) {
   if(kind==='section'){
     const removed=arr[idx]; if(!removed) return;
     if(!confirm(`確定刪除節「${removed.label}」？已使用此節的筆記會改為未分類。`)) return;
-    arr.splice(idx,1);notes.forEach(n=>{n.sections=noteSections(n).filter(sec=>sec!==removed.key);n.section=n.sections[0]||'';});
+    arr.splice(idx,1);allMapNodes().forEach(n=>{n.sections=noteSections(n).filter(sec=>sec!==removed.key);n.section=n.sections[0]||'';});
     if(csec===removed.key)csec='all';
     saveData();renderTagLists();rebuildUI();render();showToast('節已刪除');return;
   }
@@ -2216,7 +2256,7 @@ function deleteTag(idx,kind) {
     const removedSectionKeys=sections.filter(sec=>removedChapterKeys.includes(sec.chapter)).map(sec=>sec.key);
     chapters=chapters.filter(ch=>ch.subject!==removed.key);
     sections=sections.filter(sec=>!removedChapterKeys.includes(sec.chapter));
-    notes.forEach(n=>{
+    allMapNodes().forEach(n=>{
       n.subjects=noteSubjects(n).filter(sk=>sk!==removed.key);n.subject=n.subjects[0]||'';
       n.chapters=noteChapters(n).filter(ch=>!removedChapterKeys.includes(ch));n.chapter=n.chapters[0]||'';
       n.sections=noteSections(n).filter(sec=>!removedSectionKeys.includes(sec));n.section=n.sections[0]||'';
@@ -2475,7 +2515,7 @@ function importData(file) {
       if(confirm('確定 = 完整覆蓋（取代所有現有筆記，保留現有科目/章設定）\n取消 = 合併（只加入新筆記）')) {
         // ★ 覆蓋模式：不覆蓋 types/subjects/chapters
         notes=d.notes;links=d.links||[];
-        mapRelays=Array.isArray(d.mapRelays)?d.mapRelays.map(r=>({...r,isRelay:true,type:'relay'})):[];
+        mapRelays=Array.isArray(d.mapRelays)?d.mapRelays.map(r=>({...r,isRelay:true,type:'relay',pageRootId:Number.isFinite(parseInt(r.pageRootId,10))?parseInt(r.pageRootId,10):null})):[];
         nodeSizes=d.nodeSizes||{};mapCenterNodeId=d.mapCenterNodeId||null;mapCenterNodeIds=(d.mapCenterNodeIds&&typeof d.mapCenterNodeIds==='object')?d.mapCenterNodeIds:{};mapCollapsed=(d.mapCollapsed&&typeof d.mapCollapsed==='object')?d.mapCollapsed:{};
         mapSubpages=(d.mapSubpages&&typeof d.mapSubpages==='object')?d.mapSubpages:{};
         nid=d.nid||Math.max([...notes,...mapRelays].reduce((m,n)=>Math.max(m,n.id||0),0)+1,10);lid=d.lid||10;notes.sort((a,b)=>b.id-a.id);
@@ -2507,7 +2547,7 @@ function importData(file) {
             existing.add(nextId);
             if(Number.isFinite(oldId)) importedIdMap[oldId]=nextId;
             if(nextId>maxNoteId) maxNoteId=nextId;
-            mapRelays.push({...r,id:nextId,isRelay:true,type:'relay'});
+            mapRelays.push({...r,id:nextId,isRelay:true,type:'relay',pageRootId:Number.isFinite(parseInt(r.pageRootId,10))?parseInt(r.pageRootId,10):null});
             if(nextId>=nid) nid=nextId+1;
           });
         }
@@ -3301,6 +3341,7 @@ function visibleNotes(){
       &&(!q||`${n.title}${subs.join('')}${chs.join('')}${secs.join('')}${noteTags(n).join('')}`.toLowerCase().includes(q));
   });
   const relayFiltered=mapRelays.filter(n=>{
+    if(!isNodeInCurrentMapPage(n.id)) return false;
     const subs=noteSubjects(n),chs=noteChapters(n),secs=noteSections(n);
     const chapterMatch=mapFilter.chapter==='all'?true:(mapFilter.chapter==='none'?!chs.length:chs.includes(mapFilter.chapter));
     const sectionMatch=mapFilter.section==='all'?true:(mapFilter.section==='none'?!secs.length:secs.includes(mapFilter.section));
@@ -3316,11 +3357,11 @@ function visibleNotes(){
     filtered=notes.filter(n=>expandedIds.has(n.id)&&noteMatchesSearch(n,q));
     relayVisible=mapRelays.filter(n=>expandedIds.has(n.id)&&relayMatchesSearch(n,q));
   }
-  let base=[...filtered,...relayVisible].filter(n=>!mapLinkedOnly||linkedIds[n.id]);
+  let base=[...filtered,...relayVisible].filter(n=>!mapLinkedOnly||isRelayNode(n)||linkedIds[n.id]);
   if(isInMapSubpage()){
     const rootId=currentSubpageRootId();
     const allowed=getDescendantIds(rootId);
-    base=base.filter(n=>allowed.has(n.id));
+    base=base.filter(n=>isRelayNode(n)?isNodeInCurrentMapPage(n.id):allowed.has(n.id));
   }else{
     const baseIds0={};base.forEach(n=>baseIds0[n.id]=true);
     Object.keys(mapSubpages||{}).forEach(key=>{
@@ -3379,6 +3420,7 @@ function createMapRelay(){
     id:nid++,
     type:'relay',
     isRelay:true,
+    pageRootId:subpageRootId||null,
     title:name,
     body:'',
     subject:defaultSubjects[0]||'',
@@ -3397,7 +3439,7 @@ function createMapRelay(){
     }
     scheduleMapRedraw(30);
   }
-  showToast(subpageRootId?'已新增中繼站（已放入目前子頁面）':'已新增中繼站');
+  showToast(subpageRootId?'已新增中繼站（僅保留於目前頁面）':'已新增中繼站');
 }
 function switchMapNodeType(id){
   const relay=relayById(id);
@@ -3416,7 +3458,7 @@ function switchMapNodeType(id){
   }
   const note=noteById(id);
   if(!note) return;
-  const relayData={...note,isRelay:true,type:'relay',noteTypeBackup:safeStr(note.type)||'article'};
+  const relayData={...note,isRelay:true,type:'relay',noteTypeBackup:safeStr(note.type)||'article',pageRootId:currentSubpageRootId()||null};
   notes=notes.filter(n=>n.id!==id);
   mapRelays.push(relayData);
   if(openId===id){

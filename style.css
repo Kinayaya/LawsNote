@@ -193,6 +193,7 @@ body.compact-filters .filter-row,body.compact-filters #subbar,body.compact-filte
 /* Map View */
 #mapView{display:none;flex-direction:column}
 #mapView.open{display:flex}
+#mapView.map-merged #mapCanvas{height:56vh;min-height:360px}
 #mapToolbar{background:#fff;padding:8px 12px;border-bottom:1px solid #e5e5e5;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .map-adv-item{display:none}
 #mapView.map-advanced-open .map-adv-item{display:inline-flex}

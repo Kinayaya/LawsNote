@@ -10,9 +10,6 @@ const DEFAULTS = {
   subjects: [{key:'民法',label:'民法',color:'#D85A30'},{key:'刑法',label:'刑法',color:'#1D9E75'},{key:'憲法',label:'憲法',color:'#7F77DD'},{key:'行政法',label:'行政法',color:'#378ADD'}],
   chapters: [
     {key:'總則',label:'總則',subject:'民法'},{key:'法律行為',label:'法律行為',subject:'民法'},
-    {key:'債編總論',label:'債編總論',subject:'民法'},{key:'契約',label:'契約',subject:'民法'},
-    {key:'侵權行為',label:'侵權行為',subject:'民法'},{key:'不當得利',label:'不當得利',subject:'民法'},
-    {key:'物權',label:'物權',subject:'民法'},{key:'親屬與繼承',label:'親屬與繼承',subject:'民法'}
   ],
   sections: []
 };

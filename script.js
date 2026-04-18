@@ -77,6 +77,7 @@ let shortcuts=[], recordingBtn=null, _aiPendingAction=null, _saveTimer=null, raf
 let mapRedrawTimer=null, mapResizeObserver=null, mapCenterNodeId=null, mapCenterNodeIds={}, mapLaneConfigs={}, mapNodeMeta={};
 let mapTimer=null, currentView='notes';
 let mapAdvancedOpen=false;
+let mapNotesMerged=true;
 let mapCollapsed={};
 let mapLinkSourceId=null;
 let touchRadialMenu=null, actionUndoTimer=null, lastCardTap={id:0,time:0};
@@ -2608,16 +2609,31 @@ function setMapAdvanced(open){
     btn.style.borderColor=mapAdvancedOpen?'#0C447C':'#ddd';
   }
 }
+function applyMapMergeLayout(){
+  const merged=isMapOpen&&mapNotesMerged;
+  const notesView=g('notesView');
+  const subbar=g('subbar');
+  const advanced=g('filterAdvanced');
+  const mapView=g('mapView');
+  if(notesView) notesView.style.display=merged?'block':(isMapOpen?'none':'block');
+  if(subbar) subbar.style.display=(isMapOpen&&!merged)?'none':'flex';
+  if(advanced) advanced.style.display=(isMapOpen&&!merged)?'none':'block';
+  if(mapView) mapView.classList.toggle('map-merged',merged);
+  const btn=g('mapMergeToggleBtn');
+  if(btn){
+    btn.textContent=merged?'🧩 已合併主畫面':'🧩 分離主畫面';
+    btn.style.background=merged?'#0C447C':'#f5f5f5';
+    btn.style.color=merged?'#fff':'#555';
+    btn.style.borderColor=merged?'#0C447C':'#ddd';
+  }
+}
 
 function toggleMapView(open) {
   isMapOpen=open;currentView=open?'map':'notes';
-  g('notesView').style.display=open?'none':'block';
   g('calendarView')?.classList.remove('open');
   g('levelSystemView')?.classList.remove('open');
   g('mapView').classList.toggle('open',open);
-  g('subbar').style.display=open?'none':'flex';
-  const advanced=g('filterAdvanced');
-  if(advanced) advanced.style.display=open?'none':'block';
+  applyMapMergeLayout();
   if(open){
     mapPageStack=[];
     setMapAdvanced(false);
@@ -3949,6 +3965,7 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   g('mapBackBtn').addEventListener('click',()=>{if(isMapOpen&&leaveMapSubpage())return;toggleMapView(false);});
   on('mapAddNoteBtn','click',()=>openForm(false));
   on('mapAddRelayBtn','click',createMapRelay);
+  on('mapMergeToggleBtn','click',()=>{mapNotesMerged=!mapNotesMerged;applyMapMergeLayout();});
   on('mapSearchInput','input',debounce(()=>{mapFilter.q=g('mapSearchInput').value;saveDataDeferred();if(isMapOpen)drawMap();},250));
   on('mapFilterSub','change',()=>{mapFilter.sub=g('mapFilterSub').value;mapPageStack=[];updateMapPagePath();buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
   on('mapFilterChapter','change',()=>{mapFilter.chapter=g('mapFilterChapter').value;mapPageStack=[];updateMapPagePath();buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});

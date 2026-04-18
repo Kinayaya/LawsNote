@@ -3463,7 +3463,7 @@ function visibleNotes(){
     const shouldShowInSubpage=n=>{
       if(isRelayNode(n)) return isNodeInCurrentMapPage(n.id)&&mapNodeMatchesTaxonomyFilter(n);
       if(n.id===rootId) return true;
-      return assignedIds.has(n.id)||mapNodeMatchesTaxonomyFilter(n);
+      return assignedIds.has(n.id);
     };
     const baseIds={};base.forEach(n=>baseIds[n.id]=true);
     notes.forEach(n=>{

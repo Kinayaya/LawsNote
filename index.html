@@ -44,12 +44,11 @@
         <div class="more-menu" id="moreToolsMenu">
           <button class="tool-btn more-menu-item" id="calendarBtn">&#128197; 日曆</button>
           <button class="tool-btn more-menu-item" id="levelSystemBtn">&#11088; 等級系統</button>
+          <button class="tool-btn more-menu-item" id="themeToggleBtn">&#127769; 暗色模式</button>
           <button class="tool-btn more-menu-item" id="linkModeBtn">&#128279; 連線模式</button>
           <button class="tool-btn more-menu-item" id="panelDirBtn" title="切換筆記展開方向">&#8646; 面板方向</button>
-          <button class="tool-btn ai-btn-style more-menu-item" id="aiSettingsBtn">&#129302; AI</button>
           <button class="tool-btn exam-btn-style more-menu-item" id="examBtn">&#9997; 申論</button>
-          <button class="tool-btn more-menu-item" id="focusTimerBtn">&#9201; 計時器</button>
-          <button class="tool-btn more-menu-item" id="shortcutMgrBtn">&#9000; 快捷鍵</button>
+          <button class="tool-btn more-menu-item" id="assistToolsBtn">&#9881; 輔助功能</button>
           <button class="tool-btn more-menu-item" id="undoBtn">&#8630; 恢復上一步</button>
           <button class="tool-btn more-menu-item" id="archiveBtn">&#128190; 存檔</button>
           <button class="tool-btn sync-btn-style more-menu-item" id="syncBtn">&#9729; 同步</button>
@@ -304,7 +303,6 @@
   <div id="mapToolbar">
     <button class="tool-btn map-primary-action" id="mapAddNoteBtn">+ 新增筆記</button>
     <button class="tool-btn" id="mapAddRelayBtn">+ 新增中繼站</button>
-    <button class="tool-btn" id="mapMergeToggleBtn">🧩 已合併主畫面</button>
     <div class="map-search-wrap">
       <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:#aaa;font-size:12px;pointer-events:none;">&#128269;</span>
       <input id="mapSearchInput" placeholder="搜尋節點..." autocomplete="off">
@@ -568,6 +566,20 @@
     </div>
     <div class="frow">
       <button class="fbtn bcl" id="focusTimerCloseBtn">關閉</button>
+    </div>
+  </div>
+</div>
+<div id="assistToolsModal">
+  <div id="assistToolsBox">
+    <h3>&#9881; 輔助功能</h3>
+    <p>整合 AI、計時器、快捷鍵設定。</p>
+    <div class="assist-tools-grid">
+      <button class="tool-btn ai-btn-style" id="assistAiBtn">&#129302; AI</button>
+      <button class="tool-btn" id="assistTimerBtn">&#9201; 計時器</button>
+      <button class="tool-btn" id="assistShortcutBtn">&#9000; 快捷鍵</button>
+    </div>
+    <div class="assist-tools-actions">
+      <button class="fbtn bcl" id="assistToolsCloseBtn">關閉</button>
     </div>
   </div>
 </div>

@@ -25,6 +25,7 @@ const COMPACT_FILTER_KEY = 'klaws_compact_filters_v1';
 const USAGE_START_KEY = 'klaws_usage_start_v1';
 const FORM_TAXONOMY_PREF_KEY = 'klaws_form_taxonomy_pref_v1';
 const LAST_VIEW_STATE_KEY = 'klaws_last_view_state_v1';
+const THEME_MODE_KEY = 'klaws_theme_mode_v1';
 const SYNC_KEY = 'klaws_sync_v1', SYNC_FILE = 'klaws_data.json';
 const AI_MODELS = [
   {id:'openrouter/free', label:'🔀 自動選最佳免費模型（推薦）'},
@@ -77,7 +78,6 @@ let shortcuts=[], recordingBtn=null, _aiPendingAction=null, _saveTimer=null, raf
 let mapRedrawTimer=null, mapResizeObserver=null, mapCenterNodeId=null, mapCenterNodeIds={}, mapLaneConfigs={}, mapNodeMeta={};
 let mapTimer=null, currentView='notes';
 let mapAdvancedOpen=false;
-let mapNotesMerged=true;
 let mapCollapsed={};
 let mapLinkSourceId=null;
 let touchRadialMenu=null, actionUndoTimer=null, lastCardTap={id:0,time:0};
@@ -163,6 +163,33 @@ function saveLastViewState(){
   const view=(currentView==='map'||currentView==='calendar'||currentView==='level')?currentView:'notes';
   const mapStack=(view==='map'&&Array.isArray(mapPageStack))?mapPageStack.filter(id=>mapNodeById(id)).slice(-12):[];
   localStorage.setItem(LAST_VIEW_STATE_KEY,JSON.stringify({view,mapPageStack:mapStack}));
+}
+function applyThemeMode(mode='light'){
+  const dark=mode==='dark';
+  document.body.classList.toggle('dark-mode',dark);
+  localStorage.setItem(THEME_MODE_KEY,dark?'dark':'light');
+  const btn=g('themeToggleBtn');
+  if(btn) btn.textContent=dark?'☀️ 淺色模式':'🌙 暗色模式';
+}
+function toggleThemeMode(){
+  const isDark=document.body.classList.contains('dark-mode');
+  applyThemeMode(isDark?'light':'dark');
+  showToast(isDark?'已切換淺色模式':'已切換暗色模式');
+}
+function updateNotesHomeVisibility(){
+  if(currentView!=='notes') return;
+  const hasSearch=!!searchQ.trim();
+  const notesView=g('notesView');
+  if(notesView) notesView.style.display=hasSearch?'block':'none';
+  const subbar=g('subbar');
+  if(subbar) subbar.style.display=hasSearch?'flex':'none';
+  const advanced=g('filterAdvanced');
+  if(advanced) advanced.style.display=hasSearch?'block':'none';
+  const sb=g('search-results-bar');
+  if(sb&&!hasSearch){
+    sb.style.display='block';
+    sb.textContent='請先使用上方搜尋欄查找筆記。';
+  }
 }
 function restoreLastViewState(){
   let state={view:'notes',mapPageStack:[]};
@@ -1235,6 +1262,8 @@ function expandWithChildLinkedNotes(seedIds) {
 
 // ==================== 渲染 ====================
 function render() {
+  updateNotesHomeVisibility();
+  if(currentView==='notes'&&!searchQ.trim()) return;
   const q=searchQ.trim().toLowerCase();
   const normalizedDate=parseSearchDateVariants(searchQ);
   const seedIds=new Set(notes.filter(n=>baseScopeMatch(n)).map(n=>n.id));
@@ -2609,31 +2638,15 @@ function setMapAdvanced(open){
     btn.style.borderColor=mapAdvancedOpen?'#0C447C':'#ddd';
   }
 }
-function applyMapMergeLayout(){
-  const merged=isMapOpen&&mapNotesMerged;
-  const notesView=g('notesView');
-  const subbar=g('subbar');
-  const advanced=g('filterAdvanced');
-  const mapView=g('mapView');
-  if(notesView) notesView.style.display=merged?'block':(isMapOpen?'none':'block');
-  if(subbar) subbar.style.display=(isMapOpen&&!merged)?'none':'flex';
-  if(advanced) advanced.style.display=(isMapOpen&&!merged)?'none':'block';
-  if(mapView) mapView.classList.toggle('map-merged',merged);
-  const btn=g('mapMergeToggleBtn');
-  if(btn){
-    btn.textContent=merged?'🧩 已合併主畫面':'🧩 分離主畫面';
-    btn.style.background=merged?'#0C447C':'#f5f5f5';
-    btn.style.color=merged?'#fff':'#555';
-    btn.style.borderColor=merged?'#0C447C':'#ddd';
-  }
-}
-
 function toggleMapView(open) {
   isMapOpen=open;currentView=open?'map':'notes';
   g('calendarView')?.classList.remove('open');
   g('levelSystemView')?.classList.remove('open');
   g('mapView').classList.toggle('open',open);
-  applyMapMergeLayout();
+  g('notesView').style.display=open?'none':(searchQ.trim()?'block':'none');
+  g('subbar').style.display=open?'none':(searchQ.trim()?'flex':'none');
+  const advanced=g('filterAdvanced');
+  if(advanced) advanced.style.display=open?'none':(searchQ.trim()?'block':'none');
   if(open){
     mapPageStack=[];
     setMapAdvanced(false);
@@ -2658,18 +2671,19 @@ function openStats() {
 
 function toggleCalendarView(open){
   currentView=open?'calendar':'notes';
-  g('notesView').style.display=open?'none':'block';
+  g('notesView').style.display=open?'none':(searchQ.trim()?'block':'none');
   g('mapView').classList.remove('open');
   g('levelSystemView').classList.remove('open');
   ['dp','fp','tp'].forEach(id=>g(id)?.classList.remove('open'));
   g('calendarView').classList.toggle('open',open);
   if(open) renderCalendar();
+  else updateNotesHomeVisibility();
   saveLastViewState();
 }
 function toggleLevelSystemView(open){
   currentView=open?'level':'notes';
   isMapOpen=false;
-  g('notesView').style.display=open?'none':'block';
+  g('notesView').style.display=open?'none':(searchQ.trim()?'block':'none');
   g('mapView').classList.remove('open');
   g('calendarView').classList.remove('open');
   ['dp','fp','tp'].forEach(id=>g(id)?.classList.remove('open'));
@@ -2678,6 +2692,7 @@ function toggleLevelSystemView(open){
   const advanced=g('filterAdvanced');
   if(advanced) advanced.style.display=open?'none':'block';
   if(open) renderLevelSystemPage();
+  else updateNotesHomeVisibility();
   saveLastViewState();
 }
 function renderCalendar(){
@@ -3024,10 +3039,8 @@ function showResult(r) {
 function closeExamView() {
   clearInterval(examTimer);
   g('examView').classList.remove('open');
-  g('notesView').style.display='block';
-  g('subbar').style.display='flex';
-  const advanced=g('filterAdvanced');
-  if(advanced) advanced.style.display='block';
+  currentView='notes';
+  updateNotesHomeVisibility();
 }
 
 function initMoreMenu(){
@@ -3879,6 +3892,7 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   on('mp-link-search','input',debounce(()=>renderMapPopupQuickLinkSearch(),180));
   on('calendarBtn','click',()=>toggleCalendarView(true));
   on('levelSystemBtn','click',()=>toggleLevelSystemView(true));
+  applyThemeMode(localStorage.getItem(THEME_MODE_KEY)||'light');
   on('ft','change',()=>renderDynamicFields(g('ft').value,editMode&&openId?noteById(openId):null));
   on('fs2','change',()=>{
     syncChapterSelect(selectedValues('fs2'),selectedValues('fc'));
@@ -3886,8 +3900,8 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   });
   on('fc','change',()=>syncSectionSelect(selectedValues('fc'),selectedValues('fsec'),selectedValues('fs2')));
   const si=g('searchInput'),sc=g('searchClear');
-  si.addEventListener('input',debounce(()=>{searchQ=si.value;gridPage=1;sc.style.display=searchQ?'block':'none';render();},250));
-  sc.addEventListener('click',()=>{si.value='';searchQ='';gridPage=1;sc.style.display='none';render();si.focus();});
+  si.addEventListener('input',debounce(()=>{searchQ=si.value;gridPage=1;sc.style.display=searchQ?'block':'none';updateNotesHomeVisibility();render();},250));
+  sc.addEventListener('click',()=>{si.value='';searchQ='';gridPage=1;sc.style.display='none';updateNotesHomeVisibility();render();si.focus();});
   const compactDefault=localStorage.getItem(COMPACT_FILTER_KEY);
   applyCompactFilterMode(compactDefault===null?true:compactDefault==='1');
   on('compactToggleBtn','click',()=>applyCompactFilterMode(!document.body.classList.contains('compact-filters')));
@@ -3914,7 +3928,12 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   on('addTypeFieldBtn','click',addTypeFieldForCurrentType);
   on('removeTypeFieldBtn','click',removeTypeFieldForCurrentType);
   loadExams();on('examBtn','click',openExamPanel);on('examListClose','click',()=>g('examListPanel').classList.remove('open'));
-  on('focusTimerBtn','click',openFocusTimer);
+  on('themeToggleBtn','click',toggleThemeMode);
+  on('assistToolsBtn','click',()=>g('assistToolsModal')?.classList.add('open'));
+  on('assistToolsCloseBtn','click',()=>g('assistToolsModal')?.classList.remove('open'));
+  on('assistAiBtn','click',()=>{g('assistToolsModal')?.classList.remove('open');openAiSettings();});
+  on('assistTimerBtn','click',()=>{g('assistToolsModal')?.classList.remove('open');openFocusTimer();});
+  on('assistShortcutBtn','click',()=>{g('assistToolsModal')?.classList.remove('open');openShortcutMgr();});
   on('focusTimerMinutes','change',resetFocusTimer);
   on('focusTimerStartBtn','click',startFocusTimer);
   on('focusTimerPauseBtn','click',stopFocusTimer);
@@ -3927,12 +3946,11 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   on('examSubmitBtn','click',()=>doSubmit(false));on('examCancelBtn','click',()=>{clearInterval(examTimer);closeExamView();});
   on('examRetryBtn','click',()=>{closeExamView();setTimeout(openExamPanel,100);});on('examBackBtn2','click',closeExamView);
   on('examAnswerBox','input',()=>{g('examWordCount').textContent=g('examAnswerBox').value.replace(/\s/g,'').length+' 字';});
-  on('aiSettingsBtn','click',openAiSettings);
   g('aiKeySave').addEventListener('click',()=>{const k=(g('aiKeyInput').value||'').trim();if(!k){showToast('請輸入 OpenRouter API Key');return;}saveAiKey(k);const sel=g('aiModelSel');if(sel&&sel.value)saveAiModel(sel.value);g('aiKeyModal').classList.remove('open');if(_aiPendingAction){_aiPendingAction(k);_aiPendingAction=null;}else showToast('AI 設定已儲存！');});
   g('aiKeyCancel').addEventListener('click',()=>{g('aiKeyModal').classList.remove('open');_aiPendingAction=null;});
   g('importFile').addEventListener('change',e=>{if(e.target.files&&e.target.files[0])importData(e.target.files[0]);e.target.value='';});
   on('debugToggle','click',toggleDebugTool);
-  g('shortcutMgrBtn').addEventListener('click',openShortcutMgr);g('scpClose').addEventListener('click',closeShortcutMgr);g('scpDone').addEventListener('click',closeShortcutMgr);
+  g('scpClose').addEventListener('click',closeShortcutMgr);g('scpDone').addEventListener('click',closeShortcutMgr);
   g('scpReset').addEventListener('click',()=>{shortcuts=DEFAULT_SHORTCUTS.map(s=>({...s}));saveShortcuts();renderShortcutList();showToast('已恢復預設快捷鍵');});
   loadShortcuts();document.addEventListener('keydown',handleGlobalKey);
   loadRecycleBin();
@@ -3968,7 +3986,6 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   g('mapBackBtn').addEventListener('click',()=>{if(isMapOpen&&leaveMapSubpage())return;toggleMapView(false);});
   on('mapAddNoteBtn','click',()=>openForm(false));
   on('mapAddRelayBtn','click',createMapRelay);
-  on('mapMergeToggleBtn','click',()=>{mapNotesMerged=!mapNotesMerged;applyMapMergeLayout();});
   on('mapSearchInput','input',debounce(()=>{mapFilter.q=g('mapSearchInput').value;saveDataDeferred();if(isMapOpen)drawMap();},250));
   on('mapFilterSub','change',()=>{mapFilter.sub=g('mapFilterSub').value;mapPageStack=[];updateMapPagePath();buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
   on('mapFilterChapter','change',()=>{mapFilter.chapter=g('mapFilterChapter').value;mapPageStack=[];updateMapPagePath();buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
@@ -4051,6 +4068,7 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   try{reminderDismissed=JSON.parse(localStorage.getItem('klaws_reminder_dismissed_v1')||'{}')||{};}catch(e){reminderDismissed={};}
   if(!window.Email){const sc=document.createElement('script');sc.src='https://smtpjs.com/v3/smtp.js';document.head.appendChild(sc);}
   clearInterval(reminderTimer); reminderTimer=setInterval(checkReminders,30000); checkReminders();
+  updateNotesHomeVisibility();
   render();
   setTimeout(restoreLastViewState,120);
 });

@@ -1414,6 +1414,94 @@ function findMapNodesByKeyword(keyword,excludeId){
   const blocked=Number(excludeId);
   return [...notes,...mapRelays].filter(n=>n.id!==blocked&&`${n.title} ${noteSubjectText(n)} ${isRelayNode(n)?'中繼站':typeByKey(n.type).label}`.toLowerCase().includes(q)).slice(0,18);
 }
+function mapPageRootOptions(){
+  return notes.filter(n=>hasSubpageForNode(n.id)).map(n=>({id:n.id,title:n.title||`節點#${n.id}`}));
+}
+function ensureMapSubpageRoot(rootId){
+  if(!Number.isFinite(rootId)||!noteById(rootId)) return false;
+  if(hasSubpageForNode(rootId)) return true;
+  mapSubpages[mapSubpageKey(rootId)]={rootId,createdAt:new Date().toISOString()};
+  return true;
+}
+function ensureMapAssignPanel(){
+  const canvas=g('mapCanvas');if(!canvas) return null;
+  let panel=g('mapAssignPanel');
+  if(panel) return panel;
+  panel=document.createElement('div');
+  panel.id='mapAssignPanel';
+  panel.style.cssText='display:none;position:absolute;top:74px;right:10px;z-index:38;width:320px;max-width:calc(100% - 20px);max-height:70%;overflow:auto;background:#fff;border:1px solid #ddd;border-radius:14px;box-shadow:0 12px 28px rgba(0,0,0,.14);padding:12px;';
+  panel.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;"><b style="font-size:14px;color:#0C447C;">加入筆記到頁面</b><button class="pcls" id="mapAssignCloseBtn">×</button></div>
+  <div style="font-size:12px;color:#667;margin-bottom:8px;">可在任何體系圖頁面執行，不需切回主頁。</div>
+  <label style="font-size:12px;font-weight:700;color:#555;display:block;margin-bottom:4px;">目標頁面</label>
+  <select id="mapAssignPageSel" class="fs" style="margin-bottom:8px;"></select>
+  <label style="font-size:12px;font-weight:700;color:#555;display:block;margin-bottom:4px;">搜尋筆記</label>
+  <input id="mapAssignSearchInput" class="fi" placeholder="輸入關鍵字找筆記..." style="margin-bottom:8px;">
+  <div id="mapAssignSearchResult" style="display:flex;flex-direction:column;gap:6px;"></div>`;
+  canvas.appendChild(panel);
+  on('mapAssignCloseBtn','click',closeMapAssignPanel);
+  on('mapAssignPageSel','change',()=>renderMapAssignSearch());
+  on('mapAssignSearchInput','input',debounce(renderMapAssignSearch,160));
+  return panel;
+}
+function closeMapAssignPanel(){ const panel=g('mapAssignPanel');if(panel){panel.classList.remove('open');panel.style.display='none';} }
+function renderMapAssignSearch(){
+  const result=g('mapAssignSearchResult'),sel=g('mapAssignPageSel'),input=g('mapAssignSearchInput');
+  if(!result||!sel||!input) return;
+  const rootId=parseInt(sel.value,10);
+  if(!Number.isFinite(rootId)||!noteById(rootId)){
+    result.innerHTML='<div class="dp-link-empty">請先建立至少一個子頁面（在節點資訊內按「設定子頁面」）。</div>';
+    return;
+  }
+  const q=(input.value||'').trim().toLowerCase();
+  if(!q){ result.innerHTML='<div class="dp-link-empty">輸入關鍵字即可快速加入筆記</div>'; return; }
+  const alreadyInPage=getDescendantIds(rootId);
+  const pool=notes.filter(n=>{
+    if(n.id===rootId) return false;
+    if(alreadyInPage.has(n.id)) return false;
+    const hay=`${n.title||''} ${noteSubjectText(n)} ${noteTags(n).join(' ')}`.toLowerCase();
+    return hay.includes(q);
+  }).slice(0,24);
+  if(!pool.length){ result.innerHTML='<div class="dp-link-empty">找不到可加入的筆記</div>'; return; }
+  result.innerHTML=pool.map(n=>`<div class="fl-result-item quick-add" data-map-assign-note-id="${n.id}" style="display:flex;align-items:center;gap:8px;"><span class="fl-result-title" style="flex:1;">${escapeHtml(n.title||'（未命名）')}</span><button class="tool-btn" type="button">+ 加入</button></div>`).join('');
+  result.querySelectorAll('[data-map-assign-note-id]').forEach(row=>row.addEventListener('click',()=>{
+    const noteId=parseInt(row.dataset.mapAssignNoteId,10);
+    const pageRootId=parseInt(sel.value,10);
+    if(!Number.isFinite(noteId)||!Number.isFinite(pageRootId)) return;
+    if(addNoteToMapPage(pageRootId,noteId)){
+      renderMapAssignSearch();
+      if(isMapOpen) scheduleMapRedraw(80);
+    }
+  }));
+}
+function addNoteToMapPage(pageRootId,noteId){
+  const root=noteById(pageRootId),note=noteById(noteId);
+  if(!root||!note||root.id===note.id){showToast('加入失敗：頁面或筆記無效');return false;}
+  if(!ensureMapSubpageRoot(root.id)){showToast('頁面不存在');return false;}
+  if(getDescendantIds(root.id).has(note.id)){showToast('這筆筆記已在該頁面');return false;}
+  const created=createRelationLink(root.id,note.id);
+  if(!created){showToast('加入失敗：可能已存在反向連線或重複關聯');return false;}
+  saveData();
+  if(openId&&(openId===root.id||openId===note.id)) renderLinksForNote(openId);
+  showToast(`已加入「${note.title||'（未命名）'}」到「${root.title||'（未命名）'}」頁面`);
+  return true;
+}
+function openMapAssignPanel(){
+  const panel=ensureMapAssignPanel(),sel=g('mapAssignPageSel'),input=g('mapAssignSearchInput');
+  if(!panel||!sel||!input) return;
+  const pages=mapPageRootOptions();
+  if(!pages.length){
+    sel.innerHTML='<option value="">尚無子頁面</option>';
+  }else{
+    sel.innerHTML=pages.map(p=>`<option value="${p.id}">${escapeHtml(p.title)}</option>`).join('');
+    const currentRoot=currentSubpageRootId();
+    if(currentRoot&&pages.some(p=>p.id===currentRoot)) sel.value=String(currentRoot);
+  }
+  input.value='';
+  renderMapAssignSearch();
+  panel.classList.add('open');
+  panel.style.display='block';
+  setTimeout(()=>input.focus(),0);
+}
 function openMapNodeFromLink(id){
   if(!relayById(id)){ showToast('中繼站已被刪除'); return; }
   if(!isMapOpen) toggleMapView(true);
@@ -3833,6 +3921,21 @@ function openCommandSheet(){ g('commandSheet')?.classList.add('open'); }
 function closeCommandSheet(){ g('commandSheet')?.classList.remove('open'); }
 function openQuickAddSheet(){ g('quickAddSheet')?.classList.add('open'); }
 function closeQuickAddSheet(){ g('quickAddSheet')?.classList.remove('open'); }
+function executeQuickCommand(cmd,{closeSheet=true}={}){
+  if(cmd==='search') g('searchInput')?.focus();
+  else if(cmd==='new') openQuickAddSheet();
+  else if(cmd==='relay'){
+    if(!isMapOpen){
+      toggleMapView(true);
+      setTimeout(()=>createMapRelay(),80);
+    }else createMapRelay();
+  }
+  else if(cmd==='map') toggleMapView(!isMapOpen);
+  else if(cmd==='calendar') toggleCalendarView(currentView!=='calendar');
+  else if(cmd==='duplicate') duplicateNote();
+  else if(cmd==='delete') deleteNote();
+  if(closeSheet) closeCommandSheet();
+}
 function openQuickTemplate(typeKey){
   closeQuickAddSheet();
   openForm(false);
@@ -3847,16 +3950,7 @@ function bindTouchQuickActions(){
   g('quickAddSheet')?.addEventListener('click',e=>{if(e.target.id==='quickAddSheet') closeQuickAddSheet();});
   g('commandSheet')?.addEventListener('click',e=>{if(e.target.id==='commandSheet') closeCommandSheet();});
   g('quickAddSheet')?.querySelectorAll('[data-template]').forEach(btn=>btn.addEventListener('click',()=>openQuickTemplate(btn.dataset.template)));
-  g('commandSheet')?.querySelectorAll('[data-cmd]').forEach(btn=>btn.addEventListener('click',()=>{
-    const cmd=btn.dataset.cmd;
-    if(cmd==='search') g('searchInput')?.focus();
-    else if(cmd==='new') openQuickAddSheet();
-    else if(cmd==='map') toggleMapView(!isMapOpen);
-    else if(cmd==='calendar') toggleCalendarView(currentView!=='calendar');
-    else if(cmd==='duplicate') duplicateNote();
-    else if(cmd==='delete') deleteNote();
-    closeCommandSheet();
-  }));
+  g('commandSheet')?.querySelectorAll('[data-cmd]').forEach(btn=>btn.addEventListener('click',()=>executeQuickCommand(btn.dataset.cmd)));
   on('touchQuickAddBtn','click',openQuickAddSheet);
   on('touchQuickSearchBtn','click',()=>g('searchInput')?.focus());
   on('touchQuickRecentBtn','click',()=>{sortMode='date_desc';g('sortSelect').value='date_desc';render();});
@@ -4026,8 +4120,9 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   },{passive:false});
   g('mapToggleBtn').addEventListener('click',()=>toggleMapView(true));
   g('mapBackBtn').addEventListener('click',()=>{if(isMapOpen&&leaveMapSubpage())return;toggleMapView(false);});
-  on('mapAddNoteBtn','click',()=>openForm(false));
-  on('mapAddRelayBtn','click',createMapRelay);
+  on('mapAddNoteBtn','click',()=>executeQuickCommand('new',{closeSheet:false}));
+  on('mapAddRelayBtn','click',()=>executeQuickCommand('relay',{closeSheet:false}));
+  on('mapAssignNoteBtn','click',openMapAssignPanel);
   on('mapSearchInput','input',debounce(()=>{mapFilter.q=g('mapSearchInput').value;saveDataDeferred();if(isMapOpen)drawMap();},250));
   on('mapFilterSub','change',()=>{mapFilter.sub=g('mapFilterSub').value;mapPageStack=[];updateMapPagePath();buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
   on('mapFilterChapter','change',()=>{mapFilter.chapter=g('mapFilterChapter').value;mapPageStack=[];updateMapPagePath();buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});

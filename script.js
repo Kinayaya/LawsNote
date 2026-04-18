@@ -3433,27 +3433,23 @@ function redrawLines(affectedId){
     const c=calcLinkPath(lk,{unbundled});if(!c)return;els.p.setAttribute('d',c.d);
   });
 }
+function mapNodeMatchesTaxonomyFilter(n){
+  const subs=noteSubjects(n),chs=noteChapters(n),secs=noteSections(n);
+  const chapterMatch=mapFilter.chapter==='all'?true:(mapFilter.chapter==='none'?!chs.length:chs.includes(mapFilter.chapter));
+  const sectionMatch=mapFilter.section==='all'?true:(mapFilter.section==='none'?!secs.length:secs.includes(mapFilter.section));
+  return (mapFilter.sub==='all'||subs.includes(mapFilter.sub))&&chapterMatch&&sectionMatch;
+}
 function visibleNotes(){
   const q=(mapFilter.q||'').toLowerCase(),linkedIds={};
   if(mapLinkedOnly)links.forEach(l=>{linkedIds[l.from]=true;linkedIds[l.to]=true;});
   const baseFiltered=notes.filter(n=>{
     const subs=noteSubjects(n),chs=noteChapters(n),secs=noteSections(n);
-    const chapterMatch=mapFilter.chapter==='all'?true:(mapFilter.chapter==='none'?!chs.length:chs.includes(mapFilter.chapter));
-    const sectionMatch=mapFilter.section==='all'?true:(mapFilter.section==='none'?!secs.length:secs.includes(mapFilter.section));
-    return (mapFilter.sub==='all'||subs.includes(mapFilter.sub))
-      &&chapterMatch
-      &&sectionMatch
+    return mapNodeMatchesTaxonomyFilter(n)
       &&(!q||`${n.title}${subs.join('')}${chs.join('')}${secs.join('')}${noteTags(n).join('')}`.toLowerCase().includes(q));
   });
   const relayFiltered=mapRelays.filter(n=>{
     if(!isNodeInCurrentMapPage(n.id)) return false;
-    const subs=noteSubjects(n),chs=noteChapters(n),secs=noteSections(n);
-    const chapterMatch=mapFilter.chapter==='all'?true:(mapFilter.chapter==='none'?!chs.length:chs.includes(mapFilter.chapter));
-    const sectionMatch=mapFilter.section==='all'?true:(mapFilter.section==='none'?!secs.length:secs.includes(mapFilter.section));
-    return (mapFilter.sub==='all'||subs.includes(mapFilter.sub))
-      &&chapterMatch
-      &&sectionMatch
-      &&relayMatchesSearch(n,q);
+    return mapNodeMatchesTaxonomyFilter(n)&&relayMatchesSearch(n,q);
   });
   const shouldExpandLinked=scopeLinkedEnabled&&mapHasTaxonomyFilter();
   let filtered=baseFiltered, relayVisible=relayFiltered;
@@ -3465,8 +3461,22 @@ function visibleNotes(){
   let base=[...filtered,...relayVisible].filter(n=>!mapLinkedOnly||isRelayNode(n)||linkedIds[n.id]);
   if(isInMapSubpage()){
     const rootId=currentSubpageRootId();
-    const allowed=getDescendantIds(rootId);
-    base=base.filter(n=>isRelayNode(n)?isNodeInCurrentMapPage(n.id):allowed.has(n.id));
+    const assignedIds=getMapSubpageAssignedIds(rootId);
+    const shouldShowInSubpage=n=>{
+      if(isRelayNode(n)) return isNodeInCurrentMapPage(n.id)&&mapNodeMatchesTaxonomyFilter(n);
+      if(n.id===rootId) return true;
+      return assignedIds.has(n.id)||mapNodeMatchesTaxonomyFilter(n);
+    };
+    const baseIds={};base.forEach(n=>baseIds[n.id]=true);
+    notes.forEach(n=>{
+      if(baseIds[n.id]||!shouldShowInSubpage(n)||!noteMatchesSearch(n,q)) return;
+      base.push(n);baseIds[n.id]=true;
+    });
+    mapRelays.forEach(n=>{
+      if(baseIds[n.id]||!shouldShowInSubpage(n)||!relayMatchesSearch(n,q)) return;
+      base.push(n);baseIds[n.id]=true;
+    });
+    base=base.filter(shouldShowInSubpage);
   }else{
     const baseIds0={};base.forEach(n=>baseIds0[n.id]=true);
     Object.keys(mapSubpages||{}).forEach(key=>{

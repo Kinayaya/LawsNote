@@ -3549,13 +3549,16 @@ function drawMap(){
     grp.addEventListener('click',e=>{
       e.stopPropagation();
       if(handleMapNodeLinkTap(n.id)) return;
-      if(!isRelayNode(n)){
-        openId=n.id;
-        openForm(true);
-        closeMapPopup();
-        return;
-      }
-      showMapInfo(n.id);openMapPopup(n.id);highlightNode(n.id);
+      showMapInfo(n.id);
+      openMapPopup(n.id);
+      highlightNode(n.id);
+    });
+    grp.addEventListener('dblclick',e=>{
+      e.stopPropagation();
+      if(isRelayNode(n)) return;
+      openId=n.id;
+      openForm(true);
+      closeMapPopup();
     });
     grp.addEventListener('mousedown',e=>startDrag(e,n.id));grp.addEventListener('touchstart',e=>startDragTouch(e,n.id),{passive:true});
     nodesLayer.appendChild(grp);nodeEls[n.id]=grp;

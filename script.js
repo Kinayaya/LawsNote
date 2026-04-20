@@ -1518,14 +1518,8 @@ function openMapAssignPanel(){
   setTimeout(()=>input.focus(),0);
 }
 function openMapNodeFromLink(id){
-  if(!relayById(id)){ showToast('中繼站已被刪除'); return; }
-  if(!isMapOpen) toggleMapView(true);
-  setTimeout(()=>{
-    if(!nodePos[id]) initNodePos();
-    showMapInfo(id);
-    openMapPopup(id);
-    highlightNode(id);
-  },130);
+  if(!mapNodeById(id)){ showToast('節點已被刪除'); return; }
+  openNote(id);
 }
 function renderDetailQuickLinkSearch(){
   const root=g('dp-link-results');
@@ -1737,7 +1731,10 @@ function openForm(isEdit) {
     g('form-title').textContent=formMode==='relay'?'新增中繼站':'新增筆記';
   ['fti'].forEach(id=>{const el=g(id);if(el)el.value='';});
     const pref=loadFormTaxonomyPref();
-    const defaultSub=(pref.subject&&subjects.some(s=>s.key===pref.subject))?pref.subject:(subjects[0]?subjects[0].key:null);
+    const filterSub=(mapFilter.sub!=='all'&&subjects.some(s=>s.key===mapFilter.sub))?mapFilter.sub:'';
+    const defaultSub=(pref.subject&&subjects.some(s=>s.key===pref.subject))
+      ?pref.subject
+      :(filterSub||(subjects[0]?subjects[0].key:null));
     if(defaultSub){
       setSelectedValues('fs2',[defaultSub]);
       const defaultChapter=(pref.chapter&&chaptersBySubjects([defaultSub]).some(ch=>ch.key===pref.chapter))?pref.chapter:'';
@@ -1791,8 +1788,8 @@ function renderFormLinkSearch() {
   const el=g('fl-results'); if(!el) return;
   const q=(val('fl-search')||'').toLowerCase().trim();
   if(!q){el.innerHTML='';updateFormLinkBulkActions();return;}
-  const existIds=links.filter(l=>openId&&(l.from===openId||l.to===openId)).map(l=>l.from===openId?l.to:l.from);
-  const pool=[...notes,...mapRelays].filter(n=>n.id!==openId&&!existIds.includes(n.id)&&`${n.title} ${noteSubjectText(n)} ${isRelayNode(n)?'中繼站':typeByKey(n.type).label}`.toLowerCase().includes(q)&&(!isRelayNode(n)||isNodeInCurrentMapPage(n.id))).slice(0,24);
+  const existIds=new Set(links.filter(l=>openId&&(l.from===openId||l.to===openId)).map(l=>l.from===openId?l.to:l.from));
+  const pool=findMapNodesByKeyword(q,openId).filter(n=>!existIds.has(n.id)&&(!isRelayNode(n)||isNodeInCurrentMapPage(n.id)));
   if(!pool.length){el.innerHTML='<div style="font-size:12px;color:#bbb;padding:4px 0;">找不到符合的筆記</div>';updateFormLinkBulkActions();return;}
   el.innerHTML=pool.map(n=>{const tp=isRelayNode(n)?{label:'中繼站',color:'#A855F7'}:typeByKey(n.type);return `<div class="fl-result-item ${formLinkSelections[n.id]?'selected':''}" data-nid="${n.id}"><input type="checkbox" ${formLinkSelections[n.id]?'checked':''}><span class="fl-result-type" style="background:${tp.color}">${tp.label}</span><span class="fl-result-title">${n.title}</span></div>`;}).join('');
   el.querySelectorAll('.fl-result-item').forEach(item=>{
@@ -1917,7 +1914,7 @@ function saveNote() {
     const prevDone=idx!==-1?doneTodoCount(source[idx].todos):0;
     if(idx!==-1){
       const updated=normalizeNoteSchema({...source[idx],type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,body:fieldData.body,detail:fieldData.detail,todos:fieldData.todos,extraFields:fieldData.extraFields});
-      source[idx]=isRelay?{...updated,isRelay:true,pageRootId:relayPageRootId(source[idx])}:updated;
+      source[idx]=isRelay?{...updated,isRelay:true,pageRootId:relayPageRootId(source[idx]),noteTypeBackup:typeKey}:updated;
     }
     const mentionAdded=idx!==-1?autoLinkMentionsForNote(source[idx]):0;
     const nextDone=idx!==-1?doneTodoCount(source[idx].todos):0;
@@ -1944,7 +1941,7 @@ function saveNote() {
     refreshAchievementProgress();
     const isRelay=formMode==='relay';
     const relayRoot=currentSubpageRootId();
-    const created=isRelay?{...newNote,isRelay:true,pageRootId:relayRoot||null}:newNote;
+    const created=isRelay?{...newNote,isRelay:true,pageRootId:relayRoot||null,noteTypeBackup:typeKey}:newNote;
     if(isRelay) mapRelays.push(created);
     else notes.unshift(created);
     openId=created.id;
@@ -2960,7 +2957,10 @@ function saveCalendarEvent(){
   else calendarEvents.push(ev);
   if(type==='diary'&&idx<0){
     const d=activeCalendarDate;
-    notes.unshift({id:nid++,type:'diary',subject:'',subjects:[],chapter:'',chapters:[],section:'',sections:[],title,body,detail:body,date:d,todos:[],extraFields:{}});
+    const defaultDiarySubject=(mapFilter.sub!=='all'&&subjects.some(s=>s.key===mapFilter.sub))
+      ?mapFilter.sub
+      :((subjects[0]&&subjects[0].key)||'');
+    notes.unshift(normalizeNoteSchema({id:nid++,type:'diary',subject:defaultDiarySubject,subjects:defaultDiarySubject?[defaultDiarySubject]:[],chapter:'',chapters:[],section:'',sections:[],title,body,detail:body,date:d,todos:[],extraFields:{}}));
   }
   saveData();rebuildUI();renderCalendar();g('calendarEventModal').classList.remove('open');
   const dayBox=g('calendarDayDetail');if(dayBox?.classList.contains('open')) toggleCalendarDayDetail(activeCalendarDate);
@@ -3574,7 +3574,9 @@ function createMapRelay(){
 function switchMapNodeType(id){
   const relay=relayById(id);
   if(relay){
-    const note=normalizeNoteSchema({...relay,isRelay:false});
+    const backupType=safeStr(relay.noteTypeBackup)||safeStr(relay.type);
+    const validType=types.some(t=>t.key===backupType)?backupType:(types[0]?.key||'article');
+    const note=normalizeNoteSchema({...relay,isRelay:false,type:validType,noteTypeBackup:''});
     mapRelays=mapRelays.filter(r=>r.id!==id);
     notes.unshift(note);
     openId=note.id;
@@ -3587,7 +3589,7 @@ function switchMapNodeType(id){
   }
   const note=noteById(id);
   if(!note) return;
-  const relayData={...note,isRelay:true,pageRootId:currentSubpageRootId()||null};
+  const relayData={...note,isRelay:true,pageRootId:currentSubpageRootId()||null,noteTypeBackup:safeStr(note.type)||'article'};
   notes=notes.filter(n=>n.id!==id);
   mapRelays.push(relayData);
   if(openId===id){
@@ -3600,6 +3602,12 @@ function switchMapNodeType(id){
   render();
   if(isMapOpen) scheduleMapRedraw(0);
   showToast('已切換為中繼站');
+}
+function notifyHiddenRelaysByFilter(beforeRelayVisibleIds){
+  if(!isMapOpen||!(beforeRelayVisibleIds instanceof Set)||!beforeRelayVisibleIds.size) return;
+  const afterRelayVisibleIds=new Set(visibleNotes().filter(isRelayNode).map(n=>n.id));
+  const hiddenCount=[...beforeRelayVisibleIds].filter(id=>!afterRelayVisibleIds.has(id)).length;
+  if(hiddenCount>0) showToast(`有 ${hiddenCount} 個中繼站因篩選被隱藏`);
 }
 function editMapRelay(id){
   const relay=relayById(id);
@@ -4164,9 +4172,18 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   on('mapAddRelayBtn','click',()=>executeQuickCommand('relay',{closeSheet:false}));
   on('mapAssignNoteBtn','click',openMapAssignPanel);
   on('mapSearchInput','input',debounce(()=>{mapFilter.q=g('mapSearchInput').value;saveDataDeferred();if(isMapOpen)drawMap();},250));
-  on('mapFilterSub','change',()=>{mapFilter.sub=g('mapFilterSub').value;mapPageStack=[];updateMapPagePath();buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
-  on('mapFilterChapter','change',()=>{mapFilter.chapter=g('mapFilterChapter').value;mapPageStack=[];updateMapPagePath();buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
-  on('mapFilterSection','change',()=>{mapFilter.section=g('mapFilterSection').value;mapPageStack=[];updateMapPagePath();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();}});
+  on('mapFilterSub','change',()=>{
+    const beforeRelayVisibleIds=new Set(visibleNotes().filter(isRelayNode).map(n=>n.id));
+    mapFilter.sub=g('mapFilterSub').value;mapPageStack=[];updateMapPagePath();buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();notifyHiddenRelaysByFilter(beforeRelayVisibleIds);}
+  });
+  on('mapFilterChapter','change',()=>{
+    const beforeRelayVisibleIds=new Set(visibleNotes().filter(isRelayNode).map(n=>n.id));
+    mapFilter.chapter=g('mapFilterChapter').value;mapPageStack=[];updateMapPagePath();buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();notifyHiddenRelaysByFilter(beforeRelayVisibleIds);}
+  });
+  on('mapFilterSection','change',()=>{
+    const beforeRelayVisibleIds=new Set(visibleNotes().filter(isRelayNode).map(n=>n.id));
+    mapFilter.section=g('mapFilterSection').value;mapPageStack=[];updateMapPagePath();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();notifyHiddenRelaysByFilter(beforeRelayVisibleIds);}
+  });
   on('mapAdvancedToggleBtn','click',()=>setMapAdvanced(!mapAdvancedOpen));
   mapDepth='all';
   mapFocusMode=false;

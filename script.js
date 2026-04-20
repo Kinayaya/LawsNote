@@ -3301,14 +3301,16 @@ function getDescendantIds(rootId,limitIds=null){
   assigned.forEach(id=>{
     if(limitIds&&!limitIds[id]) return;
     seen.add(id);
+    queue.push(id);
   });
   while(queue.length){
     const current=queue.shift();
     links.forEach(lk=>{
-      if(lk.from!==current) return;
-      if(limitIds&& !limitIds[lk.to]) return;
-      if(seen.has(lk.to)) return;
-      seen.add(lk.to);queue.push(lk.to);
+      if(lk.from!==current&&lk.to!==current) return;
+      const nextId=lk.from===current?lk.to:lk.from;
+      if(limitIds&& !limitIds[nextId]) return;
+      if(seen.has(nextId)) return;
+      seen.add(nextId);queue.push(nextId);
     });
   }
   return seen;

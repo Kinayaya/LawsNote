@@ -3335,20 +3335,14 @@ function forceLayout() {
 function visibleLinks(visIds){ return links.filter(lk=>visIds[lk.from]&&visIds[lk.to]); }
 function getDescendantIds(rootId,limitIds=null){
   const seen=new Set([rootId]),queue=[rootId];
-  const assigned=getMapSubpageAssignedIds(rootId);
-  assigned.forEach(id=>{
-    if(limitIds&&!limitIds[id]) return;
-    seen.add(id);
-    queue.push(id);
-  });
   while(queue.length){
     const current=queue.shift();
-    links.forEach(lk=>{
-      if(lk.from!==current&&lk.to!==current) return;
-      const nextId=lk.from===current?lk.to:lk.from;
+    const assigned=getMapSubpageAssignedIds(current);
+    assigned.forEach(nextId=>{
       if(limitIds&& !limitIds[nextId]) return;
       if(seen.has(nextId)) return;
-      seen.add(nextId);queue.push(nextId);
+      seen.add(nextId);
+      queue.push(nextId);
     });
   }
   return seen;

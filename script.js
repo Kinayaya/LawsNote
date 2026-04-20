@@ -463,6 +463,8 @@ const isNodeInCurrentSubpage = noteId => {
   if(!isInMapSubpage()) return true;
   const currentRoot=currentSubpageRootId();
   if(!currentRoot) return false;
+  const relay=relayById(noteId);
+  if(relay) return relayPageRootId(relay)===currentRoot;
   return getDescendantIds(currentRoot).has(noteId);
 };
 const mapTitleMarkers = noteId => {
@@ -1415,10 +1417,12 @@ function findMapNodesByKeyword(keyword,excludeId){
   return [...notes,...mapRelays].filter(n=>n.id!==blocked&&`${n.title} ${noteSubjectText(n)} ${isRelayNode(n)?'中繼站':typeByKey(n.type).label}`.toLowerCase().includes(q)).slice(0,18);
 }
 function mapPageRootOptions(){
-  return notes.filter(n=>hasSubpageForNode(n.id)).map(n=>({id:n.id,title:n.title||`節點#${n.id}`}));
+  return [...notes,...mapRelays]
+    .filter(n=>hasSubpageForNode(n.id))
+    .map(n=>({id:n.id,title:n.title||`節點#${n.id}`}));
 }
 function ensureMapSubpageRoot(rootId){
-  if(!Number.isFinite(rootId)||!noteById(rootId)) return false;
+  if(!Number.isFinite(rootId)||!mapNodeById(rootId)) return false;
   const key=findSubpageKeyByNoteId(rootId)||mapSubpageKey(rootId);
   const existed=(mapSubpages[key]&&typeof mapSubpages[key]==='object'&&!Array.isArray(mapSubpages[key]))?mapSubpages[key]:null;
   const noteIds=Array.isArray(existed&&existed.noteIds)?[...new Set(existed.noteIds.map(v=>parseInt(v,10)).filter(Number.isFinite).filter(v=>v!==rootId))]:[];
@@ -1457,7 +1461,7 @@ function renderMapAssignSearch(){
   const result=g('mapAssignSearchResult'),sel=g('mapAssignPageSel'),input=g('mapAssignSearchInput');
   if(!result||!sel||!input) return;
   const rootId=parseInt(sel.value,10);
-  if(!Number.isFinite(rootId)||!noteById(rootId)){
+  if(!Number.isFinite(rootId)||!mapNodeById(rootId)){
     result.innerHTML='<div class="dp-link-empty">請先建立至少一個子頁面（在節點資訊內按「設定子頁面」）。</div>';
     return;
   }
@@ -1483,7 +1487,7 @@ function renderMapAssignSearch(){
   }));
 }
 function addNoteToMapPage(pageRootId,noteId){
-  const root=noteById(pageRootId),note=noteById(noteId);
+  const root=mapNodeById(pageRootId),note=noteById(noteId);
   if(!root||!note||root.id===note.id){showToast('加入失敗：頁面或筆記無效');return false;}
   if(!ensureMapSubpageRoot(root.id)){showToast('頁面不存在');return false;}
   const assignedIds=getMapSubpageAssignedIds(root.id);
@@ -3800,7 +3804,10 @@ function showMapInfo(id){
   subpageBtn.style.cssText='width:100%;padding:8px;margin:4px 0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ddd;background:#f5f5f5;color:#555;';
   subpageBtn.onclick=()=>{
     if(!hasSubpage){
-      ensureMapSubpageRoot(id);
+      if(!ensureMapSubpageRoot(id)){
+        showToast('設定失敗：節點不存在');
+        return;
+      }
       saveData();
       drawMap();
       showToast('已設定子頁面');

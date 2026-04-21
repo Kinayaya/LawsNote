@@ -122,6 +122,21 @@ const TASK_REPEAT_OPTIONS=[
   {key:'monthly',label:'每月'},
   {key:'yearly',label:'每年'}
 ];
+function mergeRelaysIntoNotes(baseNotes=[], relayList=[]){
+  const normalizedNotes=(Array.isArray(baseNotes)?baseNotes:[]).map(normalizeNoteSchema);
+  const relayNotes=(Array.isArray(relayList)?relayList:[]).map(r=>{
+    const backupType=safeStr(r&&r.noteTypeBackup)||safeStr(r&&r.type)||'article';
+    const normalized=normalizeNoteSchema({...r,isRelay:false,noteTypeBackup:''});
+    return {...normalized,type:backupType};
+  });
+  const merged=[...normalizedNotes,...relayNotes];
+  const seen=new Set();
+  return merged.filter(n=>{
+    if(!Number.isFinite(n.id)||seen.has(n.id)) return false;
+    seen.add(n.id);
+    return true;
+  });
+}
 
 // ==================== 工具函數 ====================
 const g = id => document.getElementById(id);
@@ -322,10 +337,10 @@ const tagUsageCount = (kind,key) => {
   return [...notes,...mapRelays].filter(n=>noteChapters(n).includes(key)).length;
 };
 const noteById = id => notes.find(n=>n.id===id);
-const relayById = id => mapRelays.find(n=>n.id===id);
-const mapNodeById = id => noteById(id)||relayById(id);
-const allMapNodes = () => [...notes,...mapRelays];
-const isRelayNode = n => !!(n&&n.isRelay);
+const relayById = _id => null;
+const mapNodeById = id => noteById(id);
+const allMapNodes = () => [...notes];
+const isRelayNode = _n => false;
 const noteTags = _n => [];
 const noteHasVisibleContent = n => !!(safeStr(n.body).trim()||safeStr(n.detail).trim()||noteTags(n).length||(Array.isArray(n.todos)&&n.todos.length));
 const noteExtraFields = n => (n&&n.extraFields&&typeof n.extraFields==='object'&&!Array.isArray(n.extraFields))?n.extraFields:{};
@@ -486,7 +501,7 @@ const setMapCenterForCurrentScope = id => {
   mapCenterNodeIds[getMapCenterContextKey()]=id;
   mapCenterNodeId=id;
 };
-const getPayload = () => ({notes,mapRelays,links,nid,lid,types,subjects,chapters,sections,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,mapSubpages,typeFieldConfigs,customFieldDefs,calendarEvents,calendarSettings,achievements,levelSystem,panelDir:getPanelDir(),updatedAt:new Date().toISOString()});
+const getPayload = () => ({notes,mapRelays:[],links,nid,lid,types,subjects,chapters,sections,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,mapSubpages,typeFieldConfigs,customFieldDefs,calendarEvents,calendarSettings,achievements,levelSystem,panelDir:getPanelDir(),updatedAt:new Date().toISOString()});
 const parseUpdatedAt = raw => {
   const n=Date.parse(raw||'');
   return Number.isFinite(n)?n:0;
@@ -883,21 +898,11 @@ function loadData() {
   try {
     const d=readJSON(SKEY,null);
     if(d) {
-      notes=(Array.isArray(d.notes)?d.notes:DEFAULTS.notes.slice()).map(normalizeNoteSchema);
-      mapRelays=(Array.isArray(d.mapRelays)?d.mapRelays:[]).map(r=>{
-        const base=normalizeNoteSchema({...r,id:Number(r.id)});
-        return {
-          ...base,
-          title:base.title||'未命名中繼站',
-          isRelay:true,
-          type:'relay',
-          noteTypeBackup:safeStr(r.noteTypeBackup)||safeStr(r.type)||'article',
-          pageRootId:Number.isFinite(parseInt(r.pageRootId,10))?parseInt(r.pageRootId,10):null
-        };
-      }).filter(r=>Number.isFinite(r.id));
+      notes=mergeRelaysIntoNotes(Array.isArray(d.notes)?d.notes:DEFAULTS.notes.slice(),Array.isArray(d.mapRelays)?d.mapRelays:[]);
+      mapRelays=[];
       links=Array.isArray(d.links)?d.links:DEFAULTS.links.slice();
       links.forEach(l=>{l.rel='關聯';l.color=LINK_COLOR;});
-      nid=Number.isFinite(d.nid)?d.nid:Math.max(10,[...notes,...mapRelays].reduce((m,n)=>Math.max(m,n.id||0),0)+1);
+      nid=Number.isFinite(d.nid)?d.nid:Math.max(10,[...notes].reduce((m,n)=>Math.max(m,n.id||0),0)+1);
       lid=Number.isFinite(d.lid)?d.lid:Math.max(10,links.reduce((m,l)=>Math.max(m,l.id||0),0)+1);
       types=Array.isArray(d.types)?d.types:DEFAULTS.types.slice();
       if(!types.some(t=>t.key==='diary')) types.push({key:'diary',label:'日記',color:'#D85A30'});
@@ -2622,7 +2627,7 @@ function toggleSubtaskCompletion(taskIdx,subIdx,checked){
 
 // ==================== 匯入/匯出 ====================
 function exportData() {
-  const json=JSON.stringify({notes,mapRelays,links,nid,lid,types,subjects,chapters,sections,nodeSizes,mapCenterNodeId,mapCenterNodeIds,mapCollapsed,mapSubpages,exported:new Date().toISOString()},null,2);
+  const json=JSON.stringify({notes,mapRelays:[],links,nid,lid,types,subjects,chapters,sections,nodeSizes,mapCenterNodeId,mapCenterNodeIds,mapCollapsed,mapSubpages,exported:new Date().toISOString()},null,2);
   const blob=new Blob([json],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
   const d=new Date();
   a.download=`法律筆記備份_${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}.json`;
@@ -2648,8 +2653,9 @@ function importData(file) {
       if(d.links) d.links.forEach(l=>{l.rel='關聯';l.color=LINK_COLOR;});
       if(confirm('確定 = 完整覆蓋（取代所有現有筆記，保留現有科目/章設定）\n取消 = 合併（只加入新筆記）')) {
         // ★ 覆蓋模式：不覆蓋 types/subjects/chapters
-        notes=d.notes;links=d.links||[];
-        mapRelays=Array.isArray(d.mapRelays)?d.mapRelays.map(r=>({...r,isRelay:true,type:'relay',pageRootId:Number.isFinite(parseInt(r.pageRootId,10))?parseInt(r.pageRootId,10):null})):[];
+        notes=mergeRelaysIntoNotes(d.notes,Array.isArray(d.mapRelays)?d.mapRelays:[]);
+        links=d.links||[];
+        mapRelays=[];
         nodeSizes=d.nodeSizes||{};mapCenterNodeId=d.mapCenterNodeId||null;mapCenterNodeIds=(d.mapCenterNodeIds&&typeof d.mapCenterNodeIds==='object')?d.mapCenterNodeIds:{};mapCollapsed=(d.mapCollapsed&&typeof d.mapCollapsed==='object')?d.mapCollapsed:{};
         mapSubpages=(d.mapSubpages&&typeof d.mapSubpages==='object')?d.mapSubpages:{};
         nid=d.nid||Math.max([...notes,...mapRelays].reduce((m,n)=>Math.max(m,n.id||0),0)+1,10);lid=d.lid||10;notes.sort((a,b)=>b.id-a.id);
@@ -2658,7 +2664,7 @@ function importData(file) {
       } else {
         // ★ 合併模式：同樣不覆蓋 types/subjects/chapters
         const existing=new Set(notes.map(n=>n.id));let added=0;
-        let maxNoteId=[...notes,...mapRelays].reduce((m,x)=>Math.max(m,x.id||0),0);
+        let maxNoteId=[...notes].reduce((m,x)=>Math.max(m,x.id||0),0);
         const importedIdMap={};
         d.notes.forEach(n=>{
           const oldId=Number(n.id);
@@ -2681,8 +2687,10 @@ function importData(file) {
             existing.add(nextId);
             if(Number.isFinite(oldId)) importedIdMap[oldId]=nextId;
             if(nextId>maxNoteId) maxNoteId=nextId;
-            mapRelays.push({...r,id:nextId,isRelay:true,type:'relay',pageRootId:Number.isFinite(parseInt(r.pageRootId,10))?parseInt(r.pageRootId,10):null});
+            const backupType=safeStr(r&&r.noteTypeBackup)||safeStr(r&&r.type)||'article';
+            notes.push(normalizeNoteSchema({...r,id:nextId,isRelay:false,type:backupType,noteTypeBackup:''}));
             if(nextId>=nid) nid=nextId+1;
+            added++;
           });
         }
         if(Array.isArray(d.links)){
@@ -3973,10 +3981,7 @@ function executeQuickCommand(cmd,{closeSheet=true}={}){
   if(cmd==='search') g('searchInput')?.focus();
   else if(cmd==='new') openQuickAddSheet();
   else if(cmd==='relay'){
-    if(!isMapOpen){
-      toggleMapView(true);
-      setTimeout(()=>createMapRelay(),80);
-    }else createMapRelay();
+    showToast('「中繼站」功能已移除');
   }
   else if(cmd==='map') toggleMapView(!isMapOpen);
   else if(cmd==='calendar') toggleCalendarView(currentView!=='calendar');
@@ -4247,7 +4252,6 @@ function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModel
   g('mapToggleBtn').addEventListener('click',()=>toggleMapView(true));
   g('mapBackBtn').addEventListener('click',()=>{if(isMapOpen&&leaveMapSubpage())return;toggleMapView(false);});
   on('mapAddNoteBtn','click',()=>executeQuickCommand('new',{closeSheet:false}));
-  on('mapAddRelayBtn','click',()=>executeQuickCommand('relay',{closeSheet:false}));
   on('mapAssignNoteBtn','click',openMapAssignPanel);
   on('mapSearchInput','input',debounce(()=>{mapFilter.q=g('mapSearchInput').value;saveDataDeferred();if(isMapOpen)drawMap();},250));
   on('mapFilterSub','change',()=>{

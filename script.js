@@ -4044,6 +4044,7 @@ function bindTouchQuickActions(){
       startX=e.clientX;startY=e.clientY;baseX=rect.left;baseY=rect.top;
       touchQuickBar.classList.add('dragging');
       touchQuickDragHandle.setPointerCapture?.(e.pointerId);
+      e.stopPropagation();
       e.preventDefault();
     });
     touchQuickDragHandle.addEventListener('pointermove',e=>{
@@ -4051,13 +4052,18 @@ function bindTouchQuickActions(){
       const dx=e.clientX-startX,dy=e.clientY-startY;
       if(Math.abs(dx)>2||Math.abs(dy)>2) dragMoved=true;
       applyTouchQuickBarPos(baseX+dx,baseY+dy);
+      e.stopPropagation();
       e.preventDefault();
     });
     touchQuickDragHandle.addEventListener('pointerup',e=>{
       touchQuickDragHandle.releasePointerCapture?.(e.pointerId);
+      e.stopPropagation();
       stopDrag();
     });
-    touchQuickDragHandle.addEventListener('pointercancel',stopDrag);
+    touchQuickDragHandle.addEventListener('pointercancel',e=>{
+      e.stopPropagation();
+      stopDrag();
+    });
     window.addEventListener('resize',()=>{
       if(!touchQuickBar) return;
       if(!touchQuickBar.style.left||!touchQuickBar.style.top) return;

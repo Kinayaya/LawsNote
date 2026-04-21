@@ -1,0 +1,755 @@
+// ==================== 工具函數 ====================
+const g = id => document.getElementById(id);
+const on = (id, evt, fn) => { const el=g(id); if(el) el.addEventListener(evt,fn); return el; };
+const val = id => { const el=g(id); return el?el.value:''; };
+const debounce = (fn,ms) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; };
+const showToast = m => { let t=g('toast'); t.textContent=m; t.style.display='block'; setTimeout(()=>t.style.display='none',2200); };
+function showActionToast(msg, undoFn=null){
+  const wrap=g('actionToast'),txt=g('actionToastText'),undoBtn=g('actionToastUndoBtn');
+  if(!wrap||!txt||!undoBtn){showToast(msg);return;}
+  txt.textContent=msg;
+  undoBtn.style.display=undoFn?'inline-flex':'none';
+  undoBtn.onclick=()=>{
+    if(typeof undoFn==='function') undoFn();
+    wrap.classList.remove('open');
+    clearTimeout(actionUndoTimer);
+  };
+  wrap.classList.add('open');
+  clearTimeout(actionUndoTimer);
+  actionUndoTimer=setTimeout(()=>wrap.classList.remove('open'),3200);
+}
+function loadFormTaxonomyPref(){
+  try{
+    const raw=JSON.parse(localStorage.getItem(FORM_TAXONOMY_PREF_KEY)||'{}');
+    const subject=typeof raw.subject==='string'?raw.subject:'';
+    const chapter=typeof raw.chapter==='string'?raw.chapter:'';
+    const section=typeof raw.section==='string'?raw.section:'';
+    return {subject,chapter,section};
+  }catch(e){
+    return {subject:'',chapter:'',section:''};
+  }
+}
+function saveFormTaxonomyPref(subject='', chapter='', section=''){
+  localStorage.setItem(FORM_TAXONOMY_PREF_KEY,JSON.stringify({
+    subject:safeStr(subject),
+    chapter:safeStr(chapter),
+    section:safeStr(section)
+  }));
+}
+function saveLastViewState(){
+  const view=(currentView==='map'||currentView==='calendar'||currentView==='level')?currentView:'notes';
+  const mapStack=(view==='map'&&Array.isArray(mapPageStack))?mapPageStack.filter(id=>mapNodeById(id)).slice(-12):[];
+  localStorage.setItem(LAST_VIEW_STATE_KEY,JSON.stringify({view,mapPageStack:mapStack}));
+}
+function applyThemeMode(mode='light'){
+  const dark=mode==='dark';
+  document.body.classList.toggle('dark-mode',dark);
+  localStorage.setItem(THEME_MODE_KEY,dark?'dark':'light');
+  const btn=g('themeToggleBtn');
+  if(btn) btn.textContent=dark?'☀️ 淺色模式':'🌙 暗色模式';
+}
+function toggleThemeMode(){
+  const isDark=document.body.classList.contains('dark-mode');
+  applyThemeMode(isDark?'light':'dark');
+  showToast(isDark?'已切換淺色模式':'已切換暗色模式');
+}
+function updateNotesHomeVisibility(){
+  if(currentView!=='notes') return;
+  const hasSearch=!!searchQ.trim();
+  const notesView=g('notesView');
+  if(notesView) notesView.style.display=hasSearch?'block':'none';
+  const subbar=g('subbar');
+  if(subbar) subbar.style.display=hasSearch?'flex':'none';
+  const advanced=g('filterAdvanced');
+  if(advanced) advanced.style.display=hasSearch?'block':'none';
+  const sb=g('search-results-bar');
+  if(sb&&!hasSearch){
+    sb.style.display='block';
+    sb.textContent='請先使用上方搜尋欄查找筆記。';
+  }
+}
+function restoreLastViewState(){
+  let state={view:'notes',mapPageStack:[]};
+  try{
+    const raw=JSON.parse(localStorage.getItem(LAST_VIEW_STATE_KEY)||'{}');
+    if(['notes','map','calendar','level'].includes(raw.view)) state.view=raw.view;
+    if(Array.isArray(raw.mapPageStack)) state.mapPageStack=raw.mapPageStack.map(v=>parseInt(v,10)).filter(id=>mapNodeById(id));
+  }catch(e){}
+  if(state.view==='map'){
+    toggleMapView(true);
+    if(state.mapPageStack.length){
+      mapPageStack=state.mapPageStack.slice();
+      updateMapPagePath();
+      nodePos={};
+      forceLayout();
+      drawMap();
+    }
+    return;
+  }
+  if(state.view==='calendar'){
+    toggleCalendarView(true);
+    return;
+  }
+  if(state.view==='level'){
+    toggleLevelSystemView(true);
+    return;
+  }
+  toggleMapView(false);
+}
+function playFocusTimerAlarm(){
+  try{
+    const Ctx=window.AudioContext||window.webkitAudioContext;
+    if(!Ctx) return;
+    const ctx=new Ctx();
+    const now=ctx.currentTime;
+    [0,0.18,0.36].forEach((offset,idx)=>{
+      const osc=ctx.createOscillator(), gain=ctx.createGain();
+      osc.type='sine';osc.frequency.value=idx%2===0?880:660;
+      gain.gain.setValueAtTime(0.0001,now+offset);
+      gain.gain.exponentialRampToValueAtTime(0.18,now+offset+0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001,now+offset+0.15);
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.start(now+offset);osc.stop(now+offset+0.16);
+    });
+    setTimeout(()=>ctx.close(),1200);
+  }catch(e){}
+}
+function updateFocusTimerDisplay(){
+  const m=Math.floor(focusTimerRemainingSec/60),s=focusTimerRemainingSec%60;
+  const display=g('focusTimerDisplay');
+  if(display) display.textContent=`${pad2(m)}:${pad2(s)}`;
+}
+function stopFocusTimer(){
+  clearInterval(focusTimerInterval);
+  focusTimerInterval=null;
+  focusTimerRunning=false;
+}
+function resetFocusTimer(){
+  stopFocusTimer();
+  const min=Math.max(1,Math.min(180,parseInt(g('focusTimerMinutes')?.value,10)||25));
+  focusTimerRemainingSec=min*60;
+  updateFocusTimerDisplay();
+}
+function startFocusTimer(){
+  if(focusTimerRunning) return;
+  if(focusTimerRemainingSec<=0) resetFocusTimer();
+  focusTimerRunning=true;
+  focusTimerInterval=setInterval(()=>{
+    focusTimerRemainingSec--;
+    updateFocusTimerDisplay();
+    if(focusTimerRemainingSec<=0){
+      stopFocusTimer();
+      const alertBox=g('focusTimerAlert');
+      if(alertBox) alertBox.classList.add('open');
+      playFocusTimerAlarm();
+      showToast('⏰ 計時結束');
+    }
+  },1000);
+}
+function openFocusTimer(){
+  resetFocusTimer();
+  g('focusTimerModal')?.classList.add('open');
+}
+const getPanelDir = () => localStorage.getItem('klaws_panel_dir')==='bottom'?'bottom':'side';
+const applyPanelDir = dir => {
+  const next=dir==='bottom'?'bottom':'side';
+  document.body.classList.toggle('panel-dir-bottom',next==='bottom');
+  localStorage.setItem('klaws_panel_dir',next);
+  const btn=g('panelDirBtn');
+  if(btn) btn.textContent=next==='bottom'?'↥ 底部展開':'↤ 右側展開';
+};
+const togglePanelDir = () => {
+  const next=getPanelDir()==='side'?'bottom':'side';
+  const openPanelIds=['dp','fp','tp'].filter(id=>g(id)?.classList.contains('open'));
+  applyPanelDir(next);
+  if(openPanelIds.length){
+    openPanelIds.forEach(id=>g(id)?.classList.remove('open'));
+    requestAnimationFrame(()=>{
+      openPanelIds.forEach(id=>g(id)?.classList.add('open'));
+      syncSidePanelState();
+    });
+  }
+  showToast(next==='bottom'?'已切換為底部展開':'已切換為右側展開');
+};
+const saveDataDeferred = () => { clearTimeout(_saveTimer); _saveTimer=setTimeout(()=>{ if(JSON.stringify({notes,links}).length>4500000) showToast('⚠️ 資料接近儲存上限'); saveData(); },500); };
+const typeByKey = k => k?(types.find(t=>t.key===k)||{key:k,label:k,color:'#888'}):{key:'',label:'無',color:'#888'};
+const subByKey = k => k?(subjects.find(s=>s.key===k)||{key:k,label:k,color:'#888'}):{key:'',label:'無',color:'#888'};
+const chapterByKey = k => k?(chapters.find(c=>c.key===k)||{key:k,label:k,subject:'all'}):{key:'',label:'無',subject:'all'};
+const sectionByKey = k => k?(sections.find(s=>s.key===k)||{key:k,label:k,chapter:'all'}):{key:'',label:'無',chapter:'all'};
+const noteScopeKeys = (n,arrKey,singleKey) => {
+  const arr=Array.isArray(n&&n[arrKey])?n[arrKey].filter(Boolean):[];
+  return uniq(arr.length?arr:((n&&n[singleKey])?[n[singleKey]]:[]));
+};
+const noteSubjects = n => noteScopeKeys(n,'subjects','subject');
+const noteChapters = n => noteScopeKeys(n,'chapters','chapter');
+const noteSections = n => noteScopeKeys(n,'sections','section');
+const noteSubjectText = n => noteSubjects(n).join(' ');
+const noteChapterText = n => noteChapters(n).join(' ');
+const noteSectionText = n => noteSections(n).join(' ');
+const mapHasTaxonomyFilter = () => mapFilter.sub!=='all'||mapFilter.chapter!=='all'||mapFilter.section!=='all';
+const intersects = (arr1,arr2) => arr1.some(x=>arr2.includes(x));
+const TAG_COLLECTIONS = {type:()=>types, sub:()=>subjects, subject:()=>subjects, chapter:()=>chapters, section:()=>sections};
+const tagCollection = kind => (TAG_COLLECTIONS[kind]||(()=>[]))();
+const tagUsageCount = (kind,key) => {
+  if(kind==='type') return notes.filter(n=>n.type===key).length;
+  if(kind==='sub') return [...notes,...mapRelays].filter(n=>noteSubjects(n).includes(key)).length;
+  if(kind==='section') return [...notes,...mapRelays].filter(n=>noteSections(n).includes(key)).length;
+  return [...notes,...mapRelays].filter(n=>noteChapters(n).includes(key)).length;
+};
+const noteById = id => notes.find(n=>n.id===id);
+const relayById = _id => null;
+const mapNodeById = id => noteById(id);
+const allMapNodes = () => [...notes];
+const isRelayNode = _n => false;
+const noteTags = _n => [];
+const noteHasVisibleContent = n => !!(safeStr(n.body).trim()||safeStr(n.detail).trim()||noteTags(n).length||(Array.isArray(n.todos)&&n.todos.length));
+const noteExtraFields = n => (n&&n.extraFields&&typeof n.extraFields==='object'&&!Array.isArray(n.extraFields))?n.extraFields:{};
+const getFieldDef = key => BUILTIN_FIELD_DEFS[key]||customFieldDefs[key]||{key,label:key,kind:'text',placeholder:''};
+const getTypeFieldKeys = typeKey => {
+  const base=Array.isArray(typeFieldConfigs[typeKey])&&typeFieldConfigs[typeKey].length?typeFieldConfigs[typeKey]:(DEFAULT_TYPE_FIELD_KEYS[typeKey]||DEFAULT_NORMAL_FIELD_KEYS);
+  return uniq(base.filter(k=>getFieldDef(k)));
+};
+const renderFieldValue = (n,key) => {
+  if(key==='body') return n.body||'';
+  if(key==='detail') return n.detail||'';
+  if(key==='todos') return renderTodoHtml(n.todos);
+  return noteExtraFields(n)[key]||'';
+};
+const mapCardFieldText = (n,key) => {
+  if(key==='todos'){
+    const list=(Array.isArray(n&&n.todos)?n.todos:[]).filter(t=>t&&safeStr(t.text).trim());
+    return list.map(t=>`${t.done?'✅':'⬜'} ${safeStr(t.text).trim()}`).join('\n');
+  }
+  return safeStr(renderFieldValue(n,key)).trim();
+};
+const renderMapCardPreview = n => {
+  const keys=getTypeFieldKeys(n.type).filter(key=>key!=='tags');
+  const sections=keys.map(key=>mapCardFieldText(n,key)).filter(text=>!!text);
+  if(!sections.length) return '';
+  return sections.map(text=>`<div class="map-card-body-segment"><div class="map-card-body-text">${escapeHtml(text)}</div></div>`).join('');
+};
+const noteFieldValueForEdit = (n,key) => {
+  if(key==='body') return n.body||'';
+  if(key==='detail') return n.detail||'';
+  if(key==='todos') return formatTodosForEdit(n.todos);
+  return noteExtraFields(n)[key]||'';
+};
+const hexRgb = hex => { if(hex.length===4) hex='#'+hex[1]+hex[1]+hex[2]+hex[2]+hex[3]+hex[3]; return [parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)]; };
+const lightC = hex => `rgba(${hexRgb(hex).join(',')},0.12)`;
+const darkC = hex => { let r=hexRgb(hex); return `rgb(${Math.round(r[0]*.55)},${Math.round(r[1]*.55)},${Math.round(r[2]*.55)})`; };
+const getAiKey = () => localStorage.getItem('klaws_ai_key')||'';
+const saveAiKey = k => localStorage.setItem('klaws_ai_key',k);
+const getAiModel = () => localStorage.getItem('klaws_ai_model')||'openrouter/free';
+const saveAiModel = m => localStorage.setItem('klaws_ai_model',m);
+const getSyncConfig = () => { try { return JSON.parse(localStorage.getItem(SYNC_KEY)||'{}'); } catch(e) { return {}; } };
+const saveSyncConfig = cfg => localStorage.setItem(SYNC_KEY,JSON.stringify(cfg||{}));
+const saveSyncConfigFromInputs = () => {
+  const token=(g('syncTokenInput')?.value||'').trim();
+  const gistId=(g('syncGistInput')?.value||'').trim();
+  const autoPush=!!g('syncAutoPush')?.checked;
+  const autoPull=!!g('syncAutoPull')?.checked;
+  if(token&&gistId) saveSyncConfig({token,gistId,autoPush,autoPull});
+};
+const getMapScopeContextKey = () => {
+  const pageRoot=mapPageStack.length?mapPageStack[mapPageStack.length-1]:'root';
+  return `${mapFilter.sub||'all'}::${mapFilter.chapter||'all'}::${mapFilter.section||'all'}::${pageRoot}`;
+};
+const getMapCenterContextKey = getMapScopeContextKey;
+const getMapCollapseContextKey = getMapScopeContextKey;
+const mapCollapseKey = noteId => `${getMapCollapseContextKey()}::${noteId}`;
+const getCollapsedNodesForCurrentContext = () => {
+  const keyPrefix=`${getMapCollapseContextKey()}::`, collapsed={};
+  Object.keys(mapCollapsed||{}).forEach(key=>{
+    if(!mapCollapsed[key]||typeof key!=='string'||!key.startsWith(keyPrefix)) return;
+    const id=parseInt(key.slice(keyPrefix.length),10);
+    if(Number.isFinite(id)) collapsed[id]=true;
+  });
+  return collapsed;
+};
+const isMapNodeCollapsed = noteId => !!mapCollapsed[mapCollapseKey(noteId)];
+const mapSubpageContextKey = () => 'global';
+const mapSubpageKey = noteId => `${mapSubpageContextKey()}::${noteId}`;
+const findSubpageKeyByNoteId = noteId => {
+  const exactKey=mapSubpageKey(noteId);
+  if(mapSubpages[exactKey]) return exactKey;
+  const suffix=`::${noteId}`;
+  return Object.keys(mapSubpages||{}).find(key=>key.endsWith(suffix))||null;
+};
+const hasSubpageForNode = noteId => !!findSubpageKeyByNoteId(noteId);
+const removeSubpageForNode = noteId => {
+  const key=findSubpageKeyByNoteId(noteId);
+  if(!key) return false;
+  delete mapSubpages[key];
+  return true;
+};
+const normalizeMapSubpages = raw => {
+  const src=(raw&&typeof raw==='object'&&!Array.isArray(raw))?raw:{}, next={};
+  Object.keys(src).forEach(key=>{
+    const noteId=parseInt(String(key).split('::').pop(),10);
+    if(!Number.isFinite(noteId)) return;
+    const item=(src[key]&&typeof src[key]==='object'&&!Array.isArray(src[key]))?src[key]:{};
+    const normalizedKey=mapSubpageKey(noteId);
+    if(next[normalizedKey]) return;
+    const noteIdsRaw=Array.isArray(item.noteIds)?item.noteIds:[];
+    const noteIds=[...new Set(noteIdsRaw.map(v=>parseInt(v,10)).filter(Number.isFinite).filter(v=>v!==noteId))];
+    next[normalizedKey]={...item,rootId:noteId,createdAt:item.createdAt||new Date().toISOString(),noteIds};
+  });
+  return next;
+};
+const normalizeMapCollapsed = raw => {
+  const src=(raw&&typeof raw==='object'&&!Array.isArray(raw))?raw:{}, next={};
+  const legacyPrefix='all::all::all::root::';
+  Object.keys(src).forEach(key=>{
+    if(!src[key]) return;
+    let normalizedKey=String(key);
+    if(/^\d+$/.test(normalizedKey)) normalizedKey=`${legacyPrefix}${normalizedKey}`;
+    const noteId=parseInt(normalizedKey.split('::').pop(),10);
+    if(!Number.isFinite(noteId)) return;
+    if(!normalizedKey.includes('::')) return;
+    next[normalizedKey]=true;
+  });
+  return next;
+};
+const currentSubpageRootId = () => mapPageStack.length?mapPageStack[mapPageStack.length-1]:null;
+const isInMapSubpage = () => !!currentSubpageRootId();
+const relayPageRootId = relay => {
+  const raw=(relay&&relay.pageRootId!==undefined&&relay.pageRootId!==null)?parseInt(relay.pageRootId,10):NaN;
+  return Number.isFinite(raw)?raw:null;
+};
+function isNodeInCurrentMapPage(nodeId){
+  const node=mapNodeById(nodeId);
+  if(!node) return false;
+  const currentRoot=currentSubpageRootId();
+  if(isRelayNode(node)){
+    const relayRoot=relayPageRootId(node);
+    if(currentRoot) return relayRoot===currentRoot;
+    return relayRoot===null;
+  }
+  if(currentRoot) return nodeId!==currentRoot&&getDescendantIds(currentRoot).has(nodeId);
+  const hidden=new Set();
+  Object.keys(mapSubpages||{}).forEach(key=>{
+    const rootId=parseInt(String(key).split('::').pop(),10);
+    if(!Number.isFinite(rootId)) return;
+    const descendants=getDescendantIds(rootId);
+    descendants.delete(rootId);
+    descendants.forEach(id=>hidden.add(id));
+  });
+  return !hidden.has(nodeId);
+}
+const isNodeInCurrentSubpage = noteId => {
+  if(!isInMapSubpage()) return true;
+  const currentRoot=currentSubpageRootId();
+  if(!currentRoot) return false;
+  const relay=relayById(noteId);
+  if(relay) return relayPageRootId(relay)===currentRoot;
+  return getDescendantIds(currentRoot).has(noteId);
+};
+const mapTitleMarkers = noteId => {
+  const marks=[];
+  if(getMapCenterFromScopes()===noteId) marks.push('⭐️');
+  if(hasSubpageForNode(noteId)) marks.push('△');
+  return marks.join('');
+};
+const getMapCenterFromScopes = () => {
+  const key=getMapCenterContextKey();
+  const scopedId=mapCenterNodeIds[key];
+  if(scopedId&&mapNodeById(scopedId)) return scopedId;
+  return (mapCenterNodeId&&mapNodeById(mapCenterNodeId))?mapCenterNodeId:null;
+};
+const setMapCenterForCurrentScope = id => {
+  if(!Number.isFinite(id)) return;
+  mapCenterNodeIds[getMapCenterContextKey()]=id;
+  mapCenterNodeId=id;
+};
+const getPayload = () => ({notes,mapRelays:[],links,nid,lid,types,subjects,chapters,sections,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,mapSubpages,typeFieldConfigs,customFieldDefs,calendarEvents,calendarSettings,achievements,levelSystem,panelDir:getPanelDir(),updatedAt:new Date().toISOString()});
+const parseUpdatedAt = raw => {
+  const n=Date.parse(raw||'');
+  return Number.isFinite(n)?n:0;
+};
+async function githubSyncRequest(url,opts={}) {
+  const res=await fetch(url,opts);
+  if(!res.ok){
+    let msg=`HTTP ${res.status}`;
+    try{ const err=await res.json(); if(err&&err.message) msg=err.message; }catch(e){}
+    throw new Error(msg);
+  }
+  return res;
+}
+async function uploadToGist(token,gistId){
+  const data=JSON.stringify(getPayload());
+  await githubSyncRequest(`https://api.github.com/gists/${gistId}`,{
+    method:'PATCH',
+    headers:{'Authorization':`token ${token}`,'Content-Type':'application/json'},
+    body:JSON.stringify({files:{[SYNC_FILE]:{content:data}}})
+  });
+}
+async function downloadFromGist(token,gistId){
+  const res=await githubSyncRequest(`https://api.github.com/gists/${gistId}`,{headers:{'Authorization':`token ${token}`}});
+  const j=await res.json();
+  const f=j&&j.files&&j.files[SYNC_FILE];
+  if(!f||!f.content) throw new Error(`找不到 ${SYNC_FILE}`);
+  return f.content;
+}
+async function autoPullIfNeeded(){
+  const cfg=getSyncConfig();
+  if(!cfg.token||!cfg.gistId||!cfg.autoPull) return;
+  try{
+    const content=await downloadFromGist(cfg.token,cfg.gistId);
+    const cloud=JSON.parse(content);
+    const local=JSON.parse(localStorage.getItem(SKEY)||'{}');
+    if(parseUpdatedAt(cloud.updatedAt)>parseUpdatedAt(local.updatedAt)){
+      localStorage.setItem(SKEY,content);
+      loadData();
+      rebuildUI();
+      render();
+      showToast('已自動載入雲端較新版本');
+    }
+  }catch(e){
+    console.warn('Auto pull failed',e);
+  }
+}
+async function autoPushIfEnabled(){
+  const cfg=getSyncConfig();
+  if(!cfg.token||!cfg.gistId||!cfg.autoPush) return;
+  try{ await uploadToGist(cfg.token,cfg.gistId); }
+  catch(e){ console.warn('Auto push failed',e); }
+}
+const laneContextKey = () => `${mapFilter.sub||'all'}::${mapFilter.section||'all'}`;
+const getLaneConfig = () => {
+  const key=laneContextKey();
+const raw=mapLaneConfigs[key]||{};
+  const count=normalizeLaneCount(raw.count||((Array.isArray(raw.names)&&raw.names.length)||DEFAULT_LANE_NAMES.length));
+  const names=Array.from({length:count},(_,idx)=>((raw.names&&raw.names[idx])||'').trim()||defaultLaneNameAt(idx));
+  mapLaneConfigs[key]={count,names};
+  return {key,count,names};
+};
+const estimateMapTextLines = (text, charsPerLine) => {
+  const rows=safeStr(text).split('\n');
+  return rows.reduce((sum,row)=>sum+Math.max(1,Math.ceil((row.length||1)/charsPerLine)),0);
+};
+const getMapCardBox = id => {
+  const scale=Math.max(0.7,Math.min(2.3,getNodeRadius(id)/MAP_NODE_RADIUS_DEFAULT));
+  const width=Math.round(250*scale);
+  const note=mapNodeById(id)||{};
+  const keys=getTypeFieldKeys(note.type).filter(key=>key!=='tags');
+  const previewTexts=keys.map(key=>mapCardFieldText(note,key)).filter(text=>!!text);
+  if(!previewTexts.length) return {width,height:86,bodyLines:0};
+  const charsPerLine=Math.max(9,Math.floor((width-24)/10));
+  const bodyLines=previewTexts.reduce((sum,text)=>sum+estimateMapTextLines(text,charsPerLine),0);
+  const segmentExtra=Math.max(0,previewTexts.length-1)*9;
+  const height=86+bodyLines*18+segmentExtra;
+  return {width,height,bodyLines};
+};
+const ensureUsageStart = () => {
+  const raw=localStorage.getItem(USAGE_START_KEY);
+  if(raw&&Number.isFinite(Date.parse(raw))) return raw;
+  const now=new Date().toISOString();
+  localStorage.setItem(USAGE_START_KEY,now);
+  return now;
+};
+const formatUsageDuration = (startRaw,endRaw=new Date()) => {
+  const start=new Date(startRaw),end=new Date(endRaw);
+  if(!Number.isFinite(start.getTime())||!Number.isFinite(end.getTime())||end<start) return '0分鐘';
+  const mins=Math.floor((end-start)/60000);
+  if(mins<60) return `${mins}分鐘`;
+  const years=end.getFullYear()-start.getFullYear();
+  const months=end.getMonth()-start.getMonth();
+  const days=end.getDate()-start.getDate();
+  const hours=end.getHours()-start.getHours();
+  const minutes=end.getMinutes()-start.getMinutes();
+  let y=years,m=months,d=days,h=hours,min=minutes;
+  if(min<0){min+=60;h--;}
+  if(h<0){h+=24;d--;}
+  if(d<0){
+    const prevMonthEnd=new Date(end.getFullYear(),end.getMonth(),0).getDate();
+    d+=prevMonthEnd;m--;
+  }
+  if(m<0){m+=12;y--;}
+  const parts=[];
+  if(y>0) parts.push(`${y}年`);
+  if(m>0) parts.push(`${m}月`);
+  if(d>0) parts.push(`${d}天`);
+  if(!parts.length&&h>0) parts.push(`${h}小時`);
+  if(!parts.length&&min>=0) parts.push(`${min}分鐘`);
+  return parts.join('');
+};
+
+const usageMinutesSinceStart = () => Math.max(0,Math.floor((new Date()-new Date(ensureUsageStart()))/60000));
+const doneTodoCount = todos => (Array.isArray(todos)?todos:[]).filter(t=>t&&t.done&&safeStr(t.text).trim()).length;
+function getCurrentTitle(){
+  const pts=Math.max(0,Number(getLevelAchievementPoints())||0);
+  return TITLE_LEVELS.reduce((pick,lvl)=>pts>=lvl.min?lvl:pick,TITLE_LEVELS[0]);
+}
+function applyBrandTitle(){
+  const el=g('brandTitleBadge');
+  if(!el) return;
+  const lvl=getCurrentTitle();
+  el.textContent=`LV${lvl.level}・${lvl.name}`;
+}
+function normalizeAchievements(){
+  const base=(achievements&&typeof achievements==='object')?achievements:{};
+  achievements={
+    points:Math.max(0,parseInt(base.points,10)||0),
+    taskCompletions:Math.max(0,parseInt(base.taskCompletions,10)||0),
+    unlocked:(base.unlocked&&typeof base.unlocked==='object'&&!Array.isArray(base.unlocked))?base.unlocked:{},
+    lastUsageMinuteReward:Math.max(0,parseInt(base.lastUsageMinuteReward,10)||0)
+  };
+}
+const difficultyRank=d=>({E:1,N:2,H:3}[d]||1);
+const skillXpRequired=level=>Math.round(28+Math.max(1,level)*10);
+const getSkillStage=(lvl=0)=>LEVEL_STAGES.find(s=>lvl>=s.min&&lvl<=s.max)?.rank||'E';
+const getLevelAchievementPoints=()=>((levelSystem.achievements||[]).filter(a=>a.unlocked).reduce((sum,a)=>sum+(Number(a.points)||0),0));
+function normalizeLevelSystem(){
+  const base=(levelSystem&&typeof levelSystem==='object')?levelSystem:{};
+  const settings=(base.settings&&typeof base.settings==='object')?base.settings:{};
+  const rawXp=settings.xpByDifficulty||{};
+  const wasBoostApplied=!!settings.xpBoost150Applied;
+  const normalizeXp=key=>{
+    const baseXp=Math.max(1,parseInt(rawXp[key],10)||BASE_XP_BY_DIFFICULTY[key]);
+    return wasBoostApplied?baseXp:Math.max(1,Math.round(baseXp*XP_BOOST_MULTIPLIER));
+  };
+  levelSystem={
+    skills:Array.isArray(base.skills)?base.skills:[],
+    tasks:Array.isArray(base.tasks)?base.tasks:[],
+    achievements:Array.isArray(base.achievements)?base.achievements:[],
+    settings:{
+      xpByDifficulty:{
+        E:normalizeXp('E'),
+        N:normalizeXp('N'),
+        H:normalizeXp('H')
+      },
+      xpBoost150Applied:true
+    }
+  };
+  levelSystem.skills=levelSystem.skills.map(s=>({id:s.id||Date.now()+Math.random(),name:safeStr(s.name||'未命名技能'),level:Math.max(0,Math.min(100,parseInt(s.level,10)||1)),xp:Math.max(0,parseInt(s.xp,10)||0),lastDoneByDiff:(s.lastDoneByDiff&&typeof s.lastDoneByDiff==='object')?s.lastDoneByDiff:{},lastDecayAt:s.lastDecayAt||new Date().toISOString()}));
+  levelSystem.tasks=levelSystem.tasks.map(t=>({
+    id:t.id||Date.now()+Math.random(),
+    name:safeStr(t.name||'未命名任務'),
+    difficulty:['E','N','H'].includes(t.difficulty)?t.difficulty:'N',
+    repeatCycle:TASK_REPEAT_OPTIONS.some(opt=>opt.key===t.repeatCycle)?t.repeatCycle:'daily',
+    completions:Math.max(0,parseInt(t.completions,10)||0),
+    lastCompletedAt:t.lastCompletedAt||'',
+    lastReward:(t.lastReward&&typeof t.lastReward==='object')?t.lastReward:null,
+    subtasks:Array.isArray(t.subtasks)?t.subtasks.map(sub=>({
+      id:sub.id||Date.now()+Math.random(),
+      text:safeStr(sub.text||'').trim(),
+      difficulty:['E','N','H'].includes(sub.difficulty)?sub.difficulty:(['E','N','H'].includes(t.difficulty)?t.difficulty:'N'),
+      completions:Math.max(0,parseInt(sub.completions,10)||0),
+      lastCompletedAt:sub.lastCompletedAt||'',
+      lastReward:(sub.lastReward&&typeof sub.lastReward==='object')?sub.lastReward:null
+    })).filter(sub=>sub.text):[]
+  }));
+  levelSystem.achievements=levelSystem.achievements.map(a=>({id:a.id||Date.now()+Math.random(),name:safeStr(a.name||'未命名成就'),target:Math.max(1,parseInt(a.target,10)||1),condition:safeStr(a.condition||'累積完成任務次數'),difficulty:['E','N','H'].includes(a.difficulty)?a.difficulty:'N',points:Math.max(0,parseInt(a.points,10)||0),progress:Math.max(0,parseInt(a.progress,10)||0),unlocked:!!a.unlocked}));
+}
+function migrateLegacyAchievements(){
+  if(levelSystem.achievements.length) return;
+  normalizeAchievements();
+  const legacyDefs=[
+    {name:'任務啟程',target:1,condition:'累積完成任務次數',difficulty:'N',points:10,progress:achievements.taskCompletions},
+    {name:'十連達成',target:10,condition:'累積完成任務次數',difficulty:'N',points:30,progress:achievements.taskCompletions},
+    {name:'專注一小時',target:60,condition:'累積使用分鐘',difficulty:'N',points:20,progress:usageMinutesSinceStart()}
+  ];
+  levelSystem.achievements=legacyDefs.map((d,i)=>({id:`legacy_${i}`,...d,unlocked:d.progress>=d.target}));
+}
+function refreshAchievementProgress(){
+  normalizeLevelSystem();
+  const usageMins=usageMinutesSinceStart();
+  const completionByDifficulty={E:0,N:0,H:0};
+  (levelSystem.tasks||[]).forEach(task=>{
+    const cnt=Number(task.completions)||0;
+    if(difficultyRank(task.difficulty)>=difficultyRank('E')) completionByDifficulty.E+=cnt;
+    if(difficultyRank(task.difficulty)>=difficultyRank('N')) completionByDifficulty.N+=cnt;
+    if(difficultyRank(task.difficulty)>=difficultyRank('H')) completionByDifficulty.H+=cnt;
+  });
+  levelSystem.achievements.forEach(def=>{
+    const value=def.condition.includes('分鐘')?usageMins:completionByDifficulty[def.difficulty||'N'];
+    def.progress=Math.max(def.progress||0,value);
+    if(!def.unlocked&&def.progress>=def.target) def.unlocked=true;
+  });
+}
+const getTaskRepeatLabel=cycle=>TASK_REPEAT_OPTIONS.find(opt=>opt.key===cycle)?.label||'每日';
+const getSubtaskXpGain = difficulty => Math.max(1,levelSystem.settings.xpByDifficulty[difficulty]||Math.round(BASE_XP_BY_DIFFICULTY[difficulty||'N']*XP_BOOST_MULTIPLIER));
+function snapshotSkill(skill){
+  return {level:skill.level||1,xp:skill.xp||0,lastDoneByDiff:{...(skill.lastDoneByDiff||{})},lastDecayAt:skill.lastDecayAt||''};
+}
+function restoreSkill(skill,state){
+  if(!skill||!state) return;
+  skill.level=Math.max(0,Math.min(100,parseInt(state.level,10)||1));
+  skill.xp=Math.max(0,parseInt(state.xp,10)||0);
+  skill.lastDoneByDiff=(state.lastDoneByDiff&&typeof state.lastDoneByDiff==='object')?{...state.lastDoneByDiff}:{};
+  skill.lastDecayAt=state.lastDecayAt||skill.lastDecayAt||new Date().toISOString();
+}
+function getTaskCycleKey(task,date=new Date()){
+  const dt=new Date(date);
+  if(!Number.isFinite(dt.getTime())) return '';
+  if(task.repeatCycle==='every3days') return `3d-${Math.floor(dt.getTime()/86400000/3)}`;
+  if(task.repeatCycle==='weekly'){
+    const copy=new Date(dt);
+    const day=(copy.getDay()+6)%7;
+    copy.setDate(copy.getDate()-day);
+    return `w-${copy.getFullYear()}-${pad2(copy.getMonth()+1)}-${pad2(copy.getDate())}`;
+  }
+  if(task.repeatCycle==='monthly') return `m-${dt.getFullYear()}-${pad2(dt.getMonth()+1)}`;
+  if(task.repeatCycle==='yearly') return `y-${dt.getFullYear()}`;
+  return `d-${dt.getFullYear()}-${pad2(dt.getMonth()+1)}-${pad2(dt.getDate())}`;
+}
+function isTaskCompletedInCurrentCycle(task){
+  const last=Date.parse(task.lastCompletedAt||'');
+  if(!Number.isFinite(last)) return false;
+  return getTaskCycleKey(task,new Date(last))===getTaskCycleKey(task,new Date());
+}
+function isSubtaskCompletedInCurrentCycle(task,subtask){
+  const last=Date.parse(subtask.lastCompletedAt||'');
+  if(!Number.isFinite(last)) return false;
+  return getTaskCycleKey(task,new Date(last))===getTaskCycleKey(task,new Date());
+}
+function getSkillDecayRule(skillLevel){
+  const stage=getSkillStage(skillLevel);
+  if(stage==='E'||stage==='F') return {days:1,levels:1,difficulty:'E'};
+  if(stage==='D') return {days:1,levels:1,difficulty:'N'};
+  if(stage==='C') return {days:3,levels:3,difficulty:'N'};
+  if(stage==='B'||stage==='B+') return {days:7,levels:5,difficulty:'H'};
+  if(stage==='A'||stage==='A+') return {days:30,levels:10,difficulty:'H'};
+  return {days:365,levels:20,difficulty:'H'};
+}
+function getSkillDecayStatus(skill){
+  const rule=getSkillDecayRule(skill.level);
+  const lastBy=skill.lastDoneByDiff||{};
+  const candidates=['E','N','H'].filter(d=>difficultyRank(d)>=difficultyRank(rule.difficulty)).map(d=>Date.parse(lastBy[d]||0)).filter(Number.isFinite);
+  if(!candidates.length) return {...rule,daysLeft:rule.days,lastActiveAt:null};
+  const lastActive=Math.max(...candidates);
+  const elapsedDays=Math.floor((Date.now()-lastActive)/86400000);
+  return {...rule,daysLeft:Math.max(0,rule.days-elapsedDays),lastActiveAt:lastActive};
+}
+function applySkillDecay(){
+  const now=Date.now();
+  levelSystem.skills.forEach(skill=>{
+    const rule=getSkillDecayRule(skill.level);
+    const needMs=rule.days*86400000;
+    const lastBy=skill.lastDoneByDiff||{};
+    const candidates=['E','N','H'].filter(difficulty=>difficultyRank(difficulty)>=difficultyRank(rule.difficulty)).map(difficulty=>Date.parse(lastBy[difficulty]||0)).filter(Number.isFinite);
+    const lastActive=candidates.length?Math.max(...candidates):0;
+    if(!lastActive) return;
+    const elapsed=now-lastActive;
+    const passed=Math.floor(elapsed/needMs);
+    if(passed<=0) return;
+    const lastDecayAt=Date.parse(skill.lastDecayAt||0);
+    if(Number.isFinite(lastDecayAt)&&now-lastDecayAt<needMs) return;
+    skill.level=Math.max(0,skill.level-passed*rule.levels);
+    skill.xp=0;
+    skill.lastDecayAt=new Date(now).toISOString();
+  });
+}
+function gainSkillXp(skill,difficulty,gain){
+  const nowIso=new Date().toISOString();
+  skill.xp=(skill.xp||0)+Math.max(1,parseInt(gain,10)||0);
+  skill.lastDoneByDiff=skill.lastDoneByDiff||{};
+  skill.lastDoneByDiff[difficulty]=nowIso;
+  while(skill.level<100){
+    const need=skillXpRequired(skill.level);
+    if(skill.xp<need) break;
+    skill.xp-=need;
+    skill.level++;
+  }
+  if(skill.level>=100){skill.level=100;skill.xp=0;}
+}
+function completeLevelTask(taskId,skillId,gainOverride=0){
+  const task=levelSystem.tasks.find(t=>String(t.id)===String(taskId));
+  const skill=levelSystem.skills.find(s=>String(s.id)===String(skillId));
+  if(!task||!skill) return false;
+  const nowIso=new Date().toISOString();
+  task.completions=(task.completions||0)+1;
+  task.lastCompletedAt=nowIso;
+  const gain=gainOverride>0?gainOverride:(levelSystem.settings.xpByDifficulty[task.difficulty]||Math.round(BASE_XP_BY_DIFFICULTY[task.difficulty||'N']*XP_BOOST_MULTIPLIER));
+  task.lastReward={cycleKey:getTaskCycleKey(task,new Date()),skillId:String(skill.id),skillPrev:snapshotSkill(skill),gain};
+  gainSkillXp(skill,task.difficulty,gain);
+  refreshAchievementProgress();
+  applyBrandTitle();
+  return true;
+}
+function rollbackTaskCompletion(task,skill){
+  if(!task||!skill||!task.lastReward) return false;
+  restoreSkill(skill,task.lastReward.skillPrev);
+  task.completions=Math.max(0,(task.completions||0)-1);
+  task.lastCompletedAt='';
+  task.lastReward=null;
+  refreshAchievementProgress();
+  applyBrandTitle();
+  return true;
+}
+
+function normalizeNoteIds(forceReindexAll=false) {
+  const seen={}, duplicates=new Set();
+  [...notes,...mapRelays].forEach(n=>{
+    if(!Number.isFinite(n.id) || seen[n.id]) duplicates.add(n.id);
+    seen[n.id]=true;
+  });
+  if(!forceReindexAll && !duplicates.size) {
+    nid=Math.max(nid||1,[...notes,...mapRelays].reduce((m,n)=>Math.max(m,n.id||0),0)+1);
+    lid=Math.max(lid||1,links.reduce((m,l)=>Math.max(m,l.id||0),0)+1);
+    return false;
+  }
+  const fromBuckets={}, toBuckets={}, firstMap={}, remapPos={}, remapSize={}, remapSelected={};
+  let nextId=1;
+  const assignNodeId = n => {
+    const oldId=n.id, newId=nextId++;
+    n.id=newId;
+    if(!fromBuckets[oldId]) fromBuckets[oldId]=[];
+    if(!toBuckets[oldId]) toBuckets[oldId]=[];
+    fromBuckets[oldId].push(newId);
+    toBuckets[oldId].push(newId);
+    if(firstMap[oldId]===undefined) firstMap[oldId]=newId;
+  };
+  notes.forEach(assignNodeId);
+  mapRelays.forEach(assignNodeId);
+  mapRelays.forEach(r=>{
+    const oldRoot=relayPageRootId(r);
+    r.pageRootId=oldRoot===null?null:(firstMap[oldRoot]??null);
+  });
+  links=links.map(l=>{
+    const fromList=fromBuckets[l.from],toList=toBuckets[l.to];
+    const from=fromList&&fromList.length?fromList.shift():(firstMap[l.from]??null);
+    const to=toList&&toList.length?toList.shift():(firstMap[l.to]??null);
+    return {...l,from,to};
+  }).filter(l=>Number.isFinite(l.from)&&Number.isFinite(l.to)&&l.from!==l.to);
+  Object.keys(nodePos||{}).forEach(k=>{const nk=firstMap[Number(k)];if(nk!==undefined&&remapPos[nk]===undefined) remapPos[nk]=nodePos[k];});
+  Object.keys(nodeSizes||{}).forEach(k=>{const nk=firstMap[Number(k)];if(nk!==undefined&&remapSize[nk]===undefined) remapSize[nk]=nodeSizes[k];});
+  Object.keys(selectedIds||{}).forEach(k=>{const nk=firstMap[Number(k)];if(nk!==undefined) remapSelected[nk]=true;});
+  nodePos=remapPos; nodeSizes=remapSize; selectedIds=remapSelected;
+  mapCenterNodeId=firstMap[mapCenterNodeId]??null;
+  if(mapCenterNodeIds&&typeof mapCenterNodeIds==='object'){
+    const remappedCenters={};
+    Object.keys(mapCenterNodeIds).forEach(key=>{
+      const oldId=Number(mapCenterNodeIds[key]);
+      const newId=firstMap[oldId];
+      if(newId!==undefined) remappedCenters[key]=newId;
+    });
+    mapCenterNodeIds=remappedCenters;
+  }
+  const remappedCollapsed={};
+  Object.keys(mapCollapsed||{}).forEach(key=>{
+    if(!mapCollapsed[key]) return;
+    const parts=String(key).split('::');
+    const oldId=parseInt(parts.pop(),10);
+    const newId=firstMap[oldId];
+    if(newId===undefined) return;
+    remappedCollapsed[`${parts.join('::')}::${newId}`]=true;
+  });
+  mapCollapsed=remappedCollapsed;
+  const remappedSubpages={};
+  Object.keys(mapSubpages||{}).forEach(key=>{
+    const item=(mapSubpages[key]&&typeof mapSubpages[key]==='object'&&!Array.isArray(mapSubpages[key]))?mapSubpages[key]:{};
+    const oldId=parseInt(String(key).split('::').pop(),10);
+    const newId=firstMap[oldId];
+    if(newId===undefined||!mapNodeById(newId)) return;
+    remappedSubpages[mapSubpageKey(newId)]={...item,rootId:newId,createdAt:item.createdAt||new Date().toISOString()};
+  });
+  mapSubpages=remappedSubpages;
+  mapPageStack=(Array.isArray(mapPageStack)?mapPageStack:[]).map(id=>firstMap[id]).filter(id=>Number.isFinite(id)&&mapNodeById(id));
+  mapFocusedNodeId=firstMap[mapFocusedNodeId]??null;
+  openId=firstMap[openId]??null;
+  nid=nextId;
+  lid=Math.max(lid||1,links.reduce((m,l)=>Math.max(m,l.id||0),0)+1);
+  return true;
+}
+

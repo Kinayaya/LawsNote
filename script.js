@@ -26,6 +26,7 @@ const USAGE_START_KEY = 'klaws_usage_start_v1';
 const FORM_TAXONOMY_PREF_KEY = 'klaws_form_taxonomy_pref_v1';
 const LAST_VIEW_STATE_KEY = 'klaws_last_view_state_v1';
 const THEME_MODE_KEY = 'klaws_theme_mode_v1';
+const TOUCH_QUICK_BAR_POS_KEY = 'klaws_touch_quick_bar_pos_v1';
 const SYNC_KEY = 'klaws_sync_v1', SYNC_FILE = 'klaws_data.json';
 const AI_MODELS = [
   {id:'openrouter/free', label:'🔀 自動選最佳免費模型（推薦）'},
@@ -3993,6 +3994,77 @@ function openQuickTemplate(typeKey){
   }
 }
 function bindTouchQuickActions(){
+  const touchQuickBar=g('touchQuickBar');
+  const touchQuickDragHandle=g('touchQuickDragHandle');
+  const safePadding=8;
+  const clamp=(v,min,max)=>Math.min(max,Math.max(min,v));
+  const applyTouchQuickBarPos=(x,y)=>{
+    if(!touchQuickBar) return;
+    const maxX=Math.max(safePadding,window.innerWidth-touchQuickBar.offsetWidth-safePadding);
+    const maxY=Math.max(safePadding,window.innerHeight-touchQuickBar.offsetHeight-safePadding);
+    const nextX=clamp(x,safePadding,maxX);
+    const nextY=clamp(y,safePadding,maxY);
+    touchQuickBar.style.left=`${nextX}px`;
+    touchQuickBar.style.top=`${nextY}px`;
+    touchQuickBar.style.right='auto';
+    touchQuickBar.style.bottom='auto';
+  };
+  const saveTouchQuickBarPos=()=>{
+    if(!touchQuickBar||!touchQuickBar.style.left||!touchQuickBar.style.top) return;
+    localStorage.setItem(TOUCH_QUICK_BAR_POS_KEY,JSON.stringify({
+      left:parseFloat(touchQuickBar.style.left)||0,
+      top:parseFloat(touchQuickBar.style.top)||0
+    }));
+  };
+  const restoreTouchQuickBarPos=()=>{
+    if(!touchQuickBar) return;
+    let saved=null;
+    try{ saved=JSON.parse(localStorage.getItem(TOUCH_QUICK_BAR_POS_KEY)||'null'); }catch(e){}
+    if(saved&&Number.isFinite(saved.left)&&Number.isFinite(saved.top)){
+      applyTouchQuickBarPos(saved.left,saved.top);
+      return;
+    }
+    touchQuickBar.style.left='';
+    touchQuickBar.style.top='';
+    touchQuickBar.style.right='10px';
+    touchQuickBar.style.bottom='calc(env(safe-area-inset-bottom,0px) + 84px)';
+  };
+  restoreTouchQuickBarPos();
+  if(touchQuickBar&&touchQuickDragHandle){
+    let dragging=false,startX=0,startY=0,baseX=0,baseY=0,dragMoved=false;
+    const stopDrag=()=>{
+      if(!dragging) return;
+      dragging=false;
+      touchQuickBar.classList.remove('dragging');
+      if(dragMoved) saveTouchQuickBarPos();
+    };
+    touchQuickDragHandle.addEventListener('pointerdown',e=>{
+      const rect=touchQuickBar.getBoundingClientRect();
+      dragging=true;dragMoved=false;
+      startX=e.clientX;startY=e.clientY;baseX=rect.left;baseY=rect.top;
+      touchQuickBar.classList.add('dragging');
+      touchQuickDragHandle.setPointerCapture?.(e.pointerId);
+      e.preventDefault();
+    });
+    touchQuickDragHandle.addEventListener('pointermove',e=>{
+      if(!dragging) return;
+      const dx=e.clientX-startX,dy=e.clientY-startY;
+      if(Math.abs(dx)>2||Math.abs(dy)>2) dragMoved=true;
+      applyTouchQuickBarPos(baseX+dx,baseY+dy);
+      e.preventDefault();
+    });
+    touchQuickDragHandle.addEventListener('pointerup',e=>{
+      touchQuickDragHandle.releasePointerCapture?.(e.pointerId);
+      stopDrag();
+    });
+    touchQuickDragHandle.addEventListener('pointercancel',stopDrag);
+    window.addEventListener('resize',()=>{
+      if(!touchQuickBar) return;
+      if(!touchQuickBar.style.left||!touchQuickBar.style.top) return;
+      applyTouchQuickBarPos(parseFloat(touchQuickBar.style.left)||0,parseFloat(touchQuickBar.style.top)||0);
+      saveTouchQuickBarPos();
+    });
+  }
   on('quickAddCloseBtn','click',closeQuickAddSheet);
   on('commandSheetCloseBtn','click',closeCommandSheet);
   g('quickAddSheet')?.addEventListener('click',e=>{if(e.target.id==='quickAddSheet') closeQuickAddSheet();});

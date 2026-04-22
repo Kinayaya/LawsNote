@@ -142,23 +142,51 @@ function normalizeNotesTaxonomy(){
   const sSet=new Set(subjects.map(s=>s.key));
   const cSet=new Set(chapters.map(c=>c.key));
   const secSet=new Set(sections.map(s=>s.key));
-  notes.forEach(n=>{
+  const chapterByKeyMap={};
+  chapters.forEach(ch=>{ if(ch&&ch.key) chapterByKeyMap[ch.key]=ch; });
+  const sectionByKeyMap={};
+  sections.forEach(sec=>{ if(sec&&sec.key) sectionByKeyMap[sec.key]=sec; });
+  const normalizeSingleNote=n=>{
     if(!tSet.has(n.type)) n.type='';
-    n.subjects=noteSubjects(n).filter(k=>sSet.has(k));
-    n.subject=n.subjects[0]||'';
-    n.chapters=noteChapters(n).filter(k=>cSet.has(k));
-    n.chapter=n.chapters[0]||'';
-    n.sections=noteSections(n).filter(k=>secSet.has(k));
-    n.section=n.sections[0]||'';
-  });
-  mapRelays.forEach(n=>{
-    n.subjects=noteSubjects(n).filter(k=>sSet.has(k));
-    n.subject=n.subjects[0]||'';
-    n.chapters=noteChapters(n).filter(k=>cSet.has(k));
-    n.chapter=n.chapters[0]||'';
-    n.sections=noteSections(n).filter(k=>secSet.has(k));
-    n.section=n.sections[0]||'';
-  });
+    let subjectsList=noteSubjects(n).filter(k=>sSet.has(k));
+    let chaptersList=noteChapters(n).filter(k=>cSet.has(k));
+    let sectionsList=noteSections(n).filter(k=>secSet.has(k));
+
+    sectionsList.forEach(secKey=>{
+      const sec=sectionByKeyMap[secKey];
+      if(!sec||!sec.chapter||sec.chapter==='all') return;
+      if(!chaptersList.includes(sec.chapter)&&cSet.has(sec.chapter)) chaptersList.push(sec.chapter);
+    });
+
+    chaptersList=uniq(chaptersList.filter(chKey=>{
+      const ch=chapterByKeyMap[chKey];
+      if(!ch) return false;
+      if(!subjectsList.length) return true;
+      return ch.subject==='all'||subjectsList.includes(ch.subject);
+    }));
+
+    const derivedSubjects=chaptersList
+      .map(chKey=>chapterByKeyMap[chKey]?.subject)
+      .filter(subjectKey=>subjectKey&&subjectKey!=='all'&&sSet.has(subjectKey));
+    if(derivedSubjects.length) subjectsList=uniq([...subjectsList,...derivedSubjects]);
+    subjectsList=uniq(subjectsList.filter(k=>sSet.has(k)));
+
+    const chapterSet=new Set(chaptersList);
+    sectionsList=uniq(sectionsList.filter(secKey=>{
+      const sec=sectionByKeyMap[secKey];
+      if(!sec) return false;
+      return sec.chapter==='all'||chapterSet.has(sec.chapter);
+    }));
+
+    n.subjects=subjectsList;
+    n.subject=subjectsList[0]||'';
+    n.chapters=chaptersList;
+    n.chapter=chaptersList[0]||'';
+    n.sections=sectionsList;
+    n.section=sectionsList[0]||'';
+  };
+  notes.forEach(normalizeSingleNote);
+  mapRelays.forEach(normalizeSingleNote);
 }
 function createArchiveSnapshot(){
   const archives=loadArchives();
@@ -239,4 +267,3 @@ function manageArchives(){
   renderArchivePanel();
   syncSidePanelState();
 }
-

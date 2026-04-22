@@ -356,10 +356,11 @@ const getMapCenterFromScopes = () => {
   if(scopedId&&mapNodeById(scopedId)) return scopedId;
   return (mapCenterNodeId&&mapNodeById(mapCenterNodeId))?mapCenterNodeId:null;
 };
-const setMapCenterForCurrentScope = id => {
+const setMapCenterForCurrentScope = (id,opt={}) => {
   if(!Number.isFinite(id)) return;
+  const {updateGlobal=false}=opt||{};
   mapCenterNodeIds[getMapCenterContextKey()]=id;
-  mapCenterNodeId=id;
+  if(updateGlobal) mapCenterNodeId=id;
 };
 const getPayload = () => ({notes,mapRelays:[],links,nid,lid,types,subjects,chapters,sections,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,mapSubpages,typeFieldConfigs,customFieldDefs,calendarEvents,calendarSettings,achievements,levelSystem,panelDir:getPanelDir(),updatedAt:new Date().toISOString()});
 const parseUpdatedAt = raw => {
@@ -752,4 +753,3 @@ function normalizeNoteIds(forceReindexAll=false) {
   lid=Math.max(lid||1,links.reduce((m,l)=>Math.max(m,l.id||0),0)+1);
   return true;
 }
-

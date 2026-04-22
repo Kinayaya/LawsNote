@@ -49,7 +49,7 @@ function forceLayout() {
   const hasStoredCenter=!!scopedCenterId&&!!mapNodeById(scopedCenterId);
   if(!hasStoredCenter&&!mapCenterNodeId){
     const linkCount={};layoutNotes.forEach(n=>linkCount[n.id]=0);visLinks.forEach(lk=>{linkCount[lk.from]=(linkCount[lk.from]||0)+1;linkCount[lk.to]=(linkCount[lk.to]||0)+1;});
-    setMapCenterForCurrentScope(layoutNotes.reduce((max,n)=>linkCount[n.id]>linkCount[max.id]?n:max,layoutNotes[0]).id);
+    setMapCenterForCurrentScope(layoutNotes.reduce((max,n)=>linkCount[n.id]>linkCount[max.id]?n:max,layoutNotes[0]).id,{updateGlobal:true});
   }
   const activeCenterId=getMapCenterFromScopes();
   const layoutCenterNodeId=visIds[activeCenterId]?activeCenterId:(()=>{
@@ -406,6 +406,10 @@ function buildMapTreeIndex(visNotes){
   const body=g('mapTreeBody');if(!body)return;
   if(!Array.isArray(visNotes)||!visNotes.length){body.innerHTML='<div class="map-tree-empty">目前沒有可顯示節點。</div>';return;}
   const tree={};
+  const chapterOrder={};chapters.forEach((ch,idx)=>{if(ch&&ch.key) chapterOrder[ch.key]=idx;});
+  const sectionOrder={};sections.forEach((sec,idx)=>{if(sec&&sec.key) sectionOrder[sec.key]=idx;});
+  const chapterRank=key=>key==='none'?Number.MAX_SAFE_INTEGER:(chapterOrder[key]??Number.MAX_SAFE_INTEGER-1);
+  const sectionRank=key=>key==='none'?Number.MAX_SAFE_INTEGER:(sectionOrder[key]??Number.MAX_SAFE_INTEGER-1);
   visNotes.forEach(n=>{
     const subKeys=noteSubjects(n).length?noteSubjects(n):['none'];
     const chKeys=noteChapters(n).length?noteChapters(n):['none'];
@@ -426,15 +430,15 @@ function buildMapTreeIndex(visNotes){
   const chLabel=key=>key==='none'?'（無章）':chapterByKey(key).label;
   const subLabel=key=>key==='none'?'（未設定科目）':subByKey(key).label;
   body.innerHTML=`<ul class="map-tree-list">${subOrder.map(sk=>{
-    const chMap=tree[sk].items,chOrder=Object.keys(chMap).sort((a,b)=>chLabel(a).localeCompare(chLabel(b),'zh'));
+    const chMap=tree[sk].items,chOrder=Object.keys(chMap).sort((a,b)=>chapterRank(a)-chapterRank(b)||chLabel(a).localeCompare(chLabel(b),'zh'));
     const subCount=chOrder.reduce((sum,ck)=>sum+Object.values(chMap[ck].items).reduce((s,arr)=>s+arr.length,0),0);
     return `<li class="map-tree-group"><div class="map-tree-group-row"><span class="map-tree-label">📚 ${escapeHtml(subLabel(sk))}</span><span class="map-tree-count">${subCount}</span></div>
       <ul>${chOrder.map(ck=>{
-        const secMap=chMap[ck].items,secOrder=Object.keys(secMap).sort((a,b)=>secLabel(a).localeCompare(secLabel(b),'zh'));
+        const secMap=chMap[ck].items,secOrder=Object.keys(secMap).sort((a,b)=>sectionRank(a)-sectionRank(b)||secLabel(a).localeCompare(secLabel(b),'zh'));
         const chCount=secOrder.reduce((sum,sek)=>sum+secMap[sek].length,0);
         return `<li class="map-tree-group"><div class="map-tree-group-row"><span class="map-tree-label">📁 ${escapeHtml(chLabel(ck))}</span><span class="map-tree-count">${chCount}</span></div>
           <ul>${secOrder.map(sek=>{
-            const sorted=secMap[sek].slice().sort((a,b)=>safeStr(a.title).localeCompare(safeStr(b.title),'zh')||a.id-b.id);
+            const sorted=secMap[sek];
             return `<li class="map-tree-group"><div class="map-tree-group-row"><span class="map-tree-label">📄 ${escapeHtml(secLabel(sek))}</span><span class="map-tree-count">${sorted.length}</span></div>
               <ul>${sorted.map(note=>{
                 const type=typeByKey(note.type);
@@ -636,7 +640,7 @@ function showMapInfo(id){
   const setCenterBtn=document.createElement('button');setCenterBtn.className='mp-set-center';
   setCenterBtn.textContent=currentCenterId===id?'✓ 已是核心':'⭐ 設為核心';
   setCenterBtn.style.cssText='width:100%;padding:8px;margin:8px 0 4px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ddd;'+(currentCenterId===id?'background:#EAF3DE;color:#3B6D11;border-color:#97C459;':'background:#f5f5f5;color:#555;');
-  setCenterBtn.onclick=()=>{setMapCenterForCurrentScope(id);nodePos={};forceLayout();drawMap();saveData();closeMapPopup();showToast(`已將「${n.title}」設為核心節點（僅此科目/章/節）`);};
+  setCenterBtn.onclick=()=>{setMapCenterForCurrentScope(id,{updateGlobal:true});nodePos={};forceLayout();drawMap();saveData();closeMapPopup();showToast(`已將「${n.title}」設為核心節點（僅此科目/章/節）`);};
   const goBtn=g('mpGoto');
   const hasSubpage=hasSubpageForNode(id);
   const subpageBtn=document.createElement('button');

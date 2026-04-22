@@ -12,6 +12,7 @@ function syncFormModeVisibility(){
   if(saveBtn) saveBtn.textContent=isAssign?'加入頁面':'儲存';
 }
 function openForm(isEdit) {
+  if(linkModeActive) setLinkMode(false);
   editMode=isEdit; buildFormSelects();
   if(formMode==='mapAssign'){
     g('form-title').textContent='加入筆記到頁面';

@@ -177,7 +177,7 @@ function render() {
   const q=searchQ.trim().toLowerCase();
   const normalizedDate=parseSearchDateVariants(searchQ);
   const seedIds=new Set(notes.filter(n=>baseScopeMatch(n)).map(n=>n.id));
-  const shouldExpand=hasTaxonomyFilter();
+  const shouldExpand=scopeLinkedEnabled&&hasTaxonomyFilter();
   const visibleIds=shouldExpand?expandWithLinkedNotes(seedIds):seedIds;
   const filtered=sortedNotes(notes,{sortMode,safeStr,noteSubjectText,noteChapterText}).filter(n=>visibleIds.has(n.id)&&noteMatchesSearch(n,q,normalizedDate));
   const sb=g('search-results-bar');
@@ -208,7 +208,9 @@ function render() {
     const noteActionChips=isReminder?'':`<span class="chip card-action-chip" data-action="duplicate">建立副本</span><span class="chip card-action-chip" data-action="copy">複製內容</span><span class="chip card-action-chip" data-action="delete">刪除</span>`;
     const linkedChip=(shouldExpand&&!seedIds.has(n.id))?'<span class="chip" style="background:#EAF3DE;color:#3B6D11;border-color:#97C459">跨科關聯</span>':'';
     const hasContent=isReminder?!!safeStr(n.body):noteHasVisibleContent(n);
-    return `<div class="card ${hasContent?'':'card-empty-content'} ${isReminder?'calendar-reminder-card':''}" data-id="${n.id}" data-reminder-id="${isReminder?n.eventId:''}" style="--type-color:${tp.color}"><button class="sel-check" type="button" aria-label="勾選筆記"></button><div class="ctop"><span class="ctag">${tp.label}</span><div class="ctitle-inline">${hl(n.title,q)}</div></div>${hasContent?`<div class="cbody">${escapeHtml(n.body)}</div>`:''}<div class="cfoot">${subChips}${chapterChips}${sectionChips}${linkedChip}${noteActionChips}</div></div>`;
+    const linkModeClass=linkModeActive?'link-mode':'';
+    const linkSourceClass=linkSourceId===n.id?'link-source':'';
+    return `<div class="card ${hasContent?'':'card-empty-content'} ${isReminder?'calendar-reminder-card':''} ${linkModeClass} ${linkSourceClass}" data-id="${n.id}" data-reminder-id="${isReminder?n.eventId:''}" style="--type-color:${tp.color}"><button class="sel-check" type="button" aria-label="勾選筆記"></button><div class="ctop"><span class="ctag">${tp.label}</span><div class="ctitle-inline">${hl(n.title,q)}</div></div>${hasContent?`<div class="cbody">${escapeHtml(n.body)}</div>`:''}<div class="cfoot">${subChips}${chapterChips}${sectionChips}${linkedChip}${noteActionChips}</div></div>`;
   }).join('');
   grid.querySelectorAll('.card').forEach(c=>{
     const rid=c.dataset.reminderId?parseInt(c.dataset.reminderId,10):0;
@@ -246,8 +248,37 @@ function createRelationLink(fromId,toId){
   links.push({id:lid++,from:a,to:b,rel:'關聯',color:LINK_COLOR});
   return true;
 }
+function clearMapLinkSource(opts={}){
+  const {silent=false}=opts;
+  if(!mapLinkSourceId) return;
+  mapLinkSourceId=null;
+  if(isMapOpen) drawMap();
+  if(!silent) showToast('已取消地圖連線起點');
+}
+function setMapLinkSource(id){
+  if(!mapNodeById(id)) return;
+  mapLinkSourceId=id;
+  if(isMapOpen) drawMap();
+  showToast('已選擇地圖連線起點，請再點一個節點建立關聯');
+}
 function handleMapNodeLinkTap(targetId){
-  return false;
+  if(!mapLinkSourceId) return false;
+  if(mapLinkSourceId===targetId){
+    clearMapLinkSource();
+    return true;
+  }
+  const src=mapLinkSourceId;
+  const created=createRelationLink(src,targetId);
+  if(!created){
+    showToast('關聯已存在或無效');
+    return true;
+  }
+  mapLinkSourceId=targetId;
+  saveData();
+  drawMap();
+  if(openId===src||openId===targetId) renderLinksForNote(openId);
+  showToast('已建立關聯，可繼續點下一個節點串接');
+  return true;
 }
 function findMapNodesByKeyword(keyword,excludeId){
   const q=safeStr(keyword).replace(/^@/,'').trim().toLowerCase();
@@ -346,6 +377,41 @@ function renderMapPopupQuickLinkSearch(sourceId=null){
       renderMapPopupQuickLinkSearch(srcId);
     }else showToast('此關聯已存在或無效');
   }));
+}
+function setLinkMode(enabled){
+  linkModeActive=!!enabled;
+  if(!linkModeActive) linkSourceId=null;
+  const btn=g('linkModeBtn');
+  if(btn){
+    btn.classList.toggle('active',linkModeActive);
+    btn.textContent=linkModeActive?'🔗 連線中':'🔗 連線模式';
+  }
+  render();
+}
+function handleLinkModeCardTap(id){
+  if(!linkSourceId){
+    linkSourceId=id;
+    render();
+    showToast('已選擇起點，請再點一張卡片建立關聯');
+    return;
+  }
+  if(linkSourceId===id){
+    linkSourceId=null;
+    render();
+    showToast('已取消起點選擇');
+    return;
+  }
+  const created=createRelationLink(linkSourceId,id);
+  if(created){
+    const src=linkSourceId;
+    saveData();
+    render();
+    if(openId===src||openId===id) renderLinksForNote(openId);
+    if(isMapOpen) scheduleMapRedraw(100);
+    showToast('已建立關聯，可繼續點下一張卡片快速串接');
+  }else{
+    showToast('關聯已存在或無效');
+  }
 }
 function extractMentionTargets(raw,selfId){
   const text=safeStr(raw);

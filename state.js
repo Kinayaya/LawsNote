@@ -3,6 +3,7 @@ let notes=[], mapRelays=[], links=[], nid=10, lid=10, types=[], subjects=[], cha
 let recycleBin=[], unusedTagTracker={};
 let cv='all', cs='all', cch='all', csec='all', searchQ='', openId=null, editMode=false;
 let selectedSubjects=[], selectedChapters=[], selectedSections=[];
+let scopeLinkedEnabled = localStorage.getItem(SCOPE_LINKED_TOGGLE_KEY)==='1';
 let formLinkSelections={}, tagSearchQ='', tagUnusedOnly=false;
 let chapterSubjectFilter='', sectionChapterFilter='';
 let activeTagCategory='type';
@@ -19,6 +20,7 @@ let mapTimer=null, currentView='notes';
 let formMode='note';
 let mapAdvancedOpen=false;
 let mapCollapsed={};
+let mapLinkSourceId=null;
 let touchRadialMenu=null, actionUndoTimer=null, lastCardTap={id:0,time:0};
 let mapSubpages={}, mapPageStack=[];
 let mapPageNotes={root:[]}, mapAssignTargetPageId='root', mapAssignSelectedNoteId=null;
@@ -34,6 +36,7 @@ const XP_BOOST_MULTIPLIER = 2.5;
 const BASE_XP_BY_DIFFICULTY = {E:12,N:22,H:36};
 let levelSystem={skills:[],tasks:[],achievements:[],settings:{xpByDifficulty:{E:30,N:55,H:90},xpBoost150Applied:true}};
 let levelTaskExpanded={}, levelEditorState={kind:'',idx:-1};
+let linkModeActive=false, linkSourceId=null;
 const LEVEL_STAGES=[
   {min:0,max:20,rank:'E'},{min:21,max:40,rank:'F'},{min:41,max:50,rank:'D'},
   {min:51,max:60,rank:'C'},{min:61,max:70,rank:'B'},{min:71,max:80,rank:'B+'},

@@ -256,11 +256,13 @@ function visibleNotes(){
     if(!pageAssignedIds.has(n.id)) return false;
     return mapNodeMatchesTaxonomyFilter(n)&&relayMatchesSearch(n,q);
   });
+  const shouldExpandLinked=scopeLinkedEnabled&&mapHasTaxonomyFilter();
   let filtered=baseFiltered, relayVisible=relayFiltered;
-  const seedIds=new Set([...baseFiltered,...relayFiltered].map(n=>n.id));
-  const expandedIds=expandWithChildLinkedNotes(seedIds);
-  filtered=notes.filter(n=>pageAssignedIds.has(n.id)&&expandedIds.has(n.id)&&noteMatchesSearch(n,q));
-  relayVisible=mapRelays.filter(n=>pageAssignedIds.has(n.id)&&expandedIds.has(n.id)&&relayMatchesSearch(n,q));
+  if(shouldExpandLinked){
+    const expandedIds=expandWithChildLinkedNotes(new Set([...baseFiltered,...relayFiltered].map(n=>n.id)));
+    filtered=notes.filter(n=>expandedIds.has(n.id)&&noteMatchesSearch(n,q));
+    relayVisible=mapRelays.filter(n=>expandedIds.has(n.id)&&relayMatchesSearch(n,q));
+  }
   let base=[...filtered,...relayVisible].filter(n=>!mapLinkedOnly||isRelayNode(n)||linkedIds[n.id]);
   if(mapLinkedOnly&&!base.length&&filtered.length){
     mapLinkedOnly=false;setMapLinkedOnlyBtnStyle();
@@ -312,6 +314,38 @@ function createMapRelay(){
   g('fti')?.focus();
   g('fti')?.select();
 }
+function switchMapNodeType(id){
+  const relay=relayById(id);
+  if(relay){
+    const backupType=safeStr(relay.noteTypeBackup)||safeStr(relay.type);
+    const validType=types.some(t=>t.key===backupType)?backupType:(types[0]?.key||'article');
+    const note=normalizeNoteSchema({...relay,isRelay:false,type:validType,noteTypeBackup:''});
+    mapRelays=mapRelays.filter(r=>r.id!==id);
+    notes.unshift(note);
+    openId=note.id;
+    closeMapPopup();
+    saveData();
+    render();
+    if(isMapOpen) scheduleMapRedraw(0);
+    showToast('已切換為筆記');
+    return;
+  }
+  const note=noteById(id);
+  if(!note) return;
+  const relayData={...note,isRelay:true,pageRootId:currentSubpageRootId()||null,noteTypeBackup:safeStr(note.type)||'article'};
+  notes=notes.filter(n=>n.id!==id);
+  mapRelays.push(relayData);
+  if(openId===id){
+    openId=null;
+    g('dp')?.classList.remove('open');
+    syncSidePanelState();
+  }
+  closeMapPopup();
+  saveData();
+  render();
+  if(isMapOpen) scheduleMapRedraw(0);
+  showToast('已切換為中繼站');
+}
 function notifyHiddenRelaysByFilter(beforeRelayVisibleIds){
   if(!isMapOpen||!(beforeRelayVisibleIds instanceof Set)||!beforeRelayVisibleIds.size) return;
   const afterRelayVisibleIds=new Set(visibleNotes().filter(isRelayNode).map(n=>n.id));
@@ -329,6 +363,7 @@ function deleteMapRelay(id){
   const relay=relayById(id);
   if(!relay) return;
   if(!confirm(`確定刪除中繼站「${relay.title||'未命名'}」？`)) return;
+  if(mapLinkSourceId===id) mapLinkSourceId=null;
   mapRelays=mapRelays.filter(r=>r.id!==id);
   links=links.filter(l=>l.from!==id&&l.to!==id);
   delete nodePos[id];
@@ -403,9 +438,6 @@ function drawMap(){
   if(!isMapOpen)return;
   const canvas=g('mapCanvas'),svg=g('mapSvg'),linksLayer=g('linksLayer'),nodesLayer=g('nodesLayer');
   if(!canvas||!svg||!linksLayer||!nodesLayer)return;
-  const darkMode=document.body.classList.contains('dark-mode');
-  const arrowPath=svg.querySelector('#arrowBlue path');
-  if(arrowPath) arrowPath.setAttribute('fill',darkMode?'#9ecbff':'#378ADD');
   mapW=canvas.offsetWidth||1200;mapH=canvas.offsetHeight||1000;
   svg.setAttribute('viewBox',`0 0 ${mapW} ${mapH}`);svg.setAttribute('width',String(mapW));svg.setAttribute('height',String(mapH));
   let mapWrap=svg.querySelector('#mapWrap');
@@ -435,12 +467,13 @@ function drawMap(){
     nodeLinksIndex[lk.from].push(lk.id);nodeLinksIndex[lk.to].push(lk.id);
     const pathData=calcLinkPath(lk);if(!pathData)return;
     const path=document.createElementNS('http://www.w3.org/2000/svg','path');
-    path.setAttribute('d',pathData.d);path.setAttribute('stroke',darkMode?'#9ecbff':LINK_COLOR);path.setAttribute('stroke-width','2');path.setAttribute('fill','none');path.setAttribute('marker-end','url(#arrowBlue)');path.style.opacity=darkMode?'0.78':'0.42';linksLayer.appendChild(path);linkElsMap[lk.id]={p:path};
+    path.setAttribute('d',pathData.d);path.setAttribute('stroke',LINK_COLOR);path.setAttribute('stroke-width','1.35');path.setAttribute('fill','none');path.setAttribute('marker-end','url(#arrowBlue)');path.style.opacity='0.3';linksLayer.appendChild(path);linkElsMap[lk.id]={p:path};
   });
   visNotes.forEach(n=>{
     const pos=nodePos[n.id];if(!pos)return;
     const type=isRelayNode(n)?{label:'中繼站',color:'#A855F7'}:typeByKey(n.type),box=getMapCardBox(n.id),halfW=box.width/2,halfH=box.height/2;
     const grp=document.createElementNS('http://www.w3.org/2000/svg','g');grp.classList.add('map-node');grp.dataset.id=String(n.id);
+    if(mapLinkSourceId===n.id) grp.classList.add('map-link-source');
     const card=document.createElementNS('http://www.w3.org/2000/svg','rect');
     card.classList.add('node-card');
     card.setAttribute('x',String(pos.x-halfW));card.setAttribute('y',String(pos.y-halfH));
@@ -518,8 +551,7 @@ function drawMap(){
       openForm(true);
       closeMapPopup();
     });
-    grp.addEventListener('mousedown',e=>{if(isMapNodeActionTarget(e.target))return;startDrag(e,n.id);});
-    grp.addEventListener('touchstart',e=>{if(isMapNodeActionTarget(e.target))return;startDragTouch(e,n.id);},{passive:true});
+    grp.addEventListener('mousedown',e=>startDrag(e,n.id));grp.addEventListener('touchstart',e=>startDragTouch(e,n.id),{passive:true});
     nodesLayer.appendChild(grp);nodeEls[n.id]=grp;
   });
   applyFocusStyles();
@@ -554,8 +586,14 @@ function showMapInfo(id){
   const tp=relay?{label:'中繼站',color:'#A855F7'}:typeByKey(n.type),sb=subByKey(n.subject),related=links.filter(l=>l.from===id||l.to===id);
   const quickWrap=g('mp-link-quick-wrap');
   const quickInput=g('mp-link-search');
+  const switchBtn=g('mpSwitch');
   g('mpBadge').textContent=tp.label;g('mpBadge').style.background=tp.color;g('mpTitle').textContent=n.title;
   g('mpSubject').textContent=sb.label;g('mpSubject').style.background=sb.color+'22';g('mpSubject').style.color=sb.color;
+  if(switchBtn){
+    switchBtn.textContent='切換';
+    switchBtn.title=relay?'切換為筆記':'切換為中繼站';
+    switchBtn.onclick=()=>switchMapNodeType(id);
+  }
   if(quickWrap){
     quickWrap.style.display=relay?'flex':'none';
     if(quickInput){
@@ -587,10 +625,9 @@ function showMapInfo(id){
         showToast('設定失敗：節點不存在');
         return;
       }
-      setMapCenterForCurrentScope(id,{updateGlobal:true});
       saveData();
       drawMap();
-      showToast('已設定子頁面，並設為子頁面核心');
+      showToast('已設定子頁面');
       showMapInfo(id);
       return;
     }
@@ -610,9 +647,19 @@ function showMapInfo(id){
     updateMapPagePath();
     showToast('已取消子頁面設定');
   };
+  const linkStartBtn=document.createElement('button');
+  linkStartBtn.className='mp-link-start-btn';
+  linkStartBtn.textContent=mapLinkSourceId===id?'✖ 取消連線起點':'🔗 以此為連線起點';
+  linkStartBtn.style.cssText='width:100%;padding:8px;margin:4px 0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ddd;'+(mapLinkSourceId===id?'background:#fff2f2;color:#c43d3d;border-color:#f3c7c7;':'background:#eef6ff;color:#0C447C;border-color:#b5d4f4;');
+  linkStartBtn.onclick=()=>{
+    if(mapLinkSourceId===id) clearMapLinkSource({silent:true});
+    else setMapLinkSource(id);
+    closeMapPopup();
+  };
   if(goBtn&&goBtn.parentNode){
-    goBtn.parentNode.querySelectorAll('.mp-set-center,.mp-subpage-btn,.mp-subpage-cancel-btn').forEach(el=>el.remove());
+    goBtn.parentNode.querySelectorAll('.mp-set-center,.mp-subpage-btn,.mp-subpage-cancel-btn,.mp-link-start-btn').forEach(el=>el.remove());
     goBtn.parentNode.insertBefore(setCenterBtn,goBtn);
+    goBtn.parentNode.insertBefore(linkStartBtn,goBtn);
     if(isNodeInCurrentSubpage(id)) goBtn.parentNode.insertBefore(subpageBtn,goBtn);
     if(hasSubpage&&isNodeInCurrentSubpage(id)) goBtn.parentNode.insertBefore(cancelSubpageBtn,goBtn);
     let relayEditBtn=goBtn.parentNode.querySelector('.mp-relay-edit-btn');
@@ -652,16 +699,11 @@ function applyFocusStyles(){
     const isSelectedRelated=!!mapFocusedNodeId&&(lk.from===mapFocusedNodeId||lk.to===mapFocusedNodeId);
     const c=calcLinkPath(lk,{unbundled:isSelectedRelated});
     if(c) path.setAttribute('d',c.d);
-    const dark=document.body.classList.contains('dark-mode');
-    path.style.opacity=isSelectedRelated?(dark?'1':'0.95'):(active?(dark?'0.78':'0.42'):(dark?'0.32':'0.18'));
-    path.setAttribute('stroke-width',isSelectedRelated?'3.3':(active?'2':'1.2'));
+    path.style.opacity=isSelectedRelated?'0.95':(active?'0.3':'0.12');
+    path.setAttribute('stroke-width',isSelectedRelated?'3.2':(active?'1.35':'1'));
   });
 }
 function highlightNode(id){ mapFocusedNodeId=id;applyFocusStyles(); }
-function isMapNodeActionTarget(target){
-  const actionEl=target&&target.closest?target.closest('.node-fold-btn,.node-fold-sign,.node-sub-enter-btn,.node-sub-enter-sign'):null;
-  return !!actionEl;
-}
 function startDrag(e,id){ e.preventDefault();e.stopPropagation();closeMapPopup();dragNode=id;const pos=nodePos[id],rect=g('mapCanvas').getBoundingClientRect();dragOffX=e.clientX-rect.left-(pos.x*mapScale+mapOffX);dragOffY=e.clientY-rect.top-(pos.y*mapScale+mapOffY); }
 function startDragTouch(e,id){ e.stopPropagation();dragNode=id;const pos=nodePos[id],rect=g('mapCanvas').getBoundingClientRect(),touch=e.touches[0];dragOffX=touch.clientX-rect.left-(pos.x*mapScale+mapOffX);dragOffY=touch.clientY-rect.top-(pos.y*mapScale+mapOffY); }
 function buildMapFilters(){
@@ -769,11 +811,21 @@ function bindTouchQuickActions(){
     if(!btn) return;
     openQuickTemplate(btn.dataset.template);
   });
+  g('touchQuickFilters')?.querySelectorAll('[data-qf]').forEach(btn=>btn.addEventListener('click',()=>{
+    const kind=btn.dataset.qf;
+    if(kind==='today'){
+      const d=new Date();searchQ=`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;g('searchInput').value=searchQ;
+    }else if(kind==='todo'){
+      searchQ='[ ]';g('searchInput').value=searchQ;
+    }
+    render();
+  }));
 }
 
 function bindCoreButtons(){
   const bind=(id,fn)=>{const el=g(id);if(el)el.onclick=fn;};
   bind('addBtn',()=>{ if('ontouchstart' in window) openQuickAddSheet(); else openForm(false); });
+  bind('linkModeBtn',()=>setLinkMode(!linkModeActive));
   bind('editBtn',()=>{if(!openId){showToast('請先開啟一筆筆記');return;}openForm(true);});
   bind('copyBtn',copyNoteToClipboard);
   bind('dupBtn',duplicateNote);

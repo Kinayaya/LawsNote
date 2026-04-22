@@ -742,6 +742,10 @@ function closeQuickAddSheet(){ g('quickAddSheet')?.classList.remove('open'); }
 function executeQuickCommand(cmd,{closeSheet=true}={}){
   if(cmd==='search') g('searchInput')?.focus();
   else if(cmd==='new') openQuickAddSheet();
+  else if(cmd==='mapAssign'){
+    if(!isMapOpen) toggleMapView(true);
+    setTimeout(()=>openMapAssignPanel(),80);
+  }
   else if(cmd==='relay'){
     showToast('「中繼站」功能已移除');
   }
@@ -846,7 +850,7 @@ function bindTouchQuickActions(){
   g('commandSheet')?.querySelectorAll('[data-cmd]').forEach(btn=>btn.addEventListener('click',()=>executeQuickCommand(btn.dataset.cmd)));
   on('touchQuickAddBtn','click',openQuickAddSheet);
   on('touchQuickSearchBtn','click',()=>g('searchInput')?.focus());
-  on('touchQuickRecentBtn','click',()=>{sortMode='date_desc';g('sortSelect').value='date_desc';render();});
+  on('touchQuickAssignBtn','click',()=>executeQuickCommand('mapAssign',{closeSheet:false}));
   on('touchQuickMoreBtn','click',openCommandSheet);
   g('touchQuickFilters')?.querySelectorAll('[data-qf]').forEach(btn=>btn.addEventListener('click',()=>{
     const kind=btn.dataset.qf;
@@ -854,8 +858,6 @@ function bindTouchQuickActions(){
       const d=new Date();searchQ=`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;g('searchInput').value=searchQ;
     }else if(kind==='todo'){
       searchQ='[ ]';g('searchInput').value=searchQ;
-    }else{
-      sortMode='date_desc';g('sortSelect').value='date_desc';searchQ='';g('searchInput').value='';
     }
     render();
   }));
@@ -896,4 +898,3 @@ function bindTagManagerNav(){
 // ==================== AI 功能 ====================
 function requireAiKey(action){ const k=getAiKey();if(k){action(k);return;}_aiPendingAction=action;g('aiKeyInput').value='';const sel=g('aiModelSel');if(sel)sel.innerHTML=AI_MODELS.map(m=>`<option value="${m.id}"${m.id===getAiModel()?' selected':''}>${m.label}</option>`).join('');g('aiKeyModal').classList.add('open'); }
 function openAiSettings(){ g('aiKeyInput').value=getAiKey();const sel=g('aiModelSel');if(sel)sel.innerHTML=AI_MODELS.map(m=>`<option value="${m.id}"${m.id===getAiModel()?' selected':''}>${m.label}</option>`).join('');_aiPendingAction=null;g('aiKeyModal').classList.add('open'); }
-

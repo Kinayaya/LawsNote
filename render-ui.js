@@ -466,7 +466,6 @@ function handleLinkModeCardTap(id){
   const created=createRelationLink(linkSourceId,id);
   if(created){
     const src=linkSourceId;
-    linkSourceId=id;
     saveData();
     render();
     if(openId===src||openId===id) renderLinksForNote(openId);
@@ -489,6 +488,44 @@ function extractMentionTargets(raw,selfId){
     if(fuzzy) ids.push(fuzzy.id);
   });
   return uniq(ids);
+}
+function findMentionNoteId(token,selfId){
+  const normalized=safeStr(token).trim();
+  if(!normalized) return null;
+  const aliases=uniq([normalized,normalized.replace(/筆記$/,'')].filter(Boolean));
+  for(const alias of aliases){
+    const lower=alias.toLowerCase();
+    const exact=notes.find(n=>n.id!==selfId&&safeStr(n.title).toLowerCase()===lower);
+    if(exact) return exact.id;
+    const fuzzy=notes.find(n=>n.id!==selfId&&safeStr(n.title).toLowerCase().includes(lower));
+    if(fuzzy) return fuzzy.id;
+  }
+  return null;
+}
+function renderMentionText(raw,selfId){
+  const text=safeStr(raw);
+  if(!text) return '';
+  const reg=/@([^\s@#，。；、,.!?！？:：()（）\[\]【】]+)/g;
+  let html='',lastIndex=0,m;
+  while((m=reg.exec(text))){
+    const [full,token]=m;
+    html+=escapeHtml(text.slice(lastIndex,m.index));
+    const targetId=findMentionNoteId(token,selfId);
+    if(targetId) html+=`<a href="#" class="mention-jump" data-nid="${targetId}">${escapeHtml(full)}</a>`;
+    else html+=escapeHtml(full);
+    lastIndex=m.index+full.length;
+  }
+  html+=escapeHtml(text.slice(lastIndex));
+  return html;
+}
+function bindMentionJumps(root){
+  if(!root) return;
+  root.querySelectorAll('.mention-jump').forEach(link=>link.addEventListener('click',e=>{
+    e.preventDefault();
+    const nid=parseInt(link.dataset.nid,10);
+    if(noteById(nid)){ openNote(nid); return; }
+    openMapNodeFromLink(nid);
+  }));
 }
 function autoLinkMentionsForNote(note){
   if(!note||!note.id) return 0;
@@ -514,8 +551,10 @@ function openNote(id) {
   if(detailLabel){detailLabel.style.display=fields.includes('detail')?'block':'none';}
   g('dp-body').style.display=fields.includes('body')?'block':'none';
   g('dp-detail').style.display=fields.includes('detail')?'block':'none';
-  g('dp-body').textContent=n.body||'（尚無摘要）';
-  g('dp-detail').innerHTML=n.detail||'（尚無詳細筆記）';
+  g('dp-body').innerHTML=n.body?renderMentionText(n.body,n.id):'（尚無摘要）';
+  g('dp-detail').innerHTML=n.detail?renderMentionText(n.detail,n.id):'（尚無詳細筆記）';
+  bindMentionJumps(g('dp-body'));
+  bindMentionJumps(g('dp-detail'));
   if(fields.includes('todos')){todoLabel.style.display='block';todoWrap.style.display='block';todoWrap.innerHTML=renderTodoHtml(n.todos);}
   else{todoLabel.style.display='none';todoWrap.style.display='none';todoWrap.innerHTML='';}
   const subChips=subs.map(sk=>{const sb=subByKey(sk);return `<span class="chip" style="background:${lightC(sb.color)};color:${darkC(sb.color)}">${sb.label}</span>`;}).join('');
@@ -583,4 +622,3 @@ async function toggleDebugTool(){
     else { er.hide(); btn?.classList.remove('active'); showToast('偵錯工具已隱藏'); }
   }catch(e){ showToast('偵錯工具載入失敗'); }
 }
-

@@ -20,13 +20,11 @@ const RECYCLE_BIN_KEY = 'klaws_recycle_bin_v1';
 const UNUSED_TAG_TRACK_KEY = 'klaws_unused_tag_tracker_v1';
 const RECYCLE_RETENTION_MS = 7*24*60*60*1000;
 const UNUSED_TAG_PURGE_MS = 10*60*1000;
-const SCOPE_LINKED_TOGGLE_KEY = 'klaws_scope_linked_toggle_v1';
 const COMPACT_FILTER_KEY = 'klaws_compact_filters_v1';
 const USAGE_START_KEY = 'klaws_usage_start_v1';
 const FORM_TAXONOMY_PREF_KEY = 'klaws_form_taxonomy_pref_v1';
 const LAST_VIEW_STATE_KEY = 'klaws_last_view_state_v1';
 const THEME_MODE_KEY = 'klaws_theme_mode_v1';
-const SYNC_KEY = 'klaws_sync_v1', SYNC_FILE = 'klaws_data.json';
 const AI_MODELS = [
   {id:'openrouter/free', label:'🔀 自動選最佳免費模型（推薦）'},
   {id:'meta-llama/llama-3.3-70b-instruct:free', label:'Llama 3.3 70B（Meta）'},
@@ -56,4 +54,3 @@ const { readJSON, writeJSON } = window.KLawsStorage;
 const { renderTodoHtml, sortedNotes } = window.KLawsRender;
 const { MAP_NODE_RADIUS_MIN, MAP_NODE_RADIUS_MAX, MAP_NODE_RADIUS_DEFAULT, MAP_LIGHT_BUNDLING_STRENGTH, DEFAULT_LANE_NAMES, MIN_LANE_COUNT, MAX_LANE_COUNT, clampMapRadius, defaultLaneNameAt, normalizeLaneCount, splitMapTitleLines } = window.KLawsMap;
 const { fmtDateKey, dueTimeText, relativeDateLabel } = window.KLawsCalendar;
-

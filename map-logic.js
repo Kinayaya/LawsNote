@@ -266,7 +266,8 @@ function visibleNotes(){
     const rootId=currentSubpageRootId();
     const assignedIds=getMapSubpageAssignedIds(rootId);
     const shouldShowInSubpage=n=>{
-      if(isRelayNode(n)) return isNodeInCurrentMapPage(n.id)&&mapNodeMatchesTaxonomyFilter(n);
+      if(!mapNodeMatchesTaxonomyFilter(n)) return false;
+      if(isRelayNode(n)) return isNodeInCurrentMapPage(n.id);
       if(n.id===rootId) return true;
       return assignedIds.has(n.id);
     };

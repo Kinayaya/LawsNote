@@ -114,7 +114,7 @@
   },{passive:false});
   g('mapToggleBtn').addEventListener('click',()=>toggleMapView(true));
   g('mapBackBtn').addEventListener('click',()=>{if(isMapOpen&&leaveMapSubpage())return;toggleMapView(false);});
-  on('mapAddNoteBtn','click',()=>executeQuickCommand('new',{closeSheet:false}));
+  on('mapAddNoteBtn','click',()=>{formMode='note';openForm(false);});
   on('mapAssignNoteBtn','click',openMapAssignPanel);
   on('mapSearchInput','input',debounce(()=>{mapFilter.q=g('mapSearchInput').value;saveDataDeferred();if(isMapOpen)drawMap();},250));
   on('mapFilterSub','change',()=>{

@@ -108,6 +108,14 @@
     </div>
     <label class="flbl">標題</label>
     <input class="fi" id="fti" placeholder="例：民法第 184 條">
+    <div id="mapAssignFormWrap" style="display:none;">
+      <div style="font-size:12px;color:#667;margin:4px 0 10px;">請用和新增/編輯筆記相同的側邊表單，將筆記加入指定頁面。</div>
+      <label class="flbl">目標頁面</label>
+      <select class="fs" id="mapAssignPageSel"></select>
+      <label class="flbl">搜尋筆記</label>
+      <input class="fi" id="mapAssignSearchInput" placeholder="輸入關鍵字找筆記...">
+      <div id="mapAssignSearchResult" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;"></div>
+    </div>
     <div id="dynamicFieldWrap">
       <div class="field-config-head">
         <span>欄位（依類型）</span>
@@ -390,30 +398,6 @@
     <div class="quick-template-grid" id="quickTemplateGrid"></div>
     <button class="tool-btn" id="quickAddCloseBtn">取消</button>
   </div>
-</div>
-
-<div id="commandSheet">
-  <div class="quick-sheet-box">
-    <div class="quick-sheet-title">快速指令</div>
-    <div class="command-sheet-list">
-      <button class="tool-btn" data-cmd="search">🔎 搜尋筆記</button>
-      <button class="tool-btn" data-cmd="new">➕ 新增筆記</button>
-      <button class="tool-btn" data-cmd="mapAssign">🧩 加入筆記到頁面</button>
-      <button class="tool-btn" data-cmd="map">🧭 切換體系圖</button>
-      <button class="tool-btn" data-cmd="calendar">📅 切換日曆</button>
-      <button class="tool-btn" data-cmd="duplicate">📄 複製目前筆記</button>
-      <button class="tool-btn" data-cmd="delete">🗑️ 刪除目前筆記</button>
-    </div>
-    <button class="tool-btn" id="commandSheetCloseBtn">關閉</button>
-  </div>
-</div>
-
-<div id="touchQuickBar">
-  <button class="touch-quick-drag-handle" id="touchQuickDragHandle" type="button" aria-label="拖曳快速功能列" title="拖曳快速功能列">⠿</button>
-  <button class="tool-btn" id="touchQuickAddBtn">＋ 新增</button>
-  <button class="tool-btn" id="touchQuickSearchBtn">🔎 搜尋</button>
-  <button class="tool-btn" id="touchQuickAssignBtn">🧩 加入頁面</button>
-  <button class="tool-btn" id="touchQuickMoreBtn">⋯</button>
 </div>
 
 <!-- Exam View -->

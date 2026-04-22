@@ -341,18 +341,13 @@ body.compact-filters .filter-row,body.compact-filters #subbar,body.compact-filte
 #actionToast{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);background:#101828;color:#fff;border-radius:12px;padding:10px 12px;display:none;align-items:center;gap:10px;z-index:620;box-shadow:0 8px 20px rgba(0,0,0,.25)}
 #actionToast.open{display:flex}
 #actionToastUndoBtn{border:none;background:#EAF3DE;color:#3B6D11;padding:6px 10px;border-radius:8px;font-weight:700;cursor:pointer}
-#quickAddSheet,#commandSheet{display:none;position:fixed;inset:0;background:rgba(15,23,42,.34);z-index:610;align-items:flex-end;justify-content:center}
-#quickAddSheet.open,#commandSheet.open{display:flex}
+#quickAddSheet{display:none;position:fixed;inset:0;background:rgba(15,23,42,.34);z-index:610;align-items:flex-end;justify-content:center}
+#quickAddSheet.open{display:flex}
 .quick-sheet-box{background:#fff;border-radius:16px 16px 0 0;padding:14px;width:min(520px,100vw);display:flex;flex-direction:column;gap:10px;box-shadow:0 -6px 26px rgba(0,0,0,.16)}
 .quick-sheet-title{font-size:14px;font-weight:700;color:#344054}
 .quick-template-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .quick-template-btn{border:1px solid #dce2eb;background:#f8fbff;border-radius:10px;padding:14px 10px;font-size:14px;cursor:pointer;font-weight:600;color:#335f8e}
 .command-sheet-list{display:flex;flex-direction:column;gap:8px}
-#touchQuickBar{display:none;position:fixed;right:10px;left:auto;transform:none;bottom:calc(env(safe-area-inset-bottom,0px) + 84px);z-index:600;background:rgba(255,255,255,.95);border:1px solid #e5e7eb;border-radius:14px;padding:6px;gap:6px;box-shadow:0 10px 20px rgba(0,0,0,.12);flex-direction:column}
-#touchQuickBar .tool-btn{font-size:12px;padding:7px 10px;border-radius:10px;min-width:88px;text-align:left}
-#touchQuickBar.dragging{opacity:.9;box-shadow:0 14px 26px rgba(0,0,0,.2)}
-.touch-quick-drag-handle{border:1px dashed #cfd6df;background:#f7fafc;color:#6b7280;border-radius:9px;padding:3px 8px;font-size:12px;line-height:1.2;cursor:grab;touch-action:none;user-select:none}
-.touch-quick-drag-handle:active{cursor:grabbing}
 .touch-radial-menu{position:fixed;z-index:650;display:none;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 8px 20px rgba(0,0,0,.2);padding:6px;gap:6px}
 .touch-radial-menu.open{display:flex}
 .touch-radial-menu button{border:1px solid #e2e8f0;background:#f8fbff;border-radius:8px;padding:8px 9px;font-size:12px}
@@ -578,7 +573,6 @@ body.panel-dir-bottom #tp.open{transform:translateY(0)}
 @media (hover:none){
   .cfoot{opacity:0;max-height:0}
   .card.selected .cfoot{opacity:1;max-height:120px}
-  #touchQuickBar{display:flex}
   .touch-quick-filters{display:flex}
   #content{padding-bottom:72px}
 }

@@ -269,6 +269,7 @@ const getCollapsedNodesForCurrentContext = () => {
 const isMapNodeCollapsed = noteId => !!mapCollapsed[mapCollapseKey(noteId)];
 const mapSubpageContextKey = () => 'global';
 const mapSubpageKey = noteId => `${mapSubpageContextKey()}::${noteId}`;
+const mapPageNoteKey = rootId => Number.isFinite(parseInt(rootId,10))?String(parseInt(rootId,10)):'root';
 const findSubpageKeyByNoteId = noteId => {
   const exactKey=mapSubpageKey(noteId);
   if(mapSubpages[exactKey]) return exactKey;
@@ -296,6 +297,33 @@ const normalizeMapSubpages = raw => {
   });
   return next;
 };
+const normalizeMapPageNotes = raw => {
+  const src=(raw&&typeof raw==='object'&&!Array.isArray(raw))?raw:{}, next={root:[]};
+  Object.keys(src).forEach(key=>{
+    const normalizedKey=mapPageNoteKey(key);
+    const noteIdsRaw=Array.isArray(src[key])?src[key]:[];
+    next[normalizedKey]=[...new Set(noteIdsRaw.map(v=>parseInt(v,10)).filter(Number.isFinite))];
+  });
+  return next;
+};
+const getMapPageAssignedIds = rootId => {
+  const key=mapPageNoteKey(rootId===undefined?currentSubpageRootId():rootId);
+  const arr=Array.isArray(mapPageNotes[key])?mapPageNotes[key]:[];
+  return new Set(arr.map(v=>parseInt(v,10)).filter(Number.isFinite));
+};
+const setMapPageAssignedIds = (rootId,noteIds=[]) => {
+  const key=mapPageNoteKey(rootId===undefined?currentSubpageRootId():rootId);
+  mapPageNotes[key]=[...new Set((noteIds||[]).map(v=>parseInt(v,10)).filter(Number.isFinite))];
+};
+const assignNoteToMapPage = (noteId,rootId) => {
+  const nid=parseInt(noteId,10);
+  if(!Number.isFinite(nid)||!mapNodeById(nid)) return false;
+  const ids=getMapPageAssignedIds(rootId);
+  if(ids.has(nid)) return false;
+  ids.add(nid);
+  setMapPageAssignedIds(rootId,[...ids]);
+  return true;
+};
 const normalizeMapCollapsed = raw => {
   const src=(raw&&typeof raw==='object'&&!Array.isArray(raw))?raw:{}, next={};
   const legacyPrefix='all::all::all::root::';
@@ -319,30 +347,10 @@ const relayPageRootId = relay => {
 function isNodeInCurrentMapPage(nodeId){
   const node=mapNodeById(nodeId);
   if(!node) return false;
-  const currentRoot=currentSubpageRootId();
-  if(isRelayNode(node)){
-    const relayRoot=relayPageRootId(node);
-    if(currentRoot) return relayRoot===currentRoot;
-    return relayRoot===null;
-  }
-  if(currentRoot) return nodeId!==currentRoot&&getDescendantIds(currentRoot).has(nodeId);
-  const hidden=new Set();
-  Object.keys(mapSubpages||{}).forEach(key=>{
-    const rootId=parseInt(String(key).split('::').pop(),10);
-    if(!Number.isFinite(rootId)) return;
-    const descendants=getDescendantIds(rootId);
-    descendants.delete(rootId);
-    descendants.forEach(id=>hidden.add(id));
-  });
-  return !hidden.has(nodeId);
+  return getMapPageAssignedIds().has(nodeId);
 }
 const isNodeInCurrentSubpage = noteId => {
-  if(!isInMapSubpage()) return true;
-  const currentRoot=currentSubpageRootId();
-  if(!currentRoot) return false;
-  const relay=relayById(noteId);
-  if(relay) return relayPageRootId(relay)===currentRoot;
-  return getDescendantIds(currentRoot).has(noteId);
+  return isNodeInCurrentMapPage(noteId);
 };
 const mapTitleMarkers = noteId => {
   const marks=[];
@@ -362,7 +370,7 @@ const setMapCenterForCurrentScope = (id,opt={}) => {
   mapCenterNodeIds[getMapCenterContextKey()]=id;
   if(updateGlobal) mapCenterNodeId=id;
 };
-const getPayload = () => ({notes,mapRelays:[],links,nid,lid,types,subjects,chapters,sections,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,mapSubpages,typeFieldConfigs,customFieldDefs,calendarEvents,calendarSettings,achievements,levelSystem,panelDir:getPanelDir(),updatedAt:new Date().toISOString()});
+const getPayload = () => ({notes,mapRelays:[],links,nid,lid,types,subjects,chapters,sections,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,mapSubpages,mapPageNotes,typeFieldConfigs,customFieldDefs,calendarEvents,calendarSettings,achievements,levelSystem,panelDir:getPanelDir(),updatedAt:new Date().toISOString()});
 const parseUpdatedAt = raw => {
   const n=Date.parse(raw||'');
   return Number.isFinite(n)?n:0;
@@ -746,6 +754,15 @@ function normalizeNoteIds(forceReindexAll=false) {
     remappedSubpages[mapSubpageKey(newId)]={...item,rootId:newId,createdAt:item.createdAt||new Date().toISOString()};
   });
   mapSubpages=remappedSubpages;
+  const remappedPageNotes={};
+  Object.keys(mapPageNotes||{}).forEach(key=>{
+    const normalizedKey=mapPageNoteKey(key);
+    const raw=Array.isArray(mapPageNotes[key])?mapPageNotes[key]:[];
+    const remapped=[...new Set(raw.map(v=>firstMap[Number(v)]).filter(id=>Number.isFinite(id)&&mapNodeById(id)))];
+    remappedPageNotes[normalizedKey]=remapped;
+  });
+  if(!remappedPageNotes.root) remappedPageNotes.root=[];
+  mapPageNotes=remappedPageNotes;
   mapPageStack=(Array.isArray(mapPageStack)?mapPageStack:[]).map(id=>firstMap[id]).filter(id=>Number.isFinite(id)&&mapNodeById(id));
   mapFocusedNodeId=firstMap[mapFocusedNodeId]??null;
   openId=firstMap[openId]??null;

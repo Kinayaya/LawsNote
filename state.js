@@ -23,6 +23,7 @@ let mapCollapsed={};
 let mapLinkSourceId=null;
 let touchRadialMenu=null, actionUndoTimer=null, lastCardTap={id:0,time:0};
 let mapSubpages={}, mapPageStack=[];
+let mapPageNotes={root:[]}, mapAssignTargetPageId='root', mapAssignSelectedNoteId=null;
 let typeFieldConfigs={}, customFieldDefs={};
 let undoSnapshotRaw='', lastSavedPayloadRaw='', isUndoApplying=false;
 let calendarEvents=[], calendarSettings={emails:[]}, calendarCursor=new Date(), activeCalendarDate='';
@@ -76,4 +77,3 @@ function mergeRelaysIntoNotes(baseNotes=[], relayList=[]){
     return true;
   });
 }
-

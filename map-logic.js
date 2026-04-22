@@ -244,14 +244,16 @@ function mapNodeMatchesTaxonomyFilter(n){
 }
 function visibleNotes(){
   const q=(mapFilter.q||'').toLowerCase(),linkedIds={};
+  const pageAssignedIds=getMapPageAssignedIds();
   if(mapLinkedOnly)links.forEach(l=>{linkedIds[l.from]=true;linkedIds[l.to]=true;});
   const baseFiltered=notes.filter(n=>{
+    if(!pageAssignedIds.has(n.id)) return false;
     const subs=noteSubjects(n),chs=noteChapters(n),secs=noteSections(n);
     return mapNodeMatchesTaxonomyFilter(n)
       &&(!q||`${n.title}${subs.join('')}${chs.join('')}${secs.join('')}${noteTags(n).join('')}`.toLowerCase().includes(q));
   });
   const relayFiltered=mapRelays.filter(n=>{
-    if(!isNodeInCurrentMapPage(n.id)) return false;
+    if(!pageAssignedIds.has(n.id)) return false;
     return mapNodeMatchesTaxonomyFilter(n)&&relayMatchesSearch(n,q);
   });
   const shouldExpandLinked=scopeLinkedEnabled&&mapHasTaxonomyFilter();
@@ -262,37 +264,6 @@ function visibleNotes(){
     relayVisible=mapRelays.filter(n=>expandedIds.has(n.id)&&relayMatchesSearch(n,q));
   }
   let base=[...filtered,...relayVisible].filter(n=>!mapLinkedOnly||isRelayNode(n)||linkedIds[n.id]);
-  if(isInMapSubpage()){
-    const rootId=currentSubpageRootId();
-    const assignedIds=getMapSubpageAssignedIds(rootId);
-    const shouldShowInSubpage=n=>{
-      if(!mapNodeMatchesTaxonomyFilter(n)) return false;
-      if(isRelayNode(n)) return isNodeInCurrentMapPage(n.id);
-      if(n.id===rootId) return true;
-      return assignedIds.has(n.id);
-    };
-    const baseIds={};base.forEach(n=>baseIds[n.id]=true);
-    notes.forEach(n=>{
-      if(baseIds[n.id]||!shouldShowInSubpage(n)||!noteMatchesSearch(n,q)) return;
-      base.push(n);baseIds[n.id]=true;
-    });
-    mapRelays.forEach(n=>{
-      if(baseIds[n.id]||!shouldShowInSubpage(n)||!relayMatchesSearch(n,q)) return;
-      base.push(n);baseIds[n.id]=true;
-    });
-    base=base.filter(shouldShowInSubpage);
-  }else{
-    const baseIds0={};base.forEach(n=>baseIds0[n.id]=true);
-    Object.keys(mapSubpages||{}).forEach(key=>{
-      const [ctx,nidRaw]=key.split('::').slice(-2);
-      const ctxKey=key.slice(0,key.lastIndexOf('::'));
-      const nid=parseInt(nidRaw,10);
-      if(ctxKey!==mapSubpageContextKey()||!baseIds0[nid]) return;
-      const hidden=getDescendantIds(nid,baseIds0);
-      hidden.delete(nid);
-      base=base.filter(item=>!hidden.has(item.id));
-    });
-  }
   if(mapLinkedOnly&&!base.length&&filtered.length){
     mapLinkedOnly=false;setMapLinkedOnlyBtnStyle();
     showToast('目前沒有關聯節點，已自動顯示全部節點');saveDataDeferred();base=filtered;
@@ -797,8 +768,6 @@ const count=normalizeLaneCount(g('laneCountInput')?.value||cfg.count);
   mapLaneConfigs[cfg.key]={count,names};saveDataDeferred();closeLanePanel();nodePos={};forceLayout();drawMap();showToast('已儲存泳道設定');
 }
 function resetLanePanel(){ const cfg=getLaneConfig();mapLaneConfigs[cfg.key]={count:DEFAULT_LANE_NAMES.length,names:DEFAULT_LANE_NAMES.slice()};renderLanePanel();saveDataDeferred(); }
-function openCommandSheet(){ g('commandSheet')?.classList.add('open'); }
-function closeCommandSheet(){ g('commandSheet')?.classList.remove('open'); }
 function quickTemplateIcon(typeKey){
   const map={article:'📘',case:'⚖️',concept:'🧠',diary:'📝'};
   return map[typeKey]||'🗂️';
@@ -813,8 +782,7 @@ function executeQuickCommand(cmd,{closeSheet=true}={}){
   if(cmd==='search') g('searchInput')?.focus();
   else if(cmd==='new') openQuickAddSheet();
   else if(cmd==='mapAssign'){
-    if(!isMapOpen) toggleMapView(true);
-    setTimeout(()=>openMapAssignPanel(),80);
+    openMapAssignPanel();
   }
   else if(cmd==='relay'){
     showToast('「中繼站」功能已移除');
@@ -823,7 +791,6 @@ function executeQuickCommand(cmd,{closeSheet=true}={}){
   else if(cmd==='calendar') toggleCalendarView(currentView!=='calendar');
   else if(cmd==='duplicate') duplicateMapNode();
   else if(cmd==='delete') deleteMapNode();
-  if(closeSheet) closeCommandSheet();
 }
 function openQuickTemplate(typeKey){
   closeQuickAddSheet();
@@ -835,99 +802,15 @@ function openQuickTemplate(typeKey){
   }
 }
 function bindTouchQuickActions(){
-  const touchQuickBar=g('touchQuickBar');
-  const touchQuickDragHandle=g('touchQuickDragHandle');
-  const safePadding=8;
-  const clamp=(v,min,max)=>Math.min(max,Math.max(min,v));
-  const applyTouchQuickBarPos=(x,y)=>{
-    if(!touchQuickBar) return;
-    const maxX=Math.max(safePadding,window.innerWidth-touchQuickBar.offsetWidth-safePadding);
-    const maxY=Math.max(safePadding,window.innerHeight-touchQuickBar.offsetHeight-safePadding);
-    const nextX=clamp(x,safePadding,maxX);
-    const nextY=clamp(y,safePadding,maxY);
-    touchQuickBar.style.left=`${nextX}px`;
-    touchQuickBar.style.top=`${nextY}px`;
-    touchQuickBar.style.right='auto';
-    touchQuickBar.style.bottom='auto';
-  };
-  const saveTouchQuickBarPos=()=>{
-    if(!touchQuickBar||!touchQuickBar.style.left||!touchQuickBar.style.top) return;
-    localStorage.setItem(TOUCH_QUICK_BAR_POS_KEY,JSON.stringify({
-      left:parseFloat(touchQuickBar.style.left)||0,
-      top:parseFloat(touchQuickBar.style.top)||0
-    }));
-  };
-  const restoreTouchQuickBarPos=()=>{
-    if(!touchQuickBar) return;
-    let saved=null;
-    try{ saved=JSON.parse(localStorage.getItem(TOUCH_QUICK_BAR_POS_KEY)||'null'); }catch(e){}
-    if(saved&&Number.isFinite(saved.left)&&Number.isFinite(saved.top)){
-      applyTouchQuickBarPos(saved.left,saved.top);
-      return;
-    }
-    touchQuickBar.style.left='';
-    touchQuickBar.style.top='';
-    touchQuickBar.style.right='10px';
-    touchQuickBar.style.bottom='calc(env(safe-area-inset-bottom,0px) + 84px)';
-  };
-  restoreTouchQuickBarPos();
-  if(touchQuickBar&&touchQuickDragHandle){
-    let dragging=false,startX=0,startY=0,baseX=0,baseY=0,dragMoved=false;
-    const stopDrag=()=>{
-      if(!dragging) return;
-      dragging=false;
-      touchQuickBar.classList.remove('dragging');
-      if(dragMoved) saveTouchQuickBarPos();
-    };
-    touchQuickDragHandle.addEventListener('pointerdown',e=>{
-      const rect=touchQuickBar.getBoundingClientRect();
-      dragging=true;dragMoved=false;
-      startX=e.clientX;startY=e.clientY;baseX=rect.left;baseY=rect.top;
-      touchQuickBar.classList.add('dragging');
-      touchQuickDragHandle.setPointerCapture?.(e.pointerId);
-      e.stopPropagation();
-      e.preventDefault();
-    });
-    touchQuickDragHandle.addEventListener('pointermove',e=>{
-      if(!dragging) return;
-      const dx=e.clientX-startX,dy=e.clientY-startY;
-      if(Math.abs(dx)>2||Math.abs(dy)>2) dragMoved=true;
-      applyTouchQuickBarPos(baseX+dx,baseY+dy);
-      e.stopPropagation();
-      e.preventDefault();
-    });
-    touchQuickDragHandle.addEventListener('pointerup',e=>{
-      touchQuickDragHandle.releasePointerCapture?.(e.pointerId);
-      e.stopPropagation();
-      stopDrag();
-    });
-    touchQuickDragHandle.addEventListener('pointercancel',e=>{
-      e.stopPropagation();
-      stopDrag();
-    });
-    window.addEventListener('resize',()=>{
-      if(!touchQuickBar) return;
-      if(!touchQuickBar.style.left||!touchQuickBar.style.top) return;
-      applyTouchQuickBarPos(parseFloat(touchQuickBar.style.left)||0,parseFloat(touchQuickBar.style.top)||0);
-      saveTouchQuickBarPos();
-    });
-  }
   on('quickAddCloseBtn','click',closeQuickAddSheet);
   on('mapTreeToggleBtn','click',()=>g('mapTreeSidebar')?.classList.add('open'));
   on('mapTreeCloseBtn','click',()=>g('mapTreeSidebar')?.classList.remove('open'));
-  on('commandSheetCloseBtn','click',closeCommandSheet);
   g('quickAddSheet')?.addEventListener('click',e=>{if(e.target.id==='quickAddSheet') closeQuickAddSheet();});
-  g('commandSheet')?.addEventListener('click',e=>{if(e.target.id==='commandSheet') closeCommandSheet();});
   g('quickAddSheet')?.addEventListener('click',e=>{
     const btn=e.target.closest('[data-template]');
     if(!btn) return;
     openQuickTemplate(btn.dataset.template);
   });
-  g('commandSheet')?.querySelectorAll('[data-cmd]').forEach(btn=>btn.addEventListener('click',()=>executeQuickCommand(btn.dataset.cmd)));
-  on('touchQuickAddBtn','click',openQuickAddSheet);
-  on('touchQuickSearchBtn','click',()=>g('searchInput')?.focus());
-  on('touchQuickAssignBtn','click',()=>executeQuickCommand('mapAssign',{closeSheet:false}));
-  on('touchQuickMoreBtn','click',openCommandSheet);
   g('touchQuickFilters')?.querySelectorAll('[data-qf]').forEach(btn=>btn.addEventListener('click',()=>{
     const kind=btn.dataset.qf;
     if(kind==='today'){
@@ -937,18 +820,6 @@ function bindTouchQuickActions(){
     }
     render();
   }));
-  document.addEventListener('keydown',e=>{
-    if((e.metaKey||e.altKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openCommandSheet();}
-  });
-  let edgeStartX=0;
-  document.addEventListener('touchstart',e=>{
-    const t=e.touches&&e.touches[0];if(!t) return;
-    edgeStartX=t.clientX;
-  },{passive:true});
-  document.addEventListener('touchend',e=>{
-    const t=e.changedTouches&&e.changedTouches[0];if(!t) return;
-    if(edgeStartX>window.innerWidth-22&&(edgeStartX-t.clientX)>30) openCommandSheet();
-  },{passive:true});
 }
 
 function bindCoreButtons(){

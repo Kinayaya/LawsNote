@@ -323,6 +323,14 @@
     <button class="zoom-btn" id="zoomFit">適合視窗</button>
   </div>
   <div id="mapCanvas">
+    <button class="map-tree-toggle" id="mapTreeToggleBtn" type="button" title="樹狀索引">☰ 索引</button>
+    <aside class="map-tree-sidebar" id="mapTreeSidebar">
+      <div class="map-tree-head">
+        <span>樹狀索引</span>
+        <button class="tool-btn" id="mapTreeCloseBtn" type="button">收合</button>
+      </div>
+      <div class="map-tree-body" id="mapTreeBody"></div>
+    </aside>
     <div id="lanePanel">
       <div class="lane-panel-head"><span class="lane-panel-title">泳道設定</span><button class="pcls" id="lanePanelClose">&#215;</button></div>
       <div class="lane-panel-desc">可依「目前科目/節篩選」分開設定泳道名稱。</div>
@@ -379,12 +387,7 @@
 <div id="quickAddSheet">
   <div class="quick-sheet-box">
     <div class="quick-sheet-title">快速新增</div>
-    <div class="quick-template-grid">
-      <button class="quick-template-btn" data-template="article">📘 條文</button>
-      <button class="quick-template-btn" data-template="case">⚖️ 判決</button>
-      <button class="quick-template-btn" data-template="concept">🧠 爭點</button>
-      <button class="quick-template-btn" data-template="diary">📝 日記</button>
-    </div>
+    <div class="quick-template-grid" id="quickTemplateGrid"></div>
     <button class="tool-btn" id="quickAddCloseBtn">取消</button>
   </div>
 </div>

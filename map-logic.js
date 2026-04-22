@@ -47,7 +47,7 @@ function forceLayout() {
   const visLinks=visibleLinks(visIds),n2=layoutNotes.length;if(!n2)return;
   const scopedCenterId=getMapCenterFromScopes();
   const hasStoredCenter=!!scopedCenterId&&!!mapNodeById(scopedCenterId);
-  if(!hasStoredCenter){
+  if(!hasStoredCenter&&!mapCenterNodeId){
     const linkCount={};layoutNotes.forEach(n=>linkCount[n.id]=0);visLinks.forEach(lk=>{linkCount[lk.from]=(linkCount[lk.from]||0)+1;linkCount[lk.to]=(linkCount[lk.to]||0)+1;});
     setMapCenterForCurrentScope(layoutNotes.reduce((max,n)=>linkCount[n.id]>linkCount[max.id]?n:max,layoutNotes[0]).id);
   }
@@ -402,6 +402,62 @@ function deleteMapRelay(id){
   showToast('已刪除中繼站');
 }
 function scheduleMapRedraw(ms=60){ if(mapRedrawTimer)clearTimeout(mapRedrawTimer);if(mapTimer)clearTimeout(mapTimer);mapRedrawTimer=setTimeout(()=>drawMap(),ms);mapTimer=mapRedrawTimer; }
+function buildMapTreeIndex(visNotes){
+  const body=g('mapTreeBody');if(!body)return;
+  if(!Array.isArray(visNotes)||!visNotes.length){body.innerHTML='<div class="map-tree-empty">目前沒有可顯示節點。</div>';return;}
+  const tree={};
+  visNotes.forEach(n=>{
+    const subKeys=noteSubjects(n).length?noteSubjects(n):['none'];
+    const chKeys=noteChapters(n).length?noteChapters(n):['none'];
+    const secKeys=noteSections(n).length?noteSections(n):['none'];
+    subKeys.forEach(sk=>{
+      if(!tree[sk]) tree[sk]={items:{}};
+      chKeys.forEach(ck=>{
+        if(!tree[sk].items[ck]) tree[sk].items[ck]={items:{}};
+        secKeys.forEach(sek=>{
+          if(!tree[sk].items[ck].items[sek]) tree[sk].items[ck].items[sek]=[];
+          tree[sk].items[ck].items[sek].push(n);
+        });
+      });
+    });
+  });
+  const subOrder=Object.keys(tree).sort((a,b)=>subByKey(a).label.localeCompare(subByKey(b).label,'zh'));
+  const secLabel=key=>key==='none'?'（無節）':sectionByKey(key).label;
+  const chLabel=key=>key==='none'?'（無章）':chapterByKey(key).label;
+  const subLabel=key=>key==='none'?'（未設定科目）':subByKey(key).label;
+  body.innerHTML=`<ul class="map-tree-list">${subOrder.map(sk=>{
+    const chMap=tree[sk].items,chOrder=Object.keys(chMap).sort((a,b)=>chLabel(a).localeCompare(chLabel(b),'zh'));
+    const subCount=chOrder.reduce((sum,ck)=>sum+Object.values(chMap[ck].items).reduce((s,arr)=>s+arr.length,0),0);
+    return `<li class="map-tree-group"><div class="map-tree-group-row"><span class="map-tree-label">📚 ${escapeHtml(subLabel(sk))}</span><span class="map-tree-count">${subCount}</span></div>
+      <ul>${chOrder.map(ck=>{
+        const secMap=chMap[ck].items,secOrder=Object.keys(secMap).sort((a,b)=>secLabel(a).localeCompare(secLabel(b),'zh'));
+        const chCount=secOrder.reduce((sum,sek)=>sum+secMap[sek].length,0);
+        return `<li class="map-tree-group"><div class="map-tree-group-row"><span class="map-tree-label">📁 ${escapeHtml(chLabel(ck))}</span><span class="map-tree-count">${chCount}</span></div>
+          <ul>${secOrder.map(sek=>{
+            const sorted=secMap[sek].slice().sort((a,b)=>safeStr(a.title).localeCompare(safeStr(b.title),'zh')||a.id-b.id);
+            return `<li class="map-tree-group"><div class="map-tree-group-row"><span class="map-tree-label">📄 ${escapeHtml(secLabel(sek))}</span><span class="map-tree-count">${sorted.length}</span></div>
+              <ul>${sorted.map(note=>{
+                const type=typeByKey(note.type);
+                return `<li><button class="map-tree-node" type="button" data-tree-note-id="${note.id}"><span class="map-tree-node-color" style="background:${type.color};"></span><span>${escapeHtml(note.title||`節點#${note.id}`)}</span></button></li>`;
+              }).join('')}</ul>
+            </li>`;
+          }).join('')}</ul>
+        </li>`;
+      }).join('')}</ul>
+    </li>`;
+  }).join('')}</ul>`;
+  body.querySelectorAll('[data-tree-note-id]').forEach(btn=>btn.addEventListener('click',()=>{
+    const id=parseInt(btn.dataset.treeNoteId,10);
+    if(!Number.isFinite(id)||!mapNodeById(id)) return;
+    showMapInfo(id);openMapPopup(id);highlightNode(id);
+    const pos=nodePos[id];
+    if(pos){
+      mapOffX=mapW*0.5-pos.x*mapScale;
+      mapOffY=mapH*0.35-pos.y*mapScale;
+      drawMap();
+    }
+  }));
+}
 function drawMap(){
   if(!isMapOpen)return;
   const canvas=g('mapCanvas'),svg=g('mapSvg'),linksLayer=g('linksLayer'),nodesLayer=g('nodesLayer');
@@ -412,6 +468,7 @@ function drawMap(){
   if(!mapWrap){mapWrap=document.createElementNS('http://www.w3.org/2000/svg','g');mapWrap.id='mapWrap';svg.appendChild(mapWrap);mapWrap.appendChild(linksLayer);mapWrap.appendChild(nodesLayer);}
   mapWrap.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`);
   const visNotes=visibleNotes(),visIds={};visNotes.forEach(n=>visIds[n.id]=true);
+  buildMapTreeIndex(visNotes);
   if(visNotes.length===0){linksLayer.innerHTML='';nodesLayer.innerHTML='';nodeEls={};linkElsMap={};nodeLinksIndex={};linkCurveOffsets={};closeMapPopup();return;}
   const missingPos=visNotes.some(n=>!nodePos[n.id]||isNaN(nodePos[n.id].x)||isNaN(nodePos[n.id].y));
   if(missingPos)forceLayout();
@@ -579,7 +636,7 @@ function showMapInfo(id){
   const setCenterBtn=document.createElement('button');setCenterBtn.className='mp-set-center';
   setCenterBtn.textContent=currentCenterId===id?'✓ 已是核心':'⭐ 設為核心';
   setCenterBtn.style.cssText='width:100%;padding:8px;margin:8px 0 4px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ddd;'+(currentCenterId===id?'background:#EAF3DE;color:#3B6D11;border-color:#97C459;':'background:#f5f5f5;color:#555;');
-  setCenterBtn.onclick=()=>{setMapCenterForCurrentScope(id);nodePos={};forceLayout();drawMap();saveData();closeMapPopup();showToast(`已將「${n.title}」設為核心節點（僅此科目/章）`);};
+  setCenterBtn.onclick=()=>{setMapCenterForCurrentScope(id);nodePos={};forceLayout();drawMap();saveData();closeMapPopup();showToast(`已將「${n.title}」設為核心節點（僅此科目/章/節）`);};
   const goBtn=g('mpGoto');
   const hasSubpage=hasSubpageForNode(id);
   const subpageBtn=document.createElement('button');
@@ -737,7 +794,15 @@ const count=normalizeLaneCount(g('laneCountInput')?.value||cfg.count);
 function resetLanePanel(){ const cfg=getLaneConfig();mapLaneConfigs[cfg.key]={count:DEFAULT_LANE_NAMES.length,names:DEFAULT_LANE_NAMES.slice()};renderLanePanel();saveDataDeferred(); }
 function openCommandSheet(){ g('commandSheet')?.classList.add('open'); }
 function closeCommandSheet(){ g('commandSheet')?.classList.remove('open'); }
-function openQuickAddSheet(){ g('quickAddSheet')?.classList.add('open'); }
+function quickTemplateIcon(typeKey){
+  const map={article:'📘',case:'⚖️',concept:'🧠',diary:'📝'};
+  return map[typeKey]||'🗂️';
+}
+function renderQuickTemplateButtons(){
+  const grid=g('quickTemplateGrid');if(!grid)return;
+  grid.innerHTML=types.map(t=>`<button class="quick-template-btn" data-template="${t.key}" type="button">${quickTemplateIcon(t.key)} ${escapeHtml(t.label)}</button>`).join('')||'<div class="map-tree-empty">目前尚未設定類型。</div>';
+}
+function openQuickAddSheet(){ renderQuickTemplateButtons();g('quickAddSheet')?.classList.add('open'); }
 function closeQuickAddSheet(){ g('quickAddSheet')?.classList.remove('open'); }
 function executeQuickCommand(cmd,{closeSheet=true}={}){
   if(cmd==='search') g('searchInput')?.focus();
@@ -843,10 +908,16 @@ function bindTouchQuickActions(){
     });
   }
   on('quickAddCloseBtn','click',closeQuickAddSheet);
+  on('mapTreeToggleBtn','click',()=>g('mapTreeSidebar')?.classList.add('open'));
+  on('mapTreeCloseBtn','click',()=>g('mapTreeSidebar')?.classList.remove('open'));
   on('commandSheetCloseBtn','click',closeCommandSheet);
   g('quickAddSheet')?.addEventListener('click',e=>{if(e.target.id==='quickAddSheet') closeQuickAddSheet();});
   g('commandSheet')?.addEventListener('click',e=>{if(e.target.id==='commandSheet') closeCommandSheet();});
-  g('quickAddSheet')?.querySelectorAll('[data-template]').forEach(btn=>btn.addEventListener('click',()=>openQuickTemplate(btn.dataset.template)));
+  g('quickAddSheet')?.addEventListener('click',e=>{
+    const btn=e.target.closest('[data-template]');
+    if(!btn) return;
+    openQuickTemplate(btn.dataset.template);
+  });
   g('commandSheet')?.querySelectorAll('[data-cmd]').forEach(btn=>btn.addEventListener('click',()=>executeQuickCommand(btn.dataset.cmd)));
   on('touchQuickAddBtn','click',openQuickAddSheet);
   on('touchQuickSearchBtn','click',()=>g('searchInput')?.focus());

@@ -5,6 +5,7 @@ body.side-panel-open{overflow:hidden}
 button,input,select,textarea{font-family:inherit;-webkit-appearance:none;appearance:none}
 input[type="checkbox"]{-webkit-appearance:auto;appearance:auto}
 .brand-wrap{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.klaws-logo-btn{border:none;background:transparent;padding:0;border-radius:12px;cursor:pointer;line-height:0}
 .klaws-logo{flex-shrink:0;border-radius:9px;overflow:hidden;box-shadow:0 2px 8px rgba(26,26,46,.18)}
 .brand-text{display:flex;flex-direction:column;line-height:1.1}
 .brand-name{font-size:16px;font-weight:800;letter-spacing:-.5px;color:#1a1a2e}
@@ -19,6 +20,8 @@ input[type="checkbox"]{-webkit-appearance:auto;appearance:auto}
 .search-clear{position:absolute;right:7px;top:50%;transform:translateY(-50%);color:#aaa;font-size:16px;cursor:pointer;display:none;background:none;border:none;line-height:1}
 .tool-btns{display:flex;gap:8px;align-items:center;flex-shrink:0;position:relative}
 .header-achievement-wrap{display:flex;align-items:center;min-height:0;padding:0;background:transparent;border:none;cursor:pointer}
+.header-status-wrap{display:flex;align-items:center;gap:8px}
+.header-time-wrap{font-size:11px;font-weight:700;color:#335f8e;background:#edf4fb;border:1px solid #d4e4f4;border-radius:999px;padding:3px 10px;line-height:1.35;cursor:pointer;white-space:nowrap}
 .primary-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .more-wrap{position:relative}
 .more-btn{min-width:72px}
@@ -414,6 +417,8 @@ body.compact-filters .filter-row,body.compact-filters #subbar,body.compact-filte
 #reminderPopup button{position:absolute;right:18px;top:12px;background:none;border:none;color:#fff;font-size:34px;cursor:pointer}
 #focusTimerModal,#focusTimerAlert{display:none;position:fixed;inset:0;background:rgba(0,0,0,.48);z-index:530;align-items:center;justify-content:center}
 #focusTimerModal.open,#focusTimerAlert.open{display:flex}
+#focusTimerModal{pointer-events:none;background:transparent;align-items:flex-start;justify-content:flex-end;padding:80px 18px 18px}
+#focusTimerModal #focusTimerBox{pointer-events:auto}
 #focusTimerBox,#focusTimerAlertBox{background:#fff;border-radius:14px;border:1px solid #e5e7eb;padding:16px;width:min(360px,92vw);box-shadow:0 14px 34px rgba(0,0,0,.18)}
 #focusTimerBox h3,#focusTimerAlertBox h3{margin:0 0 10px;font-size:18px}
 #focusTimerDisplay{font-size:42px;font-weight:800;color:#0f172a;text-align:center;margin:10px 0 14px;font-variant-numeric:tabular-nums;letter-spacing:.02em}
@@ -572,6 +577,7 @@ body.panel-dir-bottom #tp.open{transform:translateY(0)}
   .title-row{grid-template-columns:1fr;gap:8px}
   .search-wrap{width:100%}
   .header-achievement-wrap{justify-self:start}
+  .header-status-wrap{justify-self:start;flex-wrap:wrap}
   #grid{grid-template-columns:repeat(5,minmax(0,1fr))}
 }
 
@@ -605,5 +611,6 @@ body.dark-mode .chip{background:#172033;color:#cbd5e1;border-color:#324158}
 body.dark-mode .cbody,body.dark-mode .dp-txt,body.dark-mode .calendar-day-item pre{color:#cbd5e1}
 body.dark-mode #assistToolsBox{background:#0f172a;border-color:#334155}
 body.dark-mode #assistToolsBox h3{color:#e5e7eb}
+body.dark-mode .header-time-wrap{background:#1d293f;border-color:#334155;color:#cfe5ff}
 
-.header-achievement-wrap:focus-visible{outline:2px solid #8cbcff;outline-offset:3px;border-radius:999px}
+.header-achievement-wrap:focus-visible,.header-time-wrap:focus-visible,.klaws-logo-btn:focus-visible{outline:2px solid #8cbcff;outline-offset:3px;border-radius:999px}

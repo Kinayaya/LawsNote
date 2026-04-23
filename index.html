@@ -11,22 +11,27 @@
 <div id="topbar">
   <div class="title-row">
     <div class="brand-wrap">
-      <div class="klaws-logo" aria-label="KLaws">
-        <svg width="34" height="34" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="logoBg" x1="4" y1="4" x2="48" y2="48" gradientUnits="userSpaceOnUse">
-              <stop offset="0" stop-color="#060C1F"/>
-              <stop offset="1" stop-color="#0F2A59"/>
-            </linearGradient>
-          </defs>
-          <rect width="52" height="52" rx="14" fill="url(#logoBg)"/>
-          <path d="M15 10V42H21V30L34 42H41L26 26L40 10H33L21 22V10Z" fill="#E6F0FF"/>
-          <path d="M15 10V42H18V10Z" fill="#7EAEF8" opacity="0.75"/>
-        </svg>
-      </div>
+      <button class="klaws-logo-btn" id="logoArchiveBtn" aria-label="開啟存檔與回收區" title="開啟存檔與回收區">
+        <div class="klaws-logo">
+          <svg width="48" height="48" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="logoBg" x1="4" y1="4" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#060C1F"/>
+                <stop offset="1" stop-color="#0F2A59"/>
+              </linearGradient>
+            </defs>
+            <rect width="52" height="52" rx="14" fill="url(#logoBg)"/>
+            <path d="M15 10V42H21V30L34 42H41L26 26L40 10H33L21 22V10Z" fill="#E6F0FF"/>
+            <path d="M15 10V42H18V10Z" fill="#7EAEF8" opacity="0.75"/>
+          </svg>
+        </div>
+      </button>
       <div class="brand-text"><span class="brand-name">KLaws</span><span class="brand-by">by Kina（張晧翔）</span></div>
     </div>
-    <button id="headerTitleWrap" class="header-achievement-wrap" title="查看等級系統" aria-label="查看等級系統"><span class="brand-title" id="brandTitleBadge">LV1・節點觀測員</span></button>
+    <div class="header-status-wrap">
+      <button id="headerTitleWrap" class="header-achievement-wrap" title="查看等級系統" aria-label="查看等級系統"><span class="brand-title" id="brandTitleBadge">LV1・節點觀測員</span></button>
+      <button id="headerDatetimeBtn" class="header-time-wrap" title="開啟日曆系統" aria-label="開啟日曆系統">----/--/-- --:--</button>
+    </div>
     <div class="search-wrap">
       <span class="search-icon">&#128269;</span>
       <input id="searchInput" placeholder="搜尋法條、關鍵詞...">
@@ -42,13 +47,11 @@
       <div class="more-wrap">
         <button class="tool-btn more-btn" id="moreToolsBtn">&#8942; 更多</button>
         <div class="more-menu" id="moreToolsMenu">
-          <button class="tool-btn more-menu-item" id="calendarBtn">&#128197; 日曆</button>
           <button class="tool-btn more-menu-item" id="themeToggleBtn">&#127769; 暗色模式</button>
           <button class="tool-btn more-menu-item" id="panelDirBtn" title="切換筆記展開方向">&#8646; 面板方向</button>
           <button class="tool-btn exam-btn-style more-menu-item" id="examBtn">&#9997; 申論</button>
           <button class="tool-btn more-menu-item" id="assistToolsBtn">&#9881; 輔助功能</button>
           <button class="tool-btn more-menu-item" id="undoBtn">&#8630; 恢復上一步</button>
-          <button class="tool-btn more-menu-item" id="archiveBtn">&#128190; 存檔</button>
         </div>
       </div>
       <input type="file" id="importFile" accept=".json" style="display:none">

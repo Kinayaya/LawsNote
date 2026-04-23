@@ -20,8 +20,10 @@
   g('selAllBtn').addEventListener('click',copySelectedNotes);g('selDeleteBtn').addEventListener('click',deleteSelected);g('selCancelBtn').addEventListener('click',exitMultiSel);
   on('dp-link-search','input',debounce(renderDetailQuickLinkSearch,180));
   on('mp-link-search','input',debounce(()=>renderMapPopupQuickLinkSearch(),180));
-  on('calendarBtn','click',()=>toggleCalendarView(true));
   on('headerTitleWrap','click',()=>toggleLevelSystemView(true));
+  on('headerDatetimeBtn','click',()=>toggleCalendarView(true));
+  on('logoArchiveBtn','click',manageArchives);
+  startHeaderDatetimeTicker();
   applyThemeMode(localStorage.getItem(THEME_MODE_KEY)||'light');
   on('ft','change',()=>renderDynamicFields(g('ft').value,editMode&&openId?noteById(openId):null));
   on('fs2','change',()=>{
@@ -44,7 +46,6 @@
   applyBrandTitle();
   bindTagManagerNav();
   on('undoBtn','click',undoLastAction);
-  on('archiveBtn','click',manageArchives);
   on('apClose','click',()=>{g('ap').classList.remove('open');syncSidePanelState();});
   on('archiveSaveBtn','click',createArchiveSnapshot);
   on('archiveExportBtn','click',exportData);

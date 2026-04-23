@@ -330,10 +330,17 @@ function normalizeNotesTaxonomy(){
   mapRelays.forEach(normalizeSingleNote);
 }
 function createArchiveSnapshot(){
-  const archives=loadArchives();
   const name=(prompt('請輸入存檔名稱：',`存檔 ${new Date().toLocaleString('zh-TW')}`)||'').trim();
   if(!name){showToast('存檔名稱不可空白');return;}
-  archives.unshift({id:Date.now()+Math.floor(Math.random()*1000),name,createdAt:new Date().toISOString(),payload:getPayload()});
+  const archives=loadArchives();
+  const payload=getPayload();
+  const archivePayload={...payload,nodePos:{}};
+  archives.unshift({
+    id:`${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    name,
+    createdAt:new Date().toISOString(),
+    payload:archivePayload
+  });
   saveArchives(archives);
   renderArchivePanel();
   showToast('已儲存存檔');

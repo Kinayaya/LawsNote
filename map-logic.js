@@ -799,19 +799,9 @@ const count=normalizeLaneCount(g('laneCountInput')?.value||cfg.count);
   mapLaneConfigs[cfg.key]={count,names};saveDataDeferred();closeLanePanel();nodePos={};forceLayout();drawMap();showToast('已儲存泳道設定');
 }
 function resetLanePanel(){ const cfg=getLaneConfig();mapLaneConfigs[cfg.key]={count:DEFAULT_LANE_NAMES.length,names:DEFAULT_LANE_NAMES.slice()};renderLanePanel();saveDataDeferred(); }
-function quickTemplateIcon(typeKey){
-  const map={article:'📘',case:'⚖️',concept:'🧠',diary:'📝'};
-  return map[typeKey]||'🗂️';
-}
-function renderQuickTemplateButtons(){
-  const grid=g('quickTemplateGrid');if(!grid)return;
-  grid.innerHTML=types.map(t=>`<button class="quick-template-btn" data-template="${t.key}" type="button">${quickTemplateIcon(t.key)} ${escapeHtml(t.label)}</button>`).join('')||'<div class="map-tree-empty">目前尚未設定類型。</div>';
-}
-function openQuickAddSheet(){ renderQuickTemplateButtons();g('quickAddSheet')?.classList.add('open'); }
-function closeQuickAddSheet(){ g('quickAddSheet')?.classList.remove('open'); }
 function executeQuickCommand(cmd,{closeSheet=true}={}){
   if(cmd==='search') g('searchInput')?.focus();
-  else if(cmd==='new') openQuickAddSheet();
+  else if(cmd==='new') openForm(false);
   else if(cmd==='mapAssign'){
     openMapAssignPanel();
   }
@@ -823,30 +813,14 @@ function executeQuickCommand(cmd,{closeSheet=true}={}){
   else if(cmd==='duplicate') duplicateMapNode();
   else if(cmd==='delete') deleteMapNode();
 }
-function openQuickTemplate(typeKey){
-  closeQuickAddSheet();
-  formMode='note';
-  openForm(false);
-  if(g('ft')&&typeKey){
-    g('ft').value=typeKey;
-    renderDynamicFields(typeKey,null);
-  }
-}
 function bindTouchQuickActions(){
-  on('quickAddCloseBtn','click',closeQuickAddSheet);
   on('mapTreeToggleBtn','click',()=>g('mapTreeSidebar')?.classList.add('open'));
   on('mapTreeCloseBtn','click',()=>g('mapTreeSidebar')?.classList.remove('open'));
-  g('quickAddSheet')?.addEventListener('click',e=>{if(e.target.id==='quickAddSheet') closeQuickAddSheet();});
-  g('quickAddSheet')?.addEventListener('click',e=>{
-    const btn=e.target.closest('[data-template]');
-    if(!btn) return;
-    openQuickTemplate(btn.dataset.template);
-  });
 }
 
 function bindCoreButtons(){
   const bind=(id,fn)=>{const el=g(id);if(el)el.onclick=fn;};
-  bind('addBtn',()=>{ if('ontouchstart' in window) openQuickAddSheet(); else openForm(false); });
+  bind('addBtn',()=>openForm(false));
   bind('editBtn',()=>{if(!openId){showToast('請先開啟一筆筆記');return;}openForm(true);});
   bind('copyBtn',copyNoteToClipboard);
   bind('dupBtn',duplicateNote);

@@ -230,6 +230,7 @@
   <div class="calendar-head">
     <button class="tool-btn" id="calendarPrevBtn">←</button>
     <div id="calendarTitle">2026年4月</div>
+    <button class="tool-btn" id="calendarTimerBtn">&#9201; 專注計時器</button>
     <button class="tool-btn" id="calendarNextBtn">→</button>
     <button class="tool-btn" id="calendarTodayBtn">今天</button>
     <button class="tool-btn" id="calendarSettingsBtn">⚙️ Email</button>
@@ -304,8 +305,6 @@
 <!-- Map View -->
 <div id="mapView">
   <div id="mapToolbar">
-    <button class="tool-btn map-primary-action" id="mapAddNoteBtn">+ 新增筆記</button>
-    <button class="tool-btn" id="mapAssignNoteBtn">+ 加入筆記到頁面</button>
     <div class="map-search-wrap">
       <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:#aaa;font-size:12px;pointer-events:none;">&#128269;</span>
       <input id="mapSearchInput" placeholder="搜尋節點..." autocomplete="off">
@@ -319,15 +318,17 @@
     <button class="tool-btn map-adv-item" id="mapLaneBtn">&#129521; 泳道</button>
     <button class="tool-btn map-primary-action" id="mapBackBtn">&#8592; 返回</button>
     <span id="mapPagePath" class="map-page-path">主頁</span>
-  </div>
-  <div id="mapZoomBar">
     <button class="zoom-btn" id="zoomIn">+</button>
     <span id="zoomLabel">100%</span>
     <button class="zoom-btn" id="zoomOut">&#8722;</button>
     <button class="zoom-btn" id="zoomFit">適合視窗</button>
   </div>
   <div id="mapCanvas">
-    <button class="map-tree-toggle" id="mapTreeToggleBtn" type="button" title="樹狀索引">☰ 索引</button>
+    <div class="map-canvas-top-actions">
+      <button class="map-tree-toggle" id="mapTreeToggleBtn" type="button" title="樹狀索引">☰ 索引</button>
+      <button class="tool-btn map-primary-action" id="mapAddNoteBtn">新增</button>
+      <button class="tool-btn" id="mapAssignNoteBtn">加入</button>
+    </div>
     <aside class="map-tree-sidebar" id="mapTreeSidebar">
       <div class="map-tree-head">
         <span>樹狀索引</span>
@@ -388,14 +389,6 @@
 <div id="actionToast"><span id="actionToastText"></span><button id="actionToastUndoBtn">復原</button></div>
 <div class="shortcut-hint" id="scHint"></div>
 <button id="debugToggle" title="開啟偵錯工具">🐞</button>
-
-<div id="quickAddSheet">
-  <div class="quick-sheet-box">
-    <div class="quick-sheet-title">快速新增</div>
-    <div class="quick-template-grid" id="quickTemplateGrid"></div>
-    <button class="tool-btn" id="quickAddCloseBtn">取消</button>
-  </div>
-</div>
 
 <!-- Exam View -->
 <div id="examView">
@@ -516,8 +509,8 @@
 <div id="focusTimerModal">
   <div id="focusTimerBox">
     <h3>⏱️ 專注計時器</h3>
-    <label class="flbl">分鐘</label>
-    <input id="focusTimerMinutes" class="fi" type="number" min="1" max="180" value="25">
+    <label class="flbl">倒數時間（m:ss 或 分鐘）</label>
+    <input id="focusTimerMinutes" class="fi" type="text" value="25:00" placeholder="例如 1:30 或 25">
     <div id="focusTimerDisplay">25:00</div>
     <div class="focus-timer-actions">
       <button class="fbtn bsv" id="focusTimerStartBtn">開始</button>
@@ -535,7 +528,6 @@
     
     <div class="assist-tools-grid">
       <button class="tool-btn ai-btn-style" id="assistAiBtn">&#129302; AI</button>
-      <button class="tool-btn" id="assistTimerBtn">&#9201; 計時器</button>
       <button class="tool-btn" id="assistShortcutBtn">&#9000; 快捷鍵</button>
     </div>
     <div class="assist-tools-actions">

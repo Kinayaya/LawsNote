@@ -63,7 +63,7 @@
   on('assistToolsBtn','click',()=>g('assistToolsModal')?.classList.add('open'));
   on('assistToolsCloseBtn','click',()=>g('assistToolsModal')?.classList.remove('open'));
   on('assistAiBtn','click',()=>{g('assistToolsModal')?.classList.remove('open');openAiSettings();});
-  on('assistTimerBtn','click',()=>{g('assistToolsModal')?.classList.remove('open');openFocusTimer();});
+  on('calendarTimerBtn','click',openFocusTimer);
   on('assistShortcutBtn','click',()=>{g('assistToolsModal')?.classList.remove('open');openShortcutMgr();});
   on('focusTimerMinutes','change',resetFocusTimer);
   on('focusTimerStartBtn','click',startFocusTimer);

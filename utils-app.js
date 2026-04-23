@@ -124,14 +124,40 @@ function stopFocusTimer(){
   focusTimerInterval=null;
   focusTimerRunning=false;
 }
+function parseFocusTimerInput(raw){
+  const value=safeStr(raw).trim();
+  if(!value) return 25*60;
+  const mmss=value.match(/^(\d{1,3}):([0-5]?\d)$/);
+  if(mmss){
+    const min=parseInt(mmss[1],10)||0;
+    const sec=parseInt(mmss[2],10)||0;
+    return Math.max(1,Math.min(180*60,min*60+sec));
+  }
+  const minOnly=parseInt(value,10);
+  if(Number.isNaN(minOnly)) return 25*60;
+  return Math.max(1,Math.min(180*60,minOnly*60));
+}
 function resetFocusTimer(){
   stopFocusTimer();
-  const min=Math.max(1,Math.min(180,parseInt(g('focusTimerMinutes')?.value,10)||25));
-  focusTimerRemainingSec=min*60;
+  focusTimerRemainingSec=parseFocusTimerInput(g('focusTimerMinutes')?.value);
+  const input=g('focusTimerMinutes');
+  if(input){
+    const min=Math.floor(focusTimerRemainingSec/60),sec=focusTimerRemainingSec%60;
+    input.value=`${min}:${pad2(sec)}`;
+    input.dataset.appliedValue=input.value;
+  }
   updateFocusTimerDisplay();
 }
 function startFocusTimer(){
   if(focusTimerRunning) return;
+  const input=g('focusTimerMinutes');
+  if(input&&input.value!==input.dataset.appliedValue){
+    focusTimerRemainingSec=parseFocusTimerInput(input.value);
+    const min=Math.floor(focusTimerRemainingSec/60),sec=focusTimerRemainingSec%60;
+    input.value=`${min}:${pad2(sec)}`;
+    input.dataset.appliedValue=input.value;
+    updateFocusTimerDisplay();
+  }
   if(focusTimerRemainingSec<=0) resetFocusTimer();
   focusTimerRunning=true;
   focusTimerInterval=setInterval(()=>{

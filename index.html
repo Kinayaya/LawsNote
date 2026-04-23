@@ -45,23 +45,17 @@
           <button class="tool-btn more-menu-item" id="calendarBtn">&#128197; 日曆</button>
           <button class="tool-btn more-menu-item" id="levelSystemBtn">&#11088; 等級系統</button>
           <button class="tool-btn more-menu-item" id="themeToggleBtn">&#127769; 暗色模式</button>
-          <button class="tool-btn more-menu-item" id="linkModeBtn">&#128279; 連線模式</button>
           <button class="tool-btn more-menu-item" id="panelDirBtn" title="切換筆記展開方向">&#8646; 面板方向</button>
           <button class="tool-btn exam-btn-style more-menu-item" id="examBtn">&#9997; 申論</button>
           <button class="tool-btn more-menu-item" id="assistToolsBtn">&#9881; 輔助功能</button>
           <button class="tool-btn more-menu-item" id="undoBtn">&#8630; 恢復上一步</button>
           <button class="tool-btn more-menu-item" id="archiveBtn">&#128190; 存檔</button>
-          <button class="tool-btn sync-btn-style more-menu-item" id="syncBtn">&#9729; 同步</button>
         </div>
       </div>
       <input type="file" id="importFile" accept=".json" style="display:none">
     </div>
   </div>
   <div class="filter-row" id="typeRow"></div>
-  <div class="touch-quick-filters" id="touchQuickFilters">
-    <button class="tab" data-qf="today">今天</button>
-    <button class="tab" data-qf="todo">待辦</button>
-  </div>
 </div>
 <div id="selectBar"><span id="selectCount"></span><button class="sel-btn" id="selAllBtn">全選</button><button class="sel-btn" id="selDeleteBtn">&#128465; 刪除</button><button class="sel-btn" id="selCancelBtn">取消</button></div>
 <div id="subbar"></div>
@@ -435,31 +429,6 @@
   <div class="frow"><button class="fbtn bcl" id="examFCancel">取消</button><button class="fbtn bsv" id="examFSave">儲存</button></div>
 </div>
 
-<!-- GitHub Sync Modal -->
-<div id="syncModal">
-  <div id="syncBox">
-    <h3>&#9925;&#65039; GitHub Gist 同步</h3>
-    <p>使用 GitHub Gist 在裝置間同步筆記。需要 GitHub 帳號與個人 Access Token（repo/gist 權限）。</p>
-    <div style="background:#f0f7ff;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:#0C447C;line-height:1.8;">
-      1. 前往 github.com → Settings → Developer settings → Personal access tokens<br>
-      2. 建立 token，只選 <b>gist</b> 權限<br>
-      3. 在 gist.github.com 新建一個 Gist，複製網址中的 ID
-    </div>
-    <label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:4px;">GitHub Token</label>
-    <input id="syncTokenInput" type="password" placeholder="ghp_...">
-    <label style="font-size:11px;font-weight:600;color:#555;display:block;margin-bottom:4px;">Gist ID</label>
-    <input id="syncGistInput" placeholder="例：abc123def456...">
-    <label style="display:flex;gap:8px;align-items:center;font-size:12px;color:#444;margin-top:10px;"><input type="checkbox" id="syncAutoPull"> 開啟 App 時自動下載較新雲端版本</label>
-    <label style="display:flex;gap:8px;align-items:center;font-size:12px;color:#444;margin-top:6px;"><input type="checkbox" id="syncAutoPush"> 每次儲存後自動上傳到雲端</label>
-    <div class="sync-modal-btns">
-      <button class="sync-modal-btn" id="syncCancelBtn" style="background:#ececec;color:#555;">取消</button>
-      <button class="sync-modal-btn" id="syncUploadBtn" style="background:#007AFF;color:#fff;">&#11014; 上傳到雲端</button>
-      <button class="sync-modal-btn" id="syncDownloadBtn" style="background:#EAF3DE;color:#3B6D11;border:1px solid #97C459;">&#11015; 從雲端載入</button>
-    </div>
-    <div style="margin-top:10px;font-size:11px;color:#bbb;text-align:center;">Token 僅存於您的本機，不會上傳至任何伺服器</div>
-  </div>
-</div>
-
 <!-- AI Key Modal -->
 <div id="aiKeyModal">
   <div id="aiKeyBox">
@@ -597,7 +566,6 @@
 <script src="level.js"></script>
 <script src="exam.js"></script>
 <script src="shortcuts.js"></script>
-<script src="sync.js"></script>
 <script src="init.js"></script>
 </body>
 </html>

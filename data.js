@@ -235,18 +235,35 @@ function importData(file) {
   };
   reader.readAsText(file);
 }
+function normalizeArchiveRecord(item){
+  if(!item||typeof item!=='object'||!item.payload) return null;
+  return {
+    ...item,
+    id:item.id||(`${Date.now()}_${Math.random().toString(16).slice(2)}`),
+    name:item.name||'未命名存檔',
+    createdAt:item.createdAt||new Date().toISOString()
+  };
+}
 function loadArchives(){
   const raw=readJSON(ARCHIVES_KEY,[]);
-  if(Array.isArray(raw)) return raw;
+  const fromArray=Array.isArray(raw)?raw:
+    (Array.isArray(raw?.archives)?raw.archives:
+      (Array.isArray(raw?.items)?raw.items:
+        (raw&&typeof raw==='object'&&!raw.payload?Object.values(raw):[])));
+  const normalized=fromArray.map(normalizeArchiveRecord).filter(Boolean);
+  if(normalized.length) return normalized;
   if(raw&&typeof raw==='object'&&raw.payload){
-    return [{...raw,id:raw.id||Date.now(),name:raw.name||'舊版存檔',createdAt:raw.createdAt||new Date().toISOString()}];
+    return [normalizeArchiveRecord(raw)].filter(Boolean);
   }
   return [];
 }
 
 function saveArchives(arr){
-  const next=Array.isArray(arr)?arr:[];
-  writeJSON(ARCHIVES_KEY,next.slice(0,ARCHIVE_SNAPSHOT_LIMIT));
+  const next=(Array.isArray(arr)?arr:[])
+    .map(normalizeArchiveRecord)
+    .filter(Boolean)
+    .slice(0,ARCHIVE_SNAPSHOT_LIMIT);
+  writeJSON(ARCHIVES_KEY,next);
 }
 function loadRecycleBin(){
   const arr=readJSON(RECYCLE_BIN_KEY,[]);

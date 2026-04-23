@@ -172,7 +172,79 @@ function startFocusTimer(){
     }
   },1000);
 }
+function clampFocusTimerPosition(x,y){
+  const box=g('focusTimerBox');
+  if(!box) return {x:18,y:80};
+  const rect=box.getBoundingClientRect();
+  const maxX=Math.max(8,window.innerWidth-rect.width-8);
+  const maxY=Math.max(8,window.innerHeight-rect.height-8);
+  return {
+    x:Math.max(8,Math.min(maxX,x)),
+    y:Math.max(8,Math.min(maxY,y))
+  };
+}
+function applyFocusTimerPosition(x,y){
+  const box=g('focusTimerBox');
+  if(!box) return;
+  const clamped=clampFocusTimerPosition(x,y);
+  focusTimerPos.x=clamped.x;
+  focusTimerPos.y=clamped.y;
+  box.style.left=`${clamped.x}px`;
+  box.style.top=`${clamped.y}px`;
+}
+function ensureFocusTimerPosition(){
+  const box=g('focusTimerBox');
+  if(!box) return;
+  if(!focusTimerPos.initialized){
+    const pad=18;
+    const rect=box.getBoundingClientRect();
+    const initX=Math.max(8,window.innerWidth-rect.width-pad);
+    const initY=Math.max(8,80);
+    applyFocusTimerPosition(initX,initY);
+    focusTimerPos.initialized=true;
+    return;
+  }
+  applyFocusTimerPosition(focusTimerPos.x??18,focusTimerPos.y??80);
+}
+function bindFocusTimerDrag(){
+  const handle=g('focusTimerDragHandle'),box=g('focusTimerBox');
+  if(!handle||!box||handle.dataset.dragBound==='1') return;
+  handle.dataset.dragBound='1';
+  const onPointerMove=e=>{
+    if(!focusTimerDragState.active||e.pointerId!==focusTimerDragState.pointerId) return;
+    e.preventDefault();
+    const nextX=focusTimerDragState.originX+(e.clientX-focusTimerDragState.startX);
+    const nextY=focusTimerDragState.originY+(e.clientY-focusTimerDragState.startY);
+    applyFocusTimerPosition(nextX,nextY);
+  };
+  const endDrag=e=>{
+    if(!focusTimerDragState.active||e.pointerId!==focusTimerDragState.pointerId) return;
+    focusTimerDragState.active=false;
+    focusTimerDragState.pointerId=null;
+    handle.classList.remove('dragging');
+    try{handle.releasePointerCapture(e.pointerId);}catch(_e){}
+  };
+  handle.addEventListener('pointerdown',e=>{
+    if(e.button!==0&&e.pointerType!=='touch') return;
+    ensureFocusTimerPosition();
+    focusTimerDragState.active=true;
+    focusTimerDragState.pointerId=e.pointerId;
+    focusTimerDragState.startX=e.clientX;
+    focusTimerDragState.startY=e.clientY;
+    focusTimerDragState.originX=focusTimerPos.x??box.getBoundingClientRect().left;
+    focusTimerDragState.originY=focusTimerPos.y??box.getBoundingClientRect().top;
+    handle.classList.add('dragging');
+    try{handle.setPointerCapture(e.pointerId);}catch(_e){}
+    e.preventDefault();
+  });
+  handle.addEventListener('pointermove',onPointerMove);
+  handle.addEventListener('pointerup',endDrag);
+  handle.addEventListener('pointercancel',endDrag);
+  window.addEventListener('resize',()=>{ if(g('focusTimerModal')?.classList.contains('open')) ensureFocusTimerPosition(); });
+}
 function openFocusTimer(){
+  bindFocusTimerDrag();
+  ensureFocusTimerPosition();
   resetFocusTimer();
   g('focusTimerModal')?.classList.add('open');
 }

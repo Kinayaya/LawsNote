@@ -298,13 +298,20 @@ const normalizeMapPageNotes = raw => {
   return next;
 };
 const getMapPageAssignedIds = rootId => {
-  const key=mapPageNoteKey(rootId===undefined?currentSubpageRootId():rootId);
+  const resolvedRootId=rootId===undefined?currentSubpageRootId():rootId;
+  const key=mapPageNoteKey(resolvedRootId);
   const arr=Array.isArray(mapPageNotes[key])?mapPageNotes[key]:[];
-  return new Set(arr.map(v=>parseInt(v,10)).filter(Number.isFinite));
+  const ids=new Set(arr.map(v=>parseInt(v,10)).filter(Number.isFinite));
+  const numericRootId=parseInt(key,10);
+  if(Number.isFinite(numericRootId)&&mapNodeById(numericRootId)) ids.add(numericRootId);
+  return ids;
 };
 const setMapPageAssignedIds = (rootId,noteIds=[]) => {
   const key=mapPageNoteKey(rootId===undefined?currentSubpageRootId():rootId);
-  mapPageNotes[key]=[...new Set((noteIds||[]).map(v=>parseInt(v,10)).filter(Number.isFinite))];
+  const ids=new Set((noteIds||[]).map(v=>parseInt(v,10)).filter(Number.isFinite));
+  const numericRootId=parseInt(key,10);
+  if(Number.isFinite(numericRootId)&&mapNodeById(numericRootId)) ids.add(numericRootId);
+  mapPageNotes[key]=[...ids];
 };
 const assignNoteToMapPage = (noteId,rootId) => {
   const nid=parseInt(noteId,10);

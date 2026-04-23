@@ -178,9 +178,17 @@ function calcLinkPath(lk,opt={}){
   const dx=tp.x-fp.x,dy=tp.y-fp.y,dist=Math.sqrt(dx*dx+dy*dy)||1,nx=dx/dist,ny=dy/dist;
   const px=-ny,py=nx;
   const fromBox=getMapCardBox(lk.from),toBox=getMapCardBox(lk.to);
-  const rf=Math.max(fromBox.width,fromBox.height)*0.32;
-  const rt=Math.max(toBox.width,toBox.height)*0.32;
-  const x1=fp.x+nx*rf,y1=fp.y+ny*rf,x2=tp.x-nx*(rt+8),y2=tp.y-ny*(rt+8);
+  const edgeDistance=(box,dirX,dirY)=>{
+    const halfW=Math.max(8,(box.width||0)/2),halfH=Math.max(8,(box.height||0)/2);
+    const tx=Math.abs(dirX)<1e-4?Infinity:halfW/Math.abs(dirX);
+    const ty=Math.abs(dirY)<1e-4?Infinity:halfH/Math.abs(dirY);
+    return Math.min(tx,ty);
+  };
+  const sourceOffset=edgeDistance(fromBox,nx,ny)+1.5;
+  const targetOffset=edgeDistance(toBox,nx,ny);
+  const ARROW_TIP_ADVANCE=1.35;
+  const x1=fp.x+nx*sourceOffset,y1=fp.y+ny*sourceOffset;
+  const x2=tp.x-nx*(targetOffset+ARROW_TIP_ADVANCE),y2=tp.y-ny*(targetOffset+ARROW_TIP_ADVANCE);
   const laneOffset=linkCurveOffsets[lk.id]||0;
   const unbundled=!!opt.unbundled;
   const splitOffset=unbundled?0:Math.max(-26,Math.min(26,laneOffset*MAP_LIGHT_BUNDLING_STRENGTH));
@@ -449,7 +457,7 @@ function drawMap(){
   mapW=canvas.offsetWidth||1200;mapH=canvas.offsetHeight||1000;
   svg.setAttribute('viewBox',`0 0 ${mapW} ${mapH}`);svg.setAttribute('width',String(mapW));svg.setAttribute('height',String(mapH));
   let mapWrap=svg.querySelector('#mapWrap');
-  if(!mapWrap){mapWrap=document.createElementNS('http://www.w3.org/2000/svg','g');mapWrap.id='mapWrap';svg.appendChild(mapWrap);mapWrap.appendChild(linksLayer);mapWrap.appendChild(nodesLayer);mapWrap.appendChild(arrowsLayer);}
+  if(!mapWrap){mapWrap=document.createElementNS('http://www.w3.org/2000/svg','g');mapWrap.id='mapWrap';svg.appendChild(mapWrap);mapWrap.appendChild(linksLayer);mapWrap.appendChild(arrowsLayer);mapWrap.appendChild(nodesLayer);}
   mapWrap.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`);
   const visNotes=visibleNotes(),visIds={};visNotes.forEach(n=>visIds[n.id]=true);
   buildMapTreeIndex(visNotes);

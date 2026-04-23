@@ -18,7 +18,7 @@ input[type="checkbox"]{-webkit-appearance:auto;appearance:auto}
 .search-icon{position:absolute;left:8px;top:50%;transform:translateY(-50%);color:#aaa;font-size:12px;pointer-events:none}
 .search-clear{position:absolute;right:7px;top:50%;transform:translateY(-50%);color:#aaa;font-size:16px;cursor:pointer;display:none;background:none;border:none;line-height:1}
 .tool-btns{display:flex;gap:8px;align-items:center;flex-shrink:0;position:relative}
-.header-achievement-wrap{display:flex;align-items:center;min-height:0;padding:0;background:transparent;border:none}
+.header-achievement-wrap{display:flex;align-items:center;min-height:0;padding:0;background:transparent;border:none;cursor:pointer}
 .primary-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .more-wrap{position:relative}
 .more-btn{min-width:72px}
@@ -605,3 +605,5 @@ body.dark-mode .chip{background:#172033;color:#cbd5e1;border-color:#324158}
 body.dark-mode .cbody,body.dark-mode .dp-txt,body.dark-mode .calendar-day-item pre{color:#cbd5e1}
 body.dark-mode #assistToolsBox{background:#0f172a;border-color:#334155}
 body.dark-mode #assistToolsBox h3{color:#e5e7eb}
+
+.header-achievement-wrap:focus-visible{outline:2px solid #8cbcff;outline-offset:3px;border-radius:999px}

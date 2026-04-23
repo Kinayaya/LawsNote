@@ -327,7 +327,29 @@ function removeNotesToRecycle(noteIds){
   const removedNotes=notes.filter(n=>idSet.has(n.id));
   if(!removedNotes.length) return 0;
   const removedLinks=links.filter(l=>idSet.has(l.from)||idSet.has(l.to));
-  recycleBin.unshift({id:Date.now()+Math.floor(Math.random()*1000),deletedAt:new Date().toISOString(),notes:removedNotes,links:removedLinks});
+  const now=Date.now();
+  const latest=recycleBin[0];
+  const withinGroupWindow=latest&&(now-Date.parse(latest.groupStartedAt||latest.deletedAt||0)<RECYCLE_GROUP_WINDOW_MS);
+  if(withinGroupWindow){
+    const originalStartedAt=latest.groupStartedAt||latest.deletedAt;
+    const noteMap=new Map((latest.notes||[]).map(n=>[n.id,n]));
+    removedNotes.forEach(n=>noteMap.set(n.id,n));
+    const linkMap=new Map((latest.links||[]).map(l=>[l.id,l]));
+    removedLinks.forEach(l=>linkMap.set(l.id,l));
+    latest.notes=[...noteMap.values()];
+    latest.links=[...linkMap.values()];
+    latest.deletedAt=new Date().toISOString();
+    latest.groupStartedAt=originalStartedAt;
+  }else{
+    const nowIso=new Date().toISOString();
+    recycleBin.unshift({
+      id:Date.now()+Math.floor(Math.random()*1000),
+      deletedAt:nowIso,
+      groupStartedAt:nowIso,
+      notes:removedNotes,
+      links:removedLinks
+    });
+  }
   recycleBin=recycleBin.slice(0,200);
   notes=notes.filter(n=>!idSet.has(n.id));
   links=links.filter(l=>!idSet.has(l.from)&&!idSet.has(l.to));

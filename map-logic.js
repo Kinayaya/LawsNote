@@ -256,10 +256,16 @@ function visibleNotes(){
     if(!pageAssignedIds.has(n.id)) return false;
     return mapNodeMatchesTaxonomyFilter(n)&&relayMatchesSearch(n,q);
   });
-  const shouldExpandLinked=scopeLinkedEnabled&&mapHasTaxonomyFilter();
+  const shouldExpandLinked=mapHasTaxonomyFilter();
   let filtered=baseFiltered, relayVisible=relayFiltered;
   if(shouldExpandLinked){
-    const expandedIds=expandWithChildLinkedNotes(new Set([...baseFiltered,...relayFiltered].map(n=>n.id)));
+    const seedIds=new Set([...baseFiltered,...relayFiltered].map(n=>n.id));
+    const expandedIds=new Set(seedIds);
+    links.forEach(lk=>{
+      const fromInSeed=seedIds.has(lk.from),toInSeed=seedIds.has(lk.to);
+      if(fromInSeed&&!toInSeed&&pageAssignedIds.has(lk.to)) expandedIds.add(lk.to);
+      if(toInSeed&&!fromInSeed&&pageAssignedIds.has(lk.from)) expandedIds.add(lk.from);
+    });
     filtered=notes.filter(n=>expandedIds.has(n.id)&&noteMatchesSearch(n,q));
     relayVisible=mapRelays.filter(n=>expandedIds.has(n.id)&&relayMatchesSearch(n,q));
   }

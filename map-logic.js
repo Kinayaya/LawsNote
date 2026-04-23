@@ -43,6 +43,7 @@ const nodePreferredRank = (nodeId,chIdxMap,secIdxMap) => {
 };
 function forceLayout() {
   const canvas=g('mapCanvas');mapW=canvas.offsetWidth||800;mapH=canvas.offsetHeight||600;
+  clearMapCardBoxCache();
   const layoutNotes=visibleNotes(),visIds={};layoutNotes.forEach(n=>visIds[n.id]=true);
   const visLinks=visibleLinks(visIds),n2=layoutNotes.length;if(!n2)return;
   const scopedCenterId=getMapCenterFromScopes();
@@ -452,6 +453,7 @@ function buildMapTreeIndex(visNotes){
 }
 function drawMap(){
   if(!isMapOpen)return;
+  clearMapCardBoxCache();
   const canvas=g('mapCanvas'),svg=g('mapSvg'),linksLayer=g('linksLayer'),nodesLayer=g('nodesLayer'),arrowsLayer=g('arrowsLayer');
   if(!canvas||!svg||!linksLayer||!nodesLayer||!arrowsLayer)return;
   mapW=canvas.offsetWidth||1200;mapH=canvas.offsetHeight||1000;

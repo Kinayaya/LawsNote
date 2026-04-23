@@ -31,6 +31,7 @@ let reminderTimer=null, reminderSent={};
 let reminderDismissed={};
 let editingCalendarEventId=null;
 let focusTimerRemainingSec=1500, focusTimerInterval=null, focusTimerRunning=false;
+let headerDatetimeTimer=null;
 let achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0}; // backward compatibility for legacy data
 const XP_BOOST_MULTIPLIER = 2.5;
 const BASE_XP_BY_DIFFICULTY = {E:12,N:22,H:36};

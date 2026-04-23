@@ -150,6 +150,17 @@ function openFocusTimer(){
   resetFocusTimer();
   g('focusTimerModal')?.classList.add('open');
 }
+function renderHeaderDatetime(){
+  const btn=g('headerDatetimeBtn');
+  if(!btn) return;
+  const now=new Date();
+  btn.textContent=`${now.getFullYear()}/${pad2(now.getMonth()+1)}/${pad2(now.getDate())} ${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+}
+function startHeaderDatetimeTicker(){
+  renderHeaderDatetime();
+  clearInterval(headerDatetimeTimer);
+  headerDatetimeTimer=setInterval(renderHeaderDatetime,1000);
+}
 const getPanelDir = () => localStorage.getItem('klaws_panel_dir')==='bottom'?'bottom':'side';
 const applyPanelDir = dir => {
   const next=dir==='bottom'?'bottom':'side';

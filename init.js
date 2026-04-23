@@ -184,26 +184,6 @@
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')scheduleMapRedraw(100);});
   window.addEventListener('pageshow',()=>bindCoreButtons());
   if(window.ResizeObserver){mapResizeObserver=new ResizeObserver(()=>scheduleMapRedraw(60));mapResizeObserver.observe(canvas);}
-  const syncCfg=getSyncConfig();
-  if(g('syncTokenInput')) g('syncTokenInput').value=syncCfg.token||'';
-  if(g('syncGistInput')) g('syncGistInput').value=syncCfg.gistId||'';
-  if(g('syncAutoPush')) g('syncAutoPush').checked=!!syncCfg.autoPush;
-  if(g('syncAutoPull')) g('syncAutoPull').checked=!!syncCfg.autoPull;
-  g('syncBtn').addEventListener('click',()=>g('syncModal').classList.add('open'));
-  g('syncCancelBtn').addEventListener('click',()=>{ saveSyncConfigFromInputs(); g('syncModal').classList.remove('open'); });
-  g('syncUploadBtn').addEventListener('click',async()=>{
-    const token=(g('syncTokenInput').value||'').trim(),gistId=(g('syncGistInput').value||'').trim();
-    if(!token||!gistId){showToast('請填寫 Token 和 Gist ID');return;}
-    try{ await uploadToGist(token,gistId); saveSyncConfigFromInputs(); showToast('已同步到 GitHub'); g('syncModal').classList.remove('open'); }
-    catch(e){showToast('同步失敗：'+e.message);}
-  });
-  g('syncDownloadBtn').addEventListener('click',async()=>{
-    const token=(g('syncTokenInput').value||'').trim(),gistId=(g('syncGistInput').value||'').trim();
-    if(!token||!gistId){showToast('請填寫 Token 和 Gist ID');return;}
-    try{ const content=await downloadFromGist(token,gistId); JSON.parse(content); localStorage.setItem(SKEY,content); saveSyncConfigFromInputs(); location.reload(); }
-    catch(e){showToast('載入失敗：'+e.message);}
-  });
-  autoPullIfNeeded();
   try{reminderDismissed=JSON.parse(localStorage.getItem('klaws_reminder_dismissed_v1')||'{}')||{};}catch(e){reminderDismissed={};}
   if(!window.Email){const sc=document.createElement('script');sc.src='https://smtpjs.com/v3/smtp.js';document.head.appendChild(sc);}
   clearInterval(reminderTimer); reminderTimer=setInterval(checkReminders,30000); checkReminders();

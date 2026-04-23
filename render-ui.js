@@ -208,9 +208,7 @@ function render() {
     const noteActionChips=isReminder?'':`<span class="chip card-action-chip" data-action="duplicate">建立副本</span><span class="chip card-action-chip" data-action="copy">複製內容</span><span class="chip card-action-chip" data-action="delete">刪除</span>`;
     const linkedChip=(shouldExpand&&!seedIds.has(n.id))?'<span class="chip" style="background:#EAF3DE;color:#3B6D11;border-color:#97C459">跨科關聯</span>':'';
     const hasContent=isReminder?!!safeStr(n.body):noteHasVisibleContent(n);
-    const linkModeClass=linkModeActive?'link-mode':'';
-    const linkSourceClass=linkSourceId===n.id?'link-source':'';
-    return `<div class="card ${hasContent?'':'card-empty-content'} ${isReminder?'calendar-reminder-card':''} ${linkModeClass} ${linkSourceClass}" data-id="${n.id}" data-reminder-id="${isReminder?n.eventId:''}" style="--type-color:${tp.color}"><button class="sel-check" type="button" aria-label="勾選筆記"></button><div class="ctop"><span class="ctag">${tp.label}</span><div class="ctitle-inline">${hl(n.title,q)}</div></div>${hasContent?`<div class="cbody">${escapeHtml(n.body)}</div>`:''}<div class="cfoot">${subChips}${chapterChips}${sectionChips}${linkedChip}${noteActionChips}</div></div>`;
+    return `<div class="card ${hasContent?'':'card-empty-content'} ${isReminder?'calendar-reminder-card':''}" data-id="${n.id}" data-reminder-id="${isReminder?n.eventId:''}" style="--type-color:${tp.color}"><button class="sel-check" type="button" aria-label="勾選筆記"></button><div class="ctop"><span class="ctag">${tp.label}</span><div class="ctitle-inline">${hl(n.title,q)}</div></div>${hasContent?`<div class="cbody">${escapeHtml(n.body)}</div>`:''}<div class="cfoot">${subChips}${chapterChips}${sectionChips}${linkedChip}${noteActionChips}</div></div>`;
   }).join('');
   grid.querySelectorAll('.card').forEach(c=>{
     const rid=c.dataset.reminderId?parseInt(c.dataset.reminderId,10):0;
@@ -377,41 +375,6 @@ function renderMapPopupQuickLinkSearch(sourceId=null){
       renderMapPopupQuickLinkSearch(srcId);
     }else showToast('此關聯已存在或無效');
   }));
-}
-function setLinkMode(enabled){
-  linkModeActive=!!enabled;
-  if(!linkModeActive) linkSourceId=null;
-  const btn=g('linkModeBtn');
-  if(btn){
-    btn.classList.toggle('active',linkModeActive);
-    btn.textContent=linkModeActive?'🔗 連線中':'🔗 連線模式';
-  }
-  render();
-}
-function handleLinkModeCardTap(id){
-  if(!linkSourceId){
-    linkSourceId=id;
-    render();
-    showToast('已選擇起點，請再點一張卡片建立關聯');
-    return;
-  }
-  if(linkSourceId===id){
-    linkSourceId=null;
-    render();
-    showToast('已取消起點選擇');
-    return;
-  }
-  const created=createRelationLink(linkSourceId,id);
-  if(created){
-    const src=linkSourceId;
-    saveData();
-    render();
-    if(openId===src||openId===id) renderLinksForNote(openId);
-    if(isMapOpen) scheduleMapRedraw(100);
-    showToast('已建立關聯，可繼續點下一張卡片快速串接');
-  }else{
-    showToast('關聯已存在或無效');
-  }
 }
 function extractMentionTargets(raw,selfId){
   const text=safeStr(raw);

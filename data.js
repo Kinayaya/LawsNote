@@ -90,7 +90,6 @@ function saveData() {
     if(!isUndoApplying&&lastSavedPayloadRaw&&lastSavedPayloadRaw!==nextRaw) undoSnapshotRaw=lastSavedPayloadRaw;
     localStorage.setItem(SKEY,nextRaw);
     lastSavedPayloadRaw=nextRaw;
-    autoPushIfEnabled();
   } catch(e){}
 }
 function applySnapshotRaw(raw){

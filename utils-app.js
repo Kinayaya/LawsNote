@@ -241,15 +241,6 @@ const getAiKey = () => localStorage.getItem('klaws_ai_key')||'';
 const saveAiKey = k => localStorage.setItem('klaws_ai_key',k);
 const getAiModel = () => localStorage.getItem('klaws_ai_model')||'openrouter/free';
 const saveAiModel = m => localStorage.setItem('klaws_ai_model',m);
-const getSyncConfig = () => { try { return JSON.parse(localStorage.getItem(SYNC_KEY)||'{}'); } catch(e) { return {}; } };
-const saveSyncConfig = cfg => localStorage.setItem(SYNC_KEY,JSON.stringify(cfg||{}));
-const saveSyncConfigFromInputs = () => {
-  const token=(g('syncTokenInput')?.value||'').trim();
-  const gistId=(g('syncGistInput')?.value||'').trim();
-  const autoPush=!!g('syncAutoPush')?.checked;
-  const autoPull=!!g('syncAutoPull')?.checked;
-  if(token&&gistId) saveSyncConfig({token,gistId,autoPush,autoPull});
-};
 const getMapScopeContextKey = () => {
   const pageRoot=mapPageStack.length?mapPageStack[mapPageStack.length-1]:'root';
   return `${mapFilter.sub||'all'}::${mapFilter.chapter||'all'}::${mapFilter.section||'all'}::${pageRoot}`;
@@ -370,59 +361,19 @@ const setMapCenterForCurrentScope = (id,opt={}) => {
   mapCenterNodeIds[getMapCenterContextKey()]=id;
   if(updateGlobal) mapCenterNodeId=id;
 };
+const setMapCenterForSubpageScope = (subpageRootId,id,opt={}) => {
+  const root=parseInt(subpageRootId,10),target=parseInt(id,10);
+  if(!Number.isFinite(root)||!Number.isFinite(target)) return;
+  const prevStack=[...mapPageStack];
+  mapPageStack=[...prevStack.filter(Number.isFinite),root];
+  setMapCenterForCurrentScope(target,opt);
+  mapPageStack=prevStack;
+};
 const getPayload = () => ({notes,mapRelays:[],links,nid,lid,types,subjects,chapters,sections,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,mapSubpages,mapPageNotes,typeFieldConfigs,customFieldDefs,calendarEvents,calendarSettings,achievements,levelSystem,panelDir:getPanelDir(),updatedAt:new Date().toISOString()});
 const parseUpdatedAt = raw => {
   const n=Date.parse(raw||'');
   return Number.isFinite(n)?n:0;
 };
-async function githubSyncRequest(url,opts={}) {
-  const res=await fetch(url,opts);
-  if(!res.ok){
-    let msg=`HTTP ${res.status}`;
-    try{ const err=await res.json(); if(err&&err.message) msg=err.message; }catch(e){}
-    throw new Error(msg);
-  }
-  return res;
-}
-async function uploadToGist(token,gistId){
-  const data=JSON.stringify(getPayload());
-  await githubSyncRequest(`https://api.github.com/gists/${gistId}`,{
-    method:'PATCH',
-    headers:{'Authorization':`token ${token}`,'Content-Type':'application/json'},
-    body:JSON.stringify({files:{[SYNC_FILE]:{content:data}}})
-  });
-}
-async function downloadFromGist(token,gistId){
-  const res=await githubSyncRequest(`https://api.github.com/gists/${gistId}`,{headers:{'Authorization':`token ${token}`}});
-  const j=await res.json();
-  const f=j&&j.files&&j.files[SYNC_FILE];
-  if(!f||!f.content) throw new Error(`找不到 ${SYNC_FILE}`);
-  return f.content;
-}
-async function autoPullIfNeeded(){
-  const cfg=getSyncConfig();
-  if(!cfg.token||!cfg.gistId||!cfg.autoPull) return;
-  try{
-    const content=await downloadFromGist(cfg.token,cfg.gistId);
-    const cloud=JSON.parse(content);
-    const local=JSON.parse(localStorage.getItem(SKEY)||'{}');
-    if(parseUpdatedAt(cloud.updatedAt)>parseUpdatedAt(local.updatedAt)){
-      localStorage.setItem(SKEY,content);
-      loadData();
-      rebuildUI();
-      render();
-      showToast('已自動載入雲端較新版本');
-    }
-  }catch(e){
-    console.warn('Auto pull failed',e);
-  }
-}
-async function autoPushIfEnabled(){
-  const cfg=getSyncConfig();
-  if(!cfg.token||!cfg.gistId||!cfg.autoPush) return;
-  try{ await uploadToGist(cfg.token,cfg.gistId); }
-  catch(e){ console.warn('Auto push failed',e); }
-}
 const laneContextKey = () => `${mapFilter.sub||'all'}::${mapFilter.section||'all'}`;
 const getLaneConfig = () => {
   const key=laneContextKey();

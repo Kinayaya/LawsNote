@@ -43,9 +43,9 @@ const DEFAULT_SHORTCUTS = [
   {id:'stats',label:'統計',code:'KeyI',alt:true}
 ];
 const BUILTIN_FIELD_DEFS = {
-  body:{key:'body',label:'摘要',kind:'textarea',placeholder:'條文或重點摘要...'},
-  detail:{key:'detail',label:'詳細筆記',kind:'textarea',placeholder:'構成要件、學說、實務見解...'},
-  todos:{key:'todos',label:'📝 待辦清單（每行一項，開頭 [x] 代表已完成）',kind:'textarea',placeholder:'[ ] 完成筆記整理\n[x] 複習例題第 3 題'}
+  body:{key:'body',label:'摘要',kind:'textarea',placeholder:''},
+  detail:{key:'detail',label:'詳細筆記',kind:'textarea',placeholder:''},
+  todos:{key:'todos',label:'📝 待辦清單',kind:'textarea',placeholder:''}
 };
 const DEFAULT_TYPE_FIELD_KEYS = {diary:['body','todos']};
 const DEFAULT_NORMAL_FIELD_KEYS = ['body','detail'];

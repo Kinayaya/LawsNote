@@ -34,7 +34,7 @@
     </div>
     <div class="search-wrap">
       <span class="search-icon">&#128269;</span>
-      <input id="searchInput" placeholder="搜尋法條、關鍵詞...">
+      <input id="searchInput" placeholder="搜尋">
       <button class="search-clear" id="searchClear">&#215;</button>
     </div>
     <div class="tool-btns">
@@ -88,7 +88,7 @@
     <div id="dp-inline-actions" class="dp-inline-actions"></div>
     <div class="dp-lbl">關聯筆記</div><div id="dp-links"></div>
     <div id="dp-link-quick-wrap" class="dp-link-quick-wrap">
-      <input class="fi" id="dp-link-search" placeholder="輸入 @關鍵字 或名稱，快速建立關聯...">
+      <input class="fi" id="dp-link-search" placeholder="關聯筆記">
       <div id="dp-link-results" class="dp-link-results"></div>
     </div>
   </div>
@@ -103,13 +103,13 @@
       <div><label class="flbl" style="margin-top:0">節</label><select class="fs" id="fsec"></select></div>
     </div>
     <label class="flbl">標題</label>
-    <input class="fi" id="fti" placeholder="例：民法第 184 條">
+    <input class="fi" id="fti" placeholder="標題">
     <div id="mapAssignFormWrap" style="display:none;">
       <div style="font-size:12px;color:#667;margin:4px 0 10px;">請用和新增/編輯筆記相同的側邊表單，將筆記加入指定頁面。</div>
       <label class="flbl">目標頁面</label>
       <select class="fs" id="mapAssignPageSel"></select>
       <label class="flbl">搜尋筆記</label>
-      <input class="fi" id="mapAssignSearchInput" placeholder="輸入關鍵字找筆記...">
+      <input class="fi" id="mapAssignSearchInput" placeholder="搜尋筆記">
       <div id="mapAssignSearchResult" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;"></div>
     </div>
     <div id="dynamicFieldWrap">
@@ -125,7 +125,7 @@
     <div id="form-links-wrap" style="margin-top:16px;padding-top:14px;border-top:1px solid #eee;">
       <div style="font-size:11px;font-weight:700;color:#888;letter-spacing:.06em;margin-bottom:8px;">&#128279; 關聯筆記</div>
       <div id="form-links-list" style="margin-bottom:10px;display:flex;flex-direction:column;gap:5px;"></div>
-      <input class="fi" id="fl-search" placeholder="&#128269; 搜尋並新增關聯..." style="margin-bottom:6px;">
+      <input class="fi" id="fl-search" placeholder="搜尋關聯" style="margin-bottom:6px;">
       <div id="fl-bulk-actions" style="display:none;align-items:center;justify-content:space-between;gap:8px;margin:4px 0 8px;">
         <button class="tool-btn" id="flSelectAllBtn">全選結果</button>
         <button class="tool-btn" id="flAddSelectedBtn" style="background:#EAF3DE;color:#3B6D11;border-color:#97C459;">建立 0 筆關聯</button>
@@ -253,7 +253,7 @@
       <div class="ph"><span class="ph-title" id="levelEditorTitle">編輯項目</span><button class="pcls" id="levelEditorClose">&#215;</button></div>
       <div id="levelTaskFields">
         <label class="flbl">任務名稱</label>
-        <input class="fi" id="levelTaskName" placeholder="例：每日複習">
+        <input class="fi" id="levelTaskName" placeholder="任務名稱">
         <div class="f2col">
           <div>
             <label class="flbl" style="margin-top:0">難度</label>
@@ -268,12 +268,12 @@
             <select class="fs" id="levelTaskRepeat"></select>
           </div>
         </div>
-        <label class="flbl">小任務（每行一項）</label>
-        <textarea class="ft" id="levelTaskSubtasks" placeholder="閱讀判決摘要&#10;整理一則爭點"></textarea>
+        <label class="flbl">小任務</label>
+        <textarea class="ft" id="levelTaskSubtasks" placeholder="小任務"></textarea>
       </div>
       <div id="levelAchievementFields">
         <label class="flbl">成就名稱</label>
-        <input class="fi" id="levelAchievementName" placeholder="例：穩定輸出">
+        <input class="fi" id="levelAchievementName" placeholder="成就名稱">
         <div class="f2col">
           <div>
             <label class="flbl" style="margin-top:0">達成門檻</label>
@@ -289,7 +289,7 @@
           </div>
         </div>
         <label class="flbl">達成方式</label>
-        <input class="fi" id="levelAchievementCondition" placeholder="例：累積完成任務次數">
+        <input class="fi" id="levelAchievementCondition" placeholder="達成方式">
         <label class="flbl">獲得點數</label>
         <input class="fi" id="levelAchievementPoints" type="number" min="0" value="30">
       </div>
@@ -359,7 +359,7 @@
       </div>
       <div class="mp-links" id="mpLinks"></div>
       <div class="mp-link-quick-wrap" id="mp-link-quick-wrap" style="display:none;">
-        <input class="fi" id="mp-link-search" placeholder="輸入 @關鍵字 或名稱，快速建立關聯...">
+        <input class="fi" id="mp-link-search" placeholder="關聯筆記">
         <div class="dp-link-results" id="mp-link-results"></div>
       </div>
       <button class="mp-goto" id="mpGoto">&#128269; 查看完整筆記 &#8594;</button>
@@ -376,7 +376,7 @@
 <!-- Shortcut Manager -->
 <div class="panel" id="scp" style="display:none;margin:12px 14px;">
   <div class="ph"><span class="ph-title">&#9000; 快捷鍵設定</span><button class="pcls" id="scpClose">&#215;</button></div>
-  <div style="font-size:12px;color:#888;margin-bottom:12px;">點擊任一快捷鍵欄位後，直接按下想設定的按鍵組合（支援 Ctrl/Cmd/Alt/Shift + 按鍵）。</div>
+  
   <div id="scpList" style="display:flex;flex-direction:column;gap:6px;"></div>
   <div style="display:flex;gap:8px;margin-top:14px;">
     <button class="fbtn bcl" id="scpReset" style="flex:1;padding:9px;border-radius:10px;font-size:13px;font-weight:600;border:none;cursor:pointer;">&#8634; 恢復預設</button>
@@ -426,8 +426,8 @@
 <div class="panel" id="examAddForm">
   <div class="ph"><span class="ph-title">+ 新增申論題</span><button class="pcls" id="examFormClose">&#215;</button></div>
   <label class="flbl" style="margin-top:0">科目</label><select class="fs" id="examSubSel"></select>
-  <label class="flbl">題目</label><textarea class="ft" id="examQInput" style="min-height:100px;" placeholder="輸入完整題目..."></textarea>
-  <label class="flbl">爭點（逗號分隔）</label><input class="fi" id="examIssInput" placeholder="例：侵權行為成立要件, 損害賠償範圍">
+  <label class="flbl">題目</label><textarea class="ft" id="examQInput" style="min-height:100px;" placeholder="題目"></textarea>
+  <label class="flbl">爭點</label><input class="fi" id="examIssInput" placeholder="爭點">
   <label class="flbl">作答時間（分鐘）</label><input class="fi" id="examTimeInput" type="number" value="30" min="5" max="120">
   <div class="frow"><button class="fbtn bcl" id="examFCancel">取消</button><button class="fbtn bsv" id="examFSave">儲存</button></div>
 </div>
@@ -464,10 +464,10 @@
       <option value="reminder">提醒</option>
     </select>
     <label class="flbl">標題</label>
-    <input id="calendarEventName" class="fi" placeholder="輸入標題">
+    <input id="calendarEventName" class="fi" placeholder="標題">
     <div id="calendarEventBodyWrap">
       <label class="flbl">內容</label>
-      <textarea id="calendarEventBody" class="ft" style="min-height:90px;" placeholder="輸入內容"></textarea>
+      <textarea id="calendarEventBody" class="ft" style="min-height:90px;" placeholder="內容"></textarea>
     </div>
     <div id="calendarReminderWrap" style="display:none;">
       <label class="flbl">到期時間（當天）</label>
@@ -498,7 +498,7 @@
 <div id="calendarSettingsModal">
   <div id="calendarSettingsBox">
     <h3>提醒 Email 設定</h3>
-    <p>輸入一個或多個 Email（每行一個）。若要自動寄送，請填寫 SMTP Secure Token 與寄件者。</p>
+    
     <input id="calendarSmtpToken" class="fi" placeholder="SMTP Secure Token（例如 SMTPJS）">
     <input id="calendarEmailFrom" class="fi" style="margin-top:8px;" placeholder="寄件者 Email（From）">
     <textarea id="calendarEmailsInput" class="ft" style="min-height:130px;" placeholder="example@gmail.com"></textarea>
@@ -516,7 +516,7 @@
 <div id="focusTimerModal">
   <div id="focusTimerBox">
     <h3>⏱️ 專注計時器</h3>
-    <label class="flbl">倒數分鐘</label>
+    <label class="flbl">分鐘</label>
     <input id="focusTimerMinutes" class="fi" type="number" min="1" max="180" value="25">
     <div id="focusTimerDisplay">25:00</div>
     <div class="focus-timer-actions">
@@ -532,7 +532,7 @@
 <div id="assistToolsModal">
   <div id="assistToolsBox">
     <h3>&#9881; 輔助功能</h3>
-    <p>整合 AI、計時器、快捷鍵設定。</p>
+    
     <div class="assist-tools-grid">
       <button class="tool-btn ai-btn-style" id="assistAiBtn">&#129302; AI</button>
       <button class="tool-btn" id="assistTimerBtn">&#9201; 計時器</button>

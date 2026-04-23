@@ -490,6 +490,18 @@ body.compact-filters .filter-row,body.compact-filters #subbar,body.compact-filte
   box-shadow:-12px 0 30px rgba(0,0,0,.12);
 }
 #fp.open,#tp.open{transform:translateX(0)}
+#fp .flbl{font-size:16px;margin-top:14px;margin-bottom:8px}
+#fp .fi,#fp .ft{
+  font-size:18px;
+  line-height:1.65;
+  padding:14px 16px;
+}
+#fp .fi{min-height:54px}
+#fp .ft{min-height:140px}
+#fp .frow{margin-top:18px}
+#fp .fbtn{font-size:18px;min-height:52px}
+#fp .f2col{gap:12px;flex-wrap:wrap}
+#fp .f2col>div{min-width:170px}
 #tp{
   width:100vw;
   left:0;

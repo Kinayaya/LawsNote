@@ -5,7 +5,7 @@ const DEFAULTS = {
     {id:1,type:'article',subject:'民法',title:'民法第 184 條 — 侵權行為',body:'因故意或過失，不法侵害他人之權利者，負損害賠償責任。',tags:['侵權行為','損害賠償'],date:'2025-03-10',detail:'構成要件：\n1. 須有加害行為\n2. 行為須不法\n3. 須有故意或過失\n4. 須有損害\n5. 加害行為與損害間有因果關係'},
     {id:2,type:'case',subject:'刑法',title:'釋字第 775 號 — 累犯加重規定',body:'累犯一律加重最低本刑，違反憲法比例原則，應依個案審查。',tags:['累犯','比例原則'],date:'2025-02-28',detail:'大法官認定相關規定違憲，法院應依個案情形審查，不得機械式適用加重。'},
   ],
-  links: [{id:1,from:3,to:4,rel:'關聯',color:'#378ADD'},{id:2,from:3,to:2,rel:'關聯',color:'#378ADD'},{id:3,from:1,to:5,rel:'關聯',color:'#378ADD'}],
+  links: [{id:1,from:3,to:4,rel:'關聯',color:'#6F86A0'},{id:2,from:3,to:2,rel:'關聯',color:'#6F86A0'},{id:3,from:1,to:5,rel:'關聯',color:'#6F86A0'}],
   types: [{key:'article',label:'條文',color:'#007AFF'},{key:'case',label:'案例',color:'#1D9E75'},{key:'concept',label:'概念',color:'#7F77DD'},{key:'diary',label:'日記',color:'#D85A30'}],
   subjects: [{key:'民法',label:'民法',color:'#D85A30'},{key:'刑法',label:'刑法',color:'#1D9E75'},{key:'憲法',label:'憲法',color:'#7F77DD'},{key:'行政法',label:'行政法',color:'#378ADD'}],
   chapters: [
@@ -13,7 +13,7 @@ const DEFAULTS = {
   ],
   sections: []
 };
-const LINK_COLOR = '#378ADD', SKEY = 'legal_notes_v4', PAGE_SIZE = 30;
+const LINK_COLOR = '#6F86A0', SKEY = 'legal_notes_v4', PAGE_SIZE = 30;
 const ARCHIVES_KEY = 'klaws_archives_v1';
 const ARCHIVE_SNAPSHOT_LIMIT = 30;
 const RECYCLE_BIN_KEY = 'klaws_recycle_bin_v1';

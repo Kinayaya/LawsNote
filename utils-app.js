@@ -523,11 +523,11 @@ const mapCardMeasurementSignature = () => {
   const bodyFont=document.body?window.getComputedStyle(document.body).fontSize:'';
   return `${rootFont}|${bodyFont}|${window.devicePixelRatio||1}`;
 };
-const measureMapCardHeight = (note,width,type,markedTitle,previewHtml) => {
+const measureMapCardHeight = (note,width,markedTitle,previewHtml) => {
   const host=ensureMapCardMeasureHost();
   if(!host) return null;
   host.innerHTML=`<div class="map-card-inner" style="width:${width}px">
-    <div class="map-card-head"><span class="map-card-type" style="background:${lightC(type.color)};color:${darkC(type.color)}">${type.label}</span><span class="map-card-title">${escapeHtml(markedTitle)}</span></div>
+    <div class="map-card-head"><span class="map-card-title">${escapeHtml(markedTitle)}</span></div>
     ${previewHtml}
   </div>`;
   const cardEl=host.firstElementChild;
@@ -538,16 +538,15 @@ const measureMapCardHeight = (note,width,type,markedTitle,previewHtml) => {
 };
 const getMapCardBox = id => {
   const scale=Math.max(0.7,Math.min(2.3,getNodeRadius(id)/MAP_NODE_RADIUS_DEFAULT));
-  const width=Math.round(250*scale);
+  const width=Math.round(300*scale);
   const note=mapNodeById(id)||{};
-  const type=isRelayNode(note)?{label:'中繼站',color:'#A855F7'}:typeByKey(note.type);
   const markedTitle=`${mapTitleMarkers(id)}${note.title||'（未命名）'}`;
   const previewHtml=renderMapCardPreview(note);
   const measureSig=mapCardMeasurementSignature();
-  const cacheKey=`${width}::${type.label}::${type.color}::${markedTitle}::${previewHtml}::${measureSig}`;
+  const cacheKey=`${width}::${markedTitle}::${previewHtml}::${measureSig}`;
   if(mapCardBoxCache[id]&&mapCardBoxCache[id].key===cacheKey) return mapCardBoxCache[id].value;
   if(previewHtml){
-    const measuredHeight=measureMapCardHeight(note,width,type,markedTitle,previewHtml);
+    const measuredHeight=measureMapCardHeight(note,width,markedTitle,previewHtml);
     if(Number.isFinite(measuredHeight)){
       const value={width,height:Math.max(86,measuredHeight),bodyLines:0};
       mapCardBoxCache[id]={key:cacheKey,value};

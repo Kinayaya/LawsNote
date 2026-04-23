@@ -403,6 +403,23 @@ function findMentionNoteId(token,selfId){
   }
   return null;
 }
+function findSlashNoteId(token,selfId){
+  const normalized=safeStr(token).trim();
+  if(!normalized) return null;
+  const lower=normalized.toLowerCase();
+  const exact=notes.find(n=>n.id!==selfId&&safeStr(n.title).toLowerCase()===lower);
+  if(exact) return exact.id;
+  const fuzzy=notes.find(n=>n.id!==selfId&&safeStr(n.title).toLowerCase().includes(lower));
+  if(fuzzy) return fuzzy.id;
+  return null;
+}
+function extractSlashLinks(raw,selfId){
+  const text=safeStr(raw);
+  if(!text) return [];
+  const tokens=[...text.matchAll(/\/([^\s/@#，。；、,.!?！？:：()（）\[\]【】]+)/g)].map(m=>safeStr(m[1]).trim()).filter(Boolean);
+  const ids=uniq(tokens.map(token=>findSlashNoteId(token,selfId)).filter(Number.isFinite));
+  return ids.map(id=>({id,title:mapNodeById(id)?.title||`節點#${id}`}));
+}
 function renderMentionText(raw,selfId){
   const text=safeStr(raw);
   if(!text) return '';
@@ -418,6 +435,14 @@ function renderMentionText(raw,selfId){
   }
   html+=escapeHtml(text.slice(lastIndex));
   return html;
+}
+function renderDetailRichText(raw,selfId){
+  const withMention=renderMentionText(raw,selfId);
+  const text=safeStr(raw);
+  const links=extractSlashLinks(text,selfId);
+  if(!links.length) return withMention;
+  const linkHtml=links.map(item=>`<a href="#" class="mention-jump" data-nid="${item.id}">/${escapeHtml(item.title)}</a>`).join('、');
+  return `${withMention}<div style="margin-top:8px;font-size:12px;color:#64748B;">參照：${linkHtml}</div>`;
 }
 function bindMentionJumps(root){
   if(!root) return;
@@ -453,7 +478,7 @@ function openNote(id) {
   g('dp-body').style.display=fields.includes('body')?'block':'none';
   g('dp-detail').style.display=fields.includes('detail')?'block':'none';
   g('dp-body').innerHTML=n.body?renderMentionText(n.body,n.id):'（尚無摘要）';
-  g('dp-detail').innerHTML=n.detail?renderMentionText(n.detail,n.id):'（尚無詳細筆記）';
+  g('dp-detail').innerHTML=n.detail?renderDetailRichText(n.detail,n.id):'（尚無詳細筆記）';
   bindMentionJumps(g('dp-body'));
   bindMentionJumps(g('dp-detail'));
   if(fields.includes('todos')){todoLabel.style.display='block';todoWrap.style.display='block';todoWrap.innerHTML=renderTodoHtml(n.todos);}

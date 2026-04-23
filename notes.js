@@ -1,6 +1,5 @@
 // ==================== 多選 ====================
 function enterMultiSel() {
-  if(linkModeActive) setLinkMode(false);
   multiSelMode=true;selectedIds={};
   g('selectBar').classList.add('open');
   ['dp','fp','ap'].forEach(p=>g(p).classList.remove('open'));
@@ -126,7 +125,6 @@ function bindCardInteractions(card,id){
   card.addEventListener('click',()=>{
     if(card.dataset.touchActionTaken==='1'){card.dataset.touchActionTaken='0';return;}
     if(longPressed) return;
-    if(linkModeActive){handleLinkModeCardTap(id);return;}
     const now=Date.now();
     if(('ontouchstart' in window)&&lastCardTap.id===id&&(now-lastCardTap.time)<360){
       openId=id;
@@ -144,4 +142,3 @@ function bindCardInteractions(card,id){
     openForm(true);
   });
 }
-

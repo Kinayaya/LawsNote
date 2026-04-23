@@ -36,7 +36,6 @@ const XP_BOOST_MULTIPLIER = 2.5;
 const BASE_XP_BY_DIFFICULTY = {E:12,N:22,H:36};
 let levelSystem={skills:[],tasks:[],achievements:[],settings:{xpByDifficulty:{E:30,N:55,H:90},xpBoost150Applied:true}};
 let levelTaskExpanded={}, levelEditorState={kind:'',idx:-1};
-let linkModeActive=false, linkSourceId=null;
 const LEVEL_STAGES=[
   {min:0,max:20,rank:'E'},{min:21,max:40,rank:'F'},{min:41,max:50,rank:'D'},
   {min:51,max:60,rank:'C'},{min:61,max:70,rank:'B'},{min:71,max:80,rank:'B+'},

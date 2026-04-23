@@ -625,9 +625,10 @@ function showMapInfo(id){
         showToast('設定失敗：節點不存在');
         return;
       }
+      setMapCenterForSubpageScope(id,id);
       saveData();
       drawMap();
-      showToast('已設定子頁面');
+      showToast('已設定子頁面，且此頁面核心已設為該筆記');
       showMapInfo(id);
       return;
     }
@@ -811,21 +812,11 @@ function bindTouchQuickActions(){
     if(!btn) return;
     openQuickTemplate(btn.dataset.template);
   });
-  g('touchQuickFilters')?.querySelectorAll('[data-qf]').forEach(btn=>btn.addEventListener('click',()=>{
-    const kind=btn.dataset.qf;
-    if(kind==='today'){
-      const d=new Date();searchQ=`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;g('searchInput').value=searchQ;
-    }else if(kind==='todo'){
-      searchQ='[ ]';g('searchInput').value=searchQ;
-    }
-    render();
-  }));
 }
 
 function bindCoreButtons(){
   const bind=(id,fn)=>{const el=g(id);if(el)el.onclick=fn;};
   bind('addBtn',()=>{ if('ontouchstart' in window) openQuickAddSheet(); else openForm(false); });
-  bind('linkModeBtn',()=>setLinkMode(!linkModeActive));
   bind('editBtn',()=>{if(!openId){showToast('請先開啟一筆筆記');return;}openForm(true);});
   bind('copyBtn',copyNoteToClipboard);
   bind('dupBtn',duplicateNote);

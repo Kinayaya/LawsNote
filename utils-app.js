@@ -503,18 +503,71 @@ const estimateMapTextLines = (text, charsPerLine) => {
   const rows=safeStr(text).split('\n');
   return rows.reduce((sum,row)=>sum+Math.max(1,Math.ceil((row.length||1)/charsPerLine)),0);
 };
+const mapCardBoxCache = {};
+let mapCardMeasureHost = null;
+const clearMapCardBoxCache = () => {
+  Object.keys(mapCardBoxCache).forEach(key=>delete mapCardBoxCache[key]);
+};
+const ensureMapCardMeasureHost = () => {
+  if(typeof document==='undefined'||!document.body) return null;
+  if(mapCardMeasureHost&&mapCardMeasureHost.isConnected) return mapCardMeasureHost;
+  mapCardMeasureHost=document.createElement('div');
+  mapCardMeasureHost.setAttribute('aria-hidden','true');
+  mapCardMeasureHost.style.cssText='position:absolute;left:-99999px;top:-99999px;visibility:hidden;pointer-events:none;z-index:-1;';
+  document.body.appendChild(mapCardMeasureHost);
+  return mapCardMeasureHost;
+};
+const mapCardMeasurementSignature = () => {
+  if(typeof window==='undefined'||typeof document==='undefined') return 'default';
+  const rootFont=window.getComputedStyle(document.documentElement).fontSize||'';
+  const bodyFont=document.body?window.getComputedStyle(document.body).fontSize:'';
+  return `${rootFont}|${bodyFont}|${window.devicePixelRatio||1}`;
+};
+const measureMapCardHeight = (note,width,type,markedTitle,previewHtml) => {
+  const host=ensureMapCardMeasureHost();
+  if(!host) return null;
+  host.innerHTML=`<div class="map-card-inner" style="width:${width}px">
+    <div class="map-card-head"><span class="map-card-type" style="background:${lightC(type.color)};color:${darkC(type.color)}">${type.label}</span><span class="map-card-title">${escapeHtml(markedTitle)}</span></div>
+    ${previewHtml}
+  </div>`;
+  const cardEl=host.firstElementChild;
+  if(!cardEl) return null;
+  const rect=cardEl.getBoundingClientRect();
+  if(!rect||!Number.isFinite(rect.height)) return null;
+  return Math.ceil(rect.height);
+};
 const getMapCardBox = id => {
   const scale=Math.max(0.7,Math.min(2.3,getNodeRadius(id)/MAP_NODE_RADIUS_DEFAULT));
   const width=Math.round(250*scale);
   const note=mapNodeById(id)||{};
+  const type=isRelayNode(note)?{label:'中繼站',color:'#A855F7'}:typeByKey(note.type);
+  const markedTitle=`${mapTitleMarkers(id)}${note.title||'（未命名）'}`;
+  const previewHtml=renderMapCardPreview(note);
+  const measureSig=mapCardMeasurementSignature();
+  const cacheKey=`${width}::${type.label}::${type.color}::${markedTitle}::${previewHtml}::${measureSig}`;
+  if(mapCardBoxCache[id]&&mapCardBoxCache[id].key===cacheKey) return mapCardBoxCache[id].value;
+  if(previewHtml){
+    const measuredHeight=measureMapCardHeight(note,width,type,markedTitle,previewHtml);
+    if(Number.isFinite(measuredHeight)){
+      const value={width,height:Math.max(86,measuredHeight),bodyLines:0};
+      mapCardBoxCache[id]={key:cacheKey,value};
+      return value;
+    }
+  }
   const keys=getTypeFieldKeys(note.type).filter(key=>key!=='tags');
   const previewTexts=keys.map(key=>mapCardFieldText(note,key)).filter(text=>!!text);
-  if(!previewTexts.length) return {width,height:86,bodyLines:0};
+  if(!previewTexts.length){
+    const value={width,height:86,bodyLines:0};
+    mapCardBoxCache[id]={key:cacheKey,value};
+    return value;
+  }
   const charsPerLine=Math.max(9,Math.floor((width-24)/10));
   const bodyLines=previewTexts.reduce((sum,text)=>sum+estimateMapTextLines(text,charsPerLine),0);
   const segmentExtra=Math.max(0,previewTexts.length-1)*9;
   const height=86+bodyLines*18+segmentExtra;
-  return {width,height,bodyLines};
+  const value={width,height,bodyLines};
+  mapCardBoxCache[id]={key:cacheKey,value};
+  return value;
 };
 const ensureUsageStart = () => {
   const raw=localStorage.getItem(USAGE_START_KEY);

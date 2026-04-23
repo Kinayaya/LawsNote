@@ -13,16 +13,20 @@
     <div class="brand-wrap">
       <button class="klaws-logo-btn" id="logoArchiveBtn" aria-label="開啟存檔與回收區" title="開啟存檔與回收區">
         <div class="klaws-logo">
-          <svg width="48" height="48" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg width="48" height="48" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <defs>
-              <linearGradient id="logoBg" x1="4" y1="4" x2="48" y2="48" gradientUnits="userSpaceOnUse">
-                <stop offset="0" stop-color="#060C1F"/>
-                <stop offset="1" stop-color="#0F2A59"/>
+              <linearGradient id="lawShieldBg" x1="10" y1="6" x2="54" y2="58" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#142863"/>
+                <stop offset="1" stop-color="#274F9B"/>
               </linearGradient>
             </defs>
-            <rect width="52" height="52" rx="14" fill="url(#logoBg)"/>
-            <path d="M15 10V42H21V30L34 42H41L26 26L40 10H33L21 22V10Z" fill="#E6F0FF"/>
-            <path d="M15 10V42H18V10Z" fill="#7EAEF8" opacity="0.75"/>
+            <path d="M32 4L55 13V31C55 44 45.5 55.6 32 60C18.5 55.6 9 44 9 31V13L32 4Z" fill="url(#lawShieldBg)"/>
+            <path d="M32 14V35" stroke="#F1F5F9" stroke-width="3.5" stroke-linecap="round"/>
+            <path d="M17 21H47" stroke="#F1F5F9" stroke-width="3.5" stroke-linecap="round"/>
+            <path d="M17 21L13 32H23L17 21Z" fill="none" stroke="#F1F5F9" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M47 21L41 32H51L47 21Z" fill="none" stroke="#F1F5F9" stroke-width="3" stroke-linejoin="round"/>
+            <circle cx="32" cy="36.5" r="2.5" fill="#F1F5F9"/>
+            <path d="M25 46H39" stroke="#F1F5F9" stroke-width="3.5" stroke-linecap="round"/>
           </svg>
         </div>
       </button>
@@ -355,7 +359,7 @@
       <span class="mp-subject" id="mpSubject"></span>
       <div class="mp-size-row">
         <span class="mp-size-label">節點大小</span>
-        <input type="number" id="mpNodeSizeNum" min="15" max="100" value="26" style="width:56px;padding:3px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;text-align:center;background:#f8f8f8;">
+        <input type="number" id="mpNodeSizeNum" min="15" max="100" value="25" style="width:56px;padding:3px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;text-align:center;background:#f8f8f8;">
         <button class="mp-size-reset" id="mpNodeSizeReset">重設</button>
       </div>
       <div class="mp-links" id="mpLinks"></div>
@@ -508,7 +512,10 @@
 <div id="reminderPopup"></div>
 <div id="focusTimerModal">
   <div id="focusTimerBox">
-    <h3>⏱️ 專注計時器</h3>
+    <div id="focusTimerDragHandle" title="拖曳移動計時器">
+      <h3>⏱️ 專注計時器</h3>
+      <span class="focus-timer-drag-hint">拖曳移動</span>
+    </div>
     <label class="flbl">倒數時間（m:ss 或 分鐘）</label>
     <input id="focusTimerMinutes" class="fi" type="text" value="25:00" placeholder="例如 1:30 或 25">
     <div id="focusTimerDisplay">25:00</div>

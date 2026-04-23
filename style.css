@@ -233,11 +233,11 @@ body.compact-filters .filter-row,body.compact-filters #subbar,body.compact-filte
 .map-node:active{cursor:grabbing}
 .map-card-inner{padding:10px 11px;display:flex;flex-direction:column;gap:8px;width:100%;height:100%;font-family:-apple-system,BlinkMacSystemFont,"PingFang TC",sans-serif;color:#1f2937;background:#fff}
 .map-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.map-card-type{font-size:10px;font-weight:700;border-radius:999px;padding:2px 8px;line-height:1.25;max-width:65%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.map-card-type{font-size:20px;font-weight:700;border-radius:999px;padding:2px 8px;line-height:1.25;max-width:65%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .map-card-title{flex:1;font-size:14px;font-weight:700;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .map-card-body-segment+.map-card-body-segment{border-top:1px solid #e7ecf3;padding-top:8px;margin-top:2px}
-.map-card-body-text{font-size:11px;color:#5c6677;line-height:1.45;white-space:pre-wrap;word-break:break-word}
-.map-card-foot{margin-top:2px;font-size:10px;color:#8b95a5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.map-card-body-text{font-size:22px;color:#5c6677;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+.map-card-foot{margin-top:2px;font-size:20px;color:#8b95a5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .map-lane-label{font-size:11px;font-weight:600;fill:#9aa3b2;pointer-events:none}
 #lanePanel{position:absolute;top:10px;right:10px;z-index:25;display:none;background:#fff;border:1px solid #ddd;border-radius:12px;padding:12px;box-shadow:0 8px 22px rgba(0,0,0,.15);width:min(310px,92vw)}
 #lanePanel.open{display:block}
@@ -412,9 +412,15 @@ body.compact-filters .filter-row,body.compact-filters #subbar,body.compact-filte
 #reminderPopup button{position:absolute;right:18px;top:12px;background:none;border:none;color:#fff;font-size:34px;cursor:pointer}
 #focusTimerModal,#focusTimerAlert{display:none;position:fixed;inset:0;background:rgba(0,0,0,.48);z-index:530;align-items:center;justify-content:center}
 #focusTimerModal.open,#focusTimerAlert.open{display:flex}
-#focusTimerModal{pointer-events:none;background:transparent;align-items:flex-start;justify-content:flex-end;padding:80px 18px 18px}
+#focusTimerModal{pointer-events:none;background:transparent}
 #focusTimerModal #focusTimerBox{pointer-events:auto}
 #focusTimerBox,#focusTimerAlertBox{background:#fff;border-radius:14px;border:1px solid #e5e7eb;padding:16px;width:min(360px,92vw);box-shadow:0 14px 34px rgba(0,0,0,.18)}
+#focusTimerBox{position:fixed;left:calc(100vw - min(360px,92vw) - 18px);top:80px;touch-action:none}
+#focusTimerDragHandle{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:grab;user-select:none;touch-action:none;margin-bottom:4px}
+#focusTimerDragHandle:active{cursor:grabbing}
+#focusTimerDragHandle.dragging{cursor:grabbing}
+#focusTimerDragHandle h3{margin:0}
+.focus-timer-drag-hint{font-size:11px;color:#94a3b8;white-space:nowrap}
 #focusTimerBox h3,#focusTimerAlertBox h3{margin:0 0 10px;font-size:18px}
 #focusTimerDisplay{font-size:42px;font-weight:800;color:#0f172a;text-align:center;margin:10px 0 14px;font-variant-numeric:tabular-nums;letter-spacing:.02em}
 .focus-timer-actions{display:flex;gap:8px}

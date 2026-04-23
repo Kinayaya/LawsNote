@@ -21,7 +21,7 @@
   on('dp-link-search','input',debounce(renderDetailQuickLinkSearch,180));
   on('mp-link-search','input',debounce(()=>renderMapPopupQuickLinkSearch(),180));
   on('calendarBtn','click',()=>toggleCalendarView(true));
-  on('levelSystemBtn','click',()=>toggleLevelSystemView(true));
+  on('headerTitleWrap','click',()=>toggleLevelSystemView(true));
   applyThemeMode(localStorage.getItem(THEME_MODE_KEY)||'light');
   on('ft','change',()=>renderDynamicFields(g('ft').value,editMode&&openId?noteById(openId):null));
   on('fs2','change',()=>{

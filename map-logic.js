@@ -709,7 +709,14 @@ function showMapInfo(id){
   if(!related.length){linksEl.innerHTML='<span class="mp-no-links">尚無關聯</span>';}
   else{
     linksEl.innerHTML=related.map(l=>{const otherId=l.from===id?l.to:l.from,other=mapNodeById(otherId),dir=l.from===id?'→':'←',name=other?other.title:'（已刪除）';return `<div class="mp-link-row"><span class="mp-link-badge" style="background:${LINK_COLOR}">${dir} 關聯</span><span class="mp-link-name" data-nid="${otherId}">${name}</span></div>`;}).join('');
-    linksEl.querySelectorAll('.mp-link-name').forEach(el=>{el.addEventListener('click',()=>{closeMapPopup();showMapInfo(parseInt(el.dataset.nid));highlightNode(parseInt(el.dataset.nid));});});
+    linksEl.querySelectorAll('.mp-link-name').forEach(el=>{el.addEventListener('click',()=>{
+      const targetId=parseInt(el.dataset.nid,10);
+      highlightNode(targetId);
+      closeMapPopup();
+      if(noteById(targetId)){ openNote(targetId); return; }
+      showMapInfo(targetId);
+      openMapPopup(targetId);
+    });});
   }
 }
 function closeMapPopup(){ g('mapPopup').classList.remove('open'); }

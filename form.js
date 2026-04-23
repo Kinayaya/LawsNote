@@ -68,23 +68,25 @@ function renderMapAssignSearch(){
     return hay.includes(q);
   }).slice(0,24);
   if(!pool.length){ result.innerHTML='<div class="dp-link-empty">找不到可加入的筆記</div>'; return; }
-  result.innerHTML=pool.map(n=>`<button class="fl-result-item ${mapAssignSelectedNoteId===n.id?'selected':''}" data-map-assign-note-id="${n.id}" type="button"><span class="fl-result-title">${escapeHtml(n.title||'（未命名）')}</span></button>`).join('');
+  result.innerHTML=pool.map(n=>`<button class="fl-result-item ${mapAssignSelectedNoteIds[n.id]?'selected':''}" data-map-assign-note-id="${n.id}" type="button"><input type="checkbox" ${mapAssignSelectedNoteIds[n.id]?'checked':''}><span class="fl-result-title">${escapeHtml(n.title||'（未命名）')}</span></button>`).join('');
   result.querySelectorAll('[data-map-assign-note-id]').forEach(row=>row.addEventListener('click',()=>{
-    mapAssignSelectedNoteId=parseInt(row.dataset.mapAssignNoteId,10);
+    const noteId=parseInt(row.dataset.mapAssignNoteId,10);
+    mapAssignSelectedNoteIds[noteId]=!mapAssignSelectedNoteIds[noteId];
+    if(!mapAssignSelectedNoteIds[noteId]) delete mapAssignSelectedNoteIds[noteId];
     renderMapAssignSearch();
   }));
 }
 function openMapPageAssignForm(){
   formMode='mapAssign';
   mapAssignTargetPageId=currentSubpageRootId()?String(currentSubpageRootId()):'root';
-  mapAssignSelectedNoteId=null;
+  mapAssignSelectedNoteIds={};
   openForm(false);
   const sel=g('mapAssignPageSel');
   const pages=mapPageRootOptions();
   if(sel){
     sel.innerHTML=pages.map(p=>`<option value="${p.id}">${escapeHtml(p.title)}</option>`).join('');
     sel.value=mapAssignTargetPageId;
-    sel.onchange=()=>{mapAssignSelectedNoteId=null;renderMapAssignSearch();};
+    sel.onchange=()=>{mapAssignSelectedNoteIds={};renderMapAssignSearch();};
   }
   const input=g('mapAssignSearchInput');
   if(input){input.value='';input.oninput=debounce(renderMapAssignSearch,160);}
@@ -234,12 +236,16 @@ function removeTypeFieldForCurrentType(){
 }
 function saveNote() {
   if(formMode==='mapAssign'){
-    if(!mapAssignSelectedNoteId){showToast('請先選擇要加入的筆記');return;}
-    if(addNoteToMapPage(mapAssignTargetPageId,mapAssignSelectedNoteId)){
-      mapAssignSelectedNoteId=null;
+    const selectedNoteIds=Object.keys(mapAssignSelectedNoteIds).filter(id=>mapAssignSelectedNoteIds[id]).map(Number);
+    if(!selectedNoteIds.length){showToast('請先選擇要加入的筆記');return;}
+    let addedCount=0;
+    selectedNoteIds.forEach(noteId=>{ if(addNoteToMapPage(mapAssignTargetPageId,noteId)) addedCount++; });
+    if(addedCount>0){
+      mapAssignSelectedNoteIds={};
       saveData();
       if(isMapOpen) scheduleMapRedraw(80);
       renderMapAssignSearch();
+      showToast(`已加入 ${addedCount} 筆筆記`);
     }
     return;
   }

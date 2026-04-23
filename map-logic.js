@@ -1,6 +1,6 @@
 // ==================== 體系圖 ====================
 function initNodePos() { const canvas=g('mapCanvas');mapW=canvas.offsetWidth||800;mapH=canvas.offsetHeight||500;const cx=mapW/2,cy=mapH/2,r=Math.min(mapW,mapH)*.44;notes.forEach((n,i)=>{if(!nodePos[n.id]){const angle=(i/notes.length)*2*Math.PI;nodePos[n.id]={x:cx+r*Math.cos(angle),y:cy+r*Math.sin(angle)};}}); }
-function getNodeRadius(id){ return clampMapRadius(parseFloat(nodeSizes[id])||MAP_NODE_RADIUS_DEFAULT); }
+function getNodeRadius(id){ return MAP_NODE_RADIUS_DEFAULT; }
 function clampNodeToCanvas(id){
   if(!nodePos[id])return;
   const box=getMapCardBox(id);
@@ -331,38 +331,6 @@ function createMapRelay(){
   g('fti')?.focus();
   g('fti')?.select();
 }
-function switchMapNodeType(id){
-  const relay=relayById(id);
-  if(relay){
-    const backupType=safeStr(relay.noteTypeBackup)||safeStr(relay.type);
-    const validType=types.some(t=>t.key===backupType)?backupType:(types[0]?.key||'article');
-    const note=normalizeNoteSchema({...relay,isRelay:false,type:validType,noteTypeBackup:''});
-    mapRelays=mapRelays.filter(r=>r.id!==id);
-    notes.unshift(note);
-    openId=note.id;
-    closeMapPopup();
-    saveData();
-    render();
-    if(isMapOpen) scheduleMapRedraw(0);
-    showToast('已切換為筆記');
-    return;
-  }
-  const note=noteById(id);
-  if(!note) return;
-  const relayData={...note,isRelay:true,pageRootId:currentSubpageRootId()||null,noteTypeBackup:safeStr(note.type)||'article'};
-  notes=notes.filter(n=>n.id!==id);
-  mapRelays.push(relayData);
-  if(openId===id){
-    openId=null;
-    g('dp')?.classList.remove('open');
-    syncSidePanelState();
-  }
-  closeMapPopup();
-  saveData();
-  render();
-  if(isMapOpen) scheduleMapRedraw(0);
-  showToast('已切換為中繼站');
-}
 function notifyHiddenRelaysByFilter(beforeRelayVisibleIds){
   if(!isMapOpen||!(beforeRelayVisibleIds instanceof Set)||!beforeRelayVisibleIds.size) return;
   const afterRelayVisibleIds=new Set(visibleNotes().filter(isRelayNode).map(n=>n.id));
@@ -512,7 +480,7 @@ function drawMap(){
     const previewHtml=renderMapCardPreview(n);
     const markedTitle=`${mapTitleMarkers(n.id)}${n.title||'（未命名）'}`;
     cardBody.innerHTML=`<div xmlns="http://www.w3.org/1999/xhtml" class="map-card-inner">
-      <div class="map-card-head"><span class="map-card-type" style="background:${lightC(type.color)};color:${darkC(type.color)}">${type.label}</span><span class="map-card-title">${escapeHtml(markedTitle)}</span></div>
+      <div class="map-card-head"><span class="map-card-title">${escapeHtml(markedTitle)}</span></div>
       ${previewHtml}
     </div>`;
     const hasChildren=links.some(l=>l.from===n.id&&mapNodeById(l.to));
@@ -610,14 +578,8 @@ function showMapInfo(id){
   const tp=relay?{label:'中繼站',color:'#A855F7'}:typeByKey(n.type),sb=subByKey(n.subject),related=links.filter(l=>l.from===id||l.to===id);
   const quickWrap=g('mp-link-quick-wrap');
   const quickInput=g('mp-link-search');
-  const switchBtn=g('mpSwitch');
   g('mpBadge').textContent=tp.label;g('mpBadge').style.background=tp.color;g('mpTitle').textContent=n.title;
   g('mpSubject').textContent=sb.label;g('mpSubject').style.background=sb.color+'22';g('mpSubject').style.color=sb.color;
-  if(switchBtn){
-    switchBtn.textContent='切換';
-    switchBtn.title=relay?'切換為筆記':'切換為中繼站';
-    switchBtn.onclick=()=>switchMapNodeType(id);
-  }
   if(quickWrap){
     quickWrap.style.display=relay?'flex':'none';
     if(quickInput){
@@ -625,12 +587,6 @@ function showMapInfo(id){
       quickInput.dataset.sourceId=relay?String(id):'';
     }
     renderMapPopupQuickLinkSearch(relay?id:null);
-  }
-  const sizeNumInput=g('mpNodeSizeNum');
-  if(sizeNumInput){
-    sizeNumInput.value=String(Math.round(getNodeRadius(id)));
-    sizeNumInput.oninput=()=>{const v=parseInt(sizeNumInput.value,10);if(isNaN(v))return;const clamped=clampMapRadius(v);nodeSizes[id]=clamped;clampNodeToCanvas(id);moveNodeEl(id,nodePos[id].x,nodePos[id].y);redrawLines(id);saveDataDeferred();};
-    g('mpNodeSizeReset').onclick=()=>{delete nodeSizes[id];sizeNumInput.value=String(Math.round(getNodeRadius(id)));clampNodeToCanvas(id);moveNodeEl(id,nodePos[id].x,nodePos[id].y);redrawLines(id);saveDataDeferred();};
   }
   const currentCenterId=getMapCenterFromScopes();
   const setCenterBtn=document.createElement('button');setCenterBtn.className='mp-set-center';
@@ -706,9 +662,12 @@ function showMapInfo(id){
     }
   }
   const linksEl=g('mpLinks');
-  if(!related.length){linksEl.innerHTML='<span class="mp-no-links">尚無關聯</span>';}
+  const slashLinks=extractSlashLinks(n.detail,id);
+  if(!related.length&&!slashLinks.length){linksEl.innerHTML='<span class="mp-no-links">尚無關聯</span>';}
   else{
-    linksEl.innerHTML=related.map(l=>{const otherId=l.from===id?l.to:l.from,other=mapNodeById(otherId),dir=l.from===id?'→':'←',name=other?other.title:'（已刪除）';return `<div class="mp-link-row"><span class="mp-link-badge" style="background:${LINK_COLOR}">${dir} 關聯</span><span class="mp-link-name" data-nid="${otherId}">${name}</span></div>`;}).join('');
+    const relationHtml=related.map(l=>{const otherId=l.from===id?l.to:l.from,other=mapNodeById(otherId),dir=l.from===id?'→':'←',name=other?other.title:'（已刪除）';return `<div class="mp-link-row"><span class="mp-link-badge" style="background:${LINK_COLOR}">${dir} 關聯</span><span class="mp-link-name" data-nid="${otherId}">${name}</span></div>`;}).join('');
+    const slashHtml=slashLinks.map(item=>`<div class="mp-link-row"><span class="mp-link-badge" style="background:#64748B">/ 連結</span><span class="mp-link-name" data-nid="${item.id}">${escapeHtml(item.title)}</span></div>`).join('');
+    linksEl.innerHTML=relationHtml+slashHtml;
     linksEl.querySelectorAll('.mp-link-name').forEach(el=>{el.addEventListener('click',()=>{
       const targetId=parseInt(el.dataset.nid,10);
       highlightNode(targetId);

@@ -413,6 +413,17 @@ const getMapPageAssignedIds = rootId => {
   const ids=new Set(arr.map(v=>parseInt(v,10)).filter(Number.isFinite));
   const numericRootId=parseInt(key,10);
   if(Number.isFinite(numericRootId)&&mapNodeById(numericRootId)) ids.add(numericRootId);
+  const queue=[...ids];
+  while(queue.length){
+    const parentId=queue.shift();
+    links.forEach(link=>{
+      if(link.from!==parentId) return;
+      const childId=parseInt(link.to,10);
+      if(!Number.isFinite(childId)||!mapNodeById(childId)||ids.has(childId)) return;
+      ids.add(childId);
+      queue.push(childId);
+    });
+  }
   return ids;
 };
 const setMapPageAssignedIds = (rootId,noteIds=[]) => {

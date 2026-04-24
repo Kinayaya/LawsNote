@@ -358,13 +358,9 @@ async function copyNoteToClipboard(targetId=openId) {
   if(!n){showToast('找不到要複製的筆記');return;}
   const text=[
     n.title||'（未命名）',
-    '',
-    '摘要',
     n.body||'',
-    '',
-    '詳細筆記',
     n.detail||''
-  ].join('\n');
+  ].filter(v=>safeStr(v).trim()).join('\n\n');
   try{
     if(navigator.clipboard?.writeText){
       await navigator.clipboard.writeText(text);

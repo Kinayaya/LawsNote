@@ -637,10 +637,27 @@ function showMapInfo(id){
     else setMapLinkSource(id);
     closeMapPopup();
   };
+  const hideFromPageBtn=document.createElement('button');
+  hideFromPageBtn.className='mp-hide-page-btn';
+  hideFromPageBtn.textContent='🙈 本頁隱藏節點';
+  hideFromPageBtn.style.cssText='width:100%;padding:8px;margin:4px 0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #e8d59b;background:#fff9e9;color:#8a6400;';
+  hideFromPageBtn.onclick=()=>{
+    if(!unassignNoteFromMapPage(id)){
+      showToast('無法隱藏此節點');
+      return;
+    }
+    if(mapLinkSourceId===id) clearMapLinkSource({silent:true});
+    saveData();
+    closeMapPopup();
+    drawMap();
+    updateMapPagePath();
+    showToast(`已在本頁隱藏「${n.title||'（未命名）'}」`);
+  };
   if(goBtn&&goBtn.parentNode){
-    goBtn.parentNode.querySelectorAll('.mp-set-center,.mp-subpage-btn,.mp-subpage-cancel-btn,.mp-link-start-btn').forEach(el=>el.remove());
+    goBtn.parentNode.querySelectorAll('.mp-set-center,.mp-subpage-btn,.mp-subpage-cancel-btn,.mp-link-start-btn,.mp-hide-page-btn').forEach(el=>el.remove());
     goBtn.parentNode.insertBefore(setCenterBtn,goBtn);
     goBtn.parentNode.insertBefore(linkStartBtn,goBtn);
+    if(isNodeInCurrentMapPage(id)) goBtn.parentNode.insertBefore(hideFromPageBtn,goBtn);
     if(isNodeInCurrentSubpage(id)) goBtn.parentNode.insertBefore(subpageBtn,goBtn);
     if(hasSubpage&&isNodeInCurrentSubpage(id)) goBtn.parentNode.insertBefore(cancelSubpageBtn,goBtn);
     let relayEditBtn=goBtn.parentNode.querySelector('.mp-relay-edit-btn');

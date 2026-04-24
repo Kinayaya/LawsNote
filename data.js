@@ -125,26 +125,220 @@ function exportData() {
   a.download=`法律筆記備份_${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}.json`;
   a.href=url;a.click();URL.revokeObjectURL(url);showToast('已匯出！');
 }
+function portableTextHash(str=''){
+  const text=safeStr(str);
+  let hash=2166136261;
+  for(let i=0;i<text.length;i++){
+    hash^=text.charCodeAt(i);
+    hash+=(hash<<1)+(hash<<4)+(hash<<7)+(hash<<8)+(hash<<24);
+  }
+  return (hash>>>0).toString(16).padStart(8,'0');
+}
+function portableFrontmatter(note){
+  const n=normalizeNoteSchema(note||{});
+  const lines=[
+    '---',
+    `id: ${n.id}`,
+    `title: "${safeStr(n.title).replace(/"/g,'\\"')}"`,
+    `date: ${n.date||''}`,
+    `type: ${n.type||''}`,
+    `subjects: [${noteSubjects(n).join(', ')}]`,
+    `chapters: [${noteChapters(n).join(', ')}]`,
+    `sections: [${noteSections(n).join(', ')}]`,
+    `tags: [${noteTags(n).join(', ')}]`,
+    '---'
+  ];
+  return lines.join('\n');
+}
+function portableNoteMarkdown(note){
+  const n=normalizeNoteSchema(note||{});
+  const fm=portableFrontmatter(n);
+  const detail=safeStr(n.detail).trim();
+  const body=safeStr(n.body).trim();
+  const todos=(Array.isArray(n.todos)?n.todos:[]).map(t=>`- [${t.done?'x':' '}] ${safeStr(t.text).trim()}`).filter(Boolean);
+  return `${fm}\n\n# ${safeStr(n.title)||'Untitled'}\n\n${body||''}${detail?`\n\n## Detail\n\n${detail}`:''}${todos.length?`\n\n## Todos\n\n${todos.join('\n')}`:''}\n`;
+}
+function buildPortableExportPackage(){
+  const noteItems=notes.map(n=>{
+    const markdown=portableNoteMarkdown(n);
+    return {
+      id:n.id,
+      title:safeStr(n.title),
+      markdown,
+      hash:portableTextHash(markdown),
+      meta:{
+        type:n.type||'',
+        subjects:noteSubjects(n),
+        chapters:noteChapters(n),
+        sections:noteSections(n),
+        tags:noteTags(n),
+        date:n.date||''
+      }
+    };
+  });
+  const relayItems=mapRelays.map(n=>{
+    const markdown=portableNoteMarkdown(n);
+    return {
+      id:n.id,
+      title:safeStr(n.title),
+      markdown,
+      hash:portableTextHash(markdown),
+      meta:{
+        nodeKind:'relay',
+        type:n.type||'',
+        subjects:noteSubjects(n),
+        chapters:noteChapters(n),
+        sections:noteSections(n),
+        tags:noteTags(n),
+        date:n.date||''
+      }
+    };
+  });
+  const relationItems=links.map(l=>({id:l.id,from:l.from,to:l.to,type:'relation'}));
+  const checksumSource=[
+    ...noteItems.map(x=>x.hash),
+    ...relayItems.map(x=>x.hash),
+    ...relationItems.map(x=>`${x.from}->${x.to}`)
+  ].join('|');
+  return {
+    schemaVersion:PORTABLE_EXPORT_SCHEMA_VERSION,
+    exportedAt:new Date().toISOString(),
+    sourceApp:'KLaws',
+    taxonomy:{types,subjects,chapters,sections},
+    notes:noteItems,
+    relays:relayItems,
+    relations:relationItems,
+    manifest:{
+      noteCount:noteItems.length,
+      relayCount:relayItems.length,
+      relationCount:relationItems.length,
+      contentChecksum:portableTextHash(checksumSource)
+    }
+  };
+}
+function exportPortablePackage(){
+  try{
+    const pkg=buildPortableExportPackage();
+    const json=JSON.stringify(pkg,null,2);
+    const blob=new Blob([json],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    const d=new Date();
+    a.download=`klaws_portable_${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}.json`;
+    a.href=url;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`已匯出通用包（${pkg.manifest.noteCount} 筆筆記）`);
+  }catch(e){
+    showToast('通用包匯出失敗');
+  }
+}
+function parseImportPayload(rawText){
+  const report={errors:[],warnings:[],totalNotes:0,validNotes:0,totalRelays:0,validRelays:0,totalLinks:0,validLinks:0};
+  let parsed=null;
+  try{
+    parsed=JSON.parse(rawText);
+  }catch(e){
+    report.errors.push('JSON 解析失敗，請確認檔案內容為有效 JSON');
+    return {ok:false,report,data:null};
+  }
+  if(!parsed||typeof parsed!=='object'){
+    report.errors.push('匯入資料格式錯誤：根節點必須為物件');
+    return {ok:false,report,data:null};
+  }
+  const noteList=Array.isArray(parsed.notes)?parsed.notes:[];
+  const relayList=Array.isArray(parsed.mapRelays)?parsed.mapRelays:[];
+  if(!Array.isArray(parsed.notes)){
+    report.errors.push('匯入資料缺少 notes 陣列');
+    return {ok:false,report,data:null};
+  }
+  report.totalNotes=noteList.length;
+  report.totalRelays=relayList.length;
+  const normalizedNotes=[];
+  noteList.forEach((item,idx)=>{
+    if(!item||typeof item!=='object'){
+      report.warnings.push(`第 ${idx+1} 筆 notes 非物件，已略過`);
+      return;
+    }
+    const normalized=normalizeNoteSchema(item);
+    if(!safeStr(normalized.title).trim()&&!safeStr(normalized.body).trim()&&!safeStr(normalized.detail).trim()){
+      report.warnings.push(`第 ${idx+1} 筆 notes 沒有標題與內容，已略過`);
+      return;
+    }
+    if(!Number.isFinite(Number(item.id))){
+      report.warnings.push(`第 ${idx+1} 筆 notes 缺少有效 id，匯入時將自動重編`);
+    }
+    normalizedNotes.push(normalized);
+  });
+  report.validNotes=normalizedNotes.length;
+  const normalizedRelays=[];
+  relayList.forEach((item,idx)=>{
+    if(!item||typeof item!=='object'){
+      report.warnings.push(`第 ${idx+1} 筆 mapRelays 非物件，已略過`);
+      return;
+    }
+    const backupType=safeStr(item&&item.noteTypeBackup)||safeStr(item&&item.type)||'article';
+    const normalized=normalizeNoteSchema({...item,isRelay:false,noteTypeBackup:'',type:backupType});
+    if(!safeStr(normalized.title).trim()&&!safeStr(normalized.body).trim()&&!safeStr(normalized.detail).trim()){
+      report.warnings.push(`第 ${idx+1} 筆 mapRelays 沒有標題與內容，已略過`);
+      return;
+    }
+    if(!Number.isFinite(Number(item.id))){
+      report.warnings.push(`第 ${idx+1} 筆 mapRelays 缺少有效 id，匯入時將自動重編`);
+    }
+    normalizedRelays.push(normalized);
+  });
+  report.validRelays=normalizedRelays.length;
+  const links=Array.isArray(parsed.links)?parsed.links:[];
+  report.totalLinks=links.length;
+  const normalizedLinks=[];
+  links.forEach((item,idx)=>{
+    if(!item||typeof item!=='object'){
+      report.warnings.push(`第 ${idx+1} 筆 links 非物件，已略過`);
+      return;
+    }
+    const from=Number(item.from),to=Number(item.to);
+    if(!Number.isFinite(from)||!Number.isFinite(to)||from===to){
+      report.warnings.push(`第 ${idx+1} 筆 links from/to 無效，已略過`);
+      return;
+    }
+    normalizedLinks.push({id:Number(item.id),from,to,rel:'關聯',color:LINK_COLOR});
+  });
+  report.validLinks=normalizedLinks.length;
+  if(report.validNotes===0&&report.validRelays===0){
+    report.errors.push('匯入資料沒有可用的筆記內容');
+    return {ok:false,report,data:null};
+  }
+  return {
+    ok:true,
+    report,
+    data:{
+      raw:parsed,
+      notes:normalizedNotes,
+      relays:normalizedRelays,
+      links:normalizedLinks
+    }
+  };
+}
 function importData(file) {
   const reader=new FileReader();
   reader.onload=e=>{
     try {
-      const d=JSON.parse(e.target.result); if(!d.notes) throw new Error();
-      d.notes.forEach(n=>{
-        if(!n.dispute)n.dispute='';if(!n.f_article)n.f_article='';if(!n.f_elements)n.f_elements='';if(!n.f_conclusion)n.f_conclusion='';
-        if(!n.detail)n.detail='';if(!Array.isArray(n.todos))n.todos=[];
-        if(!Array.isArray(n.subjects)) n.subjects=typeof n.subject==='string'&&n.subject?[n.subject]:[];
-        if(!Array.isArray(n.chapters)) n.chapters=typeof n.chapter==='string'&&n.chapter?[n.chapter]:[];
-        if(!Array.isArray(n.sections)) n.sections=typeof n.section==='string'&&n.section?[n.section]:[];
-        n.subjects=uniq(n.subjects);n.chapters=uniq(n.chapters);
-        n.sections=uniq(n.sections);
-        n.subject=n.subjects[0]||'';n.chapter=n.chapters[0]||'';n.section=n.sections[0]||'';
-        n.date=formatDate(n.date)||'1970-01-01';
-      });
-      if(d.links) d.links.forEach(l=>{l.rel='關聯';l.color=LINK_COLOR;});
+      const parsed=parseImportPayload(e.target.result||'');
+      if(!parsed.ok){
+        showToast(parsed.report.errors[0]||'匯入失敗，請確認檔案格式');
+        return;
+      }
+      const d=parsed.data.raw;
+      const importNotes=parsed.data.notes;
+      const importRelays=parsed.data.relays;
+      const importLinks=parsed.data.links;
+      if(parsed.report.warnings.length){
+        console.warn('[importData warnings]',parsed.report.warnings);
+      }
       if(confirm('確定 = 完整覆蓋（取代所有現有筆記，保留現有科目/章設定）\n取消 = 合併（只加入新筆記）')) {
-        notes=mergeRelaysIntoNotes(d.notes,Array.isArray(d.mapRelays)?d.mapRelays:[]);
-        links=d.links||[];
+        notes=mergeRelaysIntoNotes(importNotes,importRelays);
+        links=importLinks;
         mapRelays=[];
         nodeSizes=d.nodeSizes||{};mapCenterNodeId=d.mapCenterNodeId||null;mapCenterNodeIds=(d.mapCenterNodeIds&&typeof d.mapCenterNodeIds==='object')?d.mapCenterNodeIds:{};mapCollapsed=(d.mapCollapsed&&typeof d.mapCollapsed==='object')?d.mapCollapsed:{};
         mapSubpages=(d.mapSubpages&&typeof d.mapSubpages==='object')?d.mapSubpages:{};
@@ -156,7 +350,7 @@ function importData(file) {
         const existing=new Set(notes.map(n=>n.id));let added=0;
         let maxNoteId=[...notes].reduce((m,x)=>Math.max(m,x.id||0),0);
         const importedIdMap={};
-        d.notes.forEach(n=>{
+        importNotes.forEach(n=>{
           const oldId=Number(n.id);
           let nextId=oldId;
           if(existing.has(nextId)||!Number.isFinite(nextId)){
@@ -169,23 +363,20 @@ function importData(file) {
           added++;
           if(nextId>=nid) nid=nextId+1;
         });
-        if(Array.isArray(d.mapRelays)){
-          d.mapRelays.forEach(r=>{
-            const oldId=Number(r.id);
-            let nextId=oldId;
-            if(existing.has(nextId)||!Number.isFinite(nextId)) nextId=Math.max(nid,maxNoteId+1);
-            existing.add(nextId);
-            if(Number.isFinite(oldId)) importedIdMap[oldId]=nextId;
-            if(nextId>maxNoteId) maxNoteId=nextId;
-            const backupType=safeStr(r&&r.noteTypeBackup)||safeStr(r&&r.type)||'article';
-            notes.push(normalizeNoteSchema({...r,id:nextId,isRelay:false,type:backupType,noteTypeBackup:''}));
-            if(nextId>=nid) nid=nextId+1;
-            added++;
-          });
-        }
-        if(Array.isArray(d.links)){
+        importRelays.forEach(r=>{
+          const oldId=Number(r.id);
+          let nextId=oldId;
+          if(existing.has(nextId)||!Number.isFinite(nextId)) nextId=Math.max(nid,maxNoteId+1);
+          existing.add(nextId);
+          if(Number.isFinite(oldId)) importedIdMap[oldId]=nextId;
+          if(nextId>maxNoteId) maxNoteId=nextId;
+          notes.push({...r,id:nextId});
+          if(nextId>=nid) nid=nextId+1;
+          added++;
+        });
+        if(importLinks.length){
           const edgeSet=new Set(links.map(l=>`${Math.min(l.from,l.to)}-${Math.max(l.from,l.to)}`));
-          d.links.forEach(l=>{
+          importLinks.forEach(l=>{
             const from=importedIdMap[Number(l.from)],to=importedIdMap[Number(l.to)];
             if(!Number.isFinite(from)||!Number.isFinite(to)||from===to) return;
             const edgeKey=`${Math.min(from,to)}-${Math.max(from,to)}`;
@@ -229,7 +420,12 @@ function importData(file) {
           });
           mapSubpages={...mapSubpages,...remappedSubpages};
         }
-        notes.sort((a,b)=>b.id-a.id);normalizeNoteIds(true);saveData();rebuildUI();render();showToast(`已合併，新增 ${added} 筆`);
+        notes.sort((a,b)=>b.id-a.id);normalizeNoteIds(true);saveData();rebuildUI();render();
+        const skipped=Math.max(0,(parsed.report.totalNotes+parsed.report.totalRelays)-added);
+        showToast(`已合併，新增 ${added} 筆${skipped?`，略過 ${skipped} 筆`:''}`);
+      }
+      if(parsed.report.warnings.length){
+        showToast(`匯入完成（含 ${parsed.report.warnings.length} 項修正/略過，詳見 Console）`);
       }
     } catch(ex){showToast('匯入失敗，請確認檔案格式');}
   };
@@ -430,8 +626,194 @@ function renderArchivePanel(){
   }));
   recycleRoot.querySelectorAll('[data-recycle-restore]').forEach(btn=>btn.addEventListener('click',()=>restoreRecycleItem(btn.dataset.recycleRestore)));
   recycleRoot.querySelectorAll('[data-recycle-del]').forEach(btn=>btn.addEventListener('click',()=>deleteRecycleItem(btn.dataset.recycleDel)));
+  updateCloudSyncStatus();
+}
+function updateCloudSyncStatus(extra=''){
+  const el=g('cloudSyncStatus');
+  if(!el) return;
+  if(googleSyncBusy){
+    el.textContent='雲端同步：處理中...';
+    return;
+  }
+  const loggedIn=!!googleAccessToken&&Date.now()<googleTokenExpireAt;
+  const suffix=extra?`（${extra}）`:'';
+  el.textContent=loggedIn?`雲端同步：已登入${suffix}`:`雲端同步：未登入${suffix}`;
+}
+async function ensureScriptLoaded(src){
+  if(document.querySelector(`script[src="${src}"]`)) return true;
+  return new Promise(resolve=>{
+    const sc=document.createElement('script');
+    sc.src=src;
+    sc.async=true;
+    sc.defer=true;
+    sc.onload=()=>resolve(true);
+    sc.onerror=()=>resolve(false);
+    document.head.appendChild(sc);
+  });
+}
+async function ensureGoogleIdentityClient(){
+  if(window.google&&window.google.accounts&&window.google.accounts.oauth2) return true;
+  const ok=await ensureScriptLoaded('https://accounts.google.com/gsi/client');
+  return !!(ok&&window.google&&window.google.accounts&&window.google.accounts.oauth2);
+}
+function getGoogleDriveClientId(){
+  return safeStr(localStorage.getItem(GOOGLE_DRIVE_CLIENT_ID_KEY)||'').trim();
+}
+function askGoogleDriveClientId(){
+  const current=getGoogleDriveClientId();
+  const next=(prompt('請輸入 Google OAuth Client ID（Web Application）',current)||'').trim();
+  if(!next) return '';
+  localStorage.setItem(GOOGLE_DRIVE_CLIENT_ID_KEY,next);
+  return next;
+}
+async function ensureGoogleAccessToken(forcePrompt=false){
+  const now=Date.now();
+  if(googleAccessToken&&now<googleTokenExpireAt-5000) return googleAccessToken;
+  const ready=await ensureGoogleIdentityClient();
+  if(!ready){showToast('Google SDK 載入失敗');return '';}
+  let clientId=getGoogleDriveClientId();
+  if(!clientId) clientId=askGoogleDriveClientId();
+  if(!clientId){showToast('未設定 Google Client ID');return '';}
+  const tokenClient=google.accounts.oauth2.initTokenClient({
+    client_id:clientId,
+    scope:'https://www.googleapis.com/auth/drive.appdata',
+    callback:()=>{}
+  });
+  return await new Promise(resolve=>{
+    tokenClient.callback=resp=>{
+      if(resp&&resp.access_token){
+        googleAccessToken=resp.access_token;
+        const expiresIn=parseInt(resp.expires_in,10)||3600;
+        googleTokenExpireAt=Date.now()+expiresIn*1000;
+        updateCloudSyncStatus();
+        resolve(googleAccessToken);
+        return;
+      }
+      resolve('');
+    };
+    tokenClient.requestAccessToken({prompt:forcePrompt?'consent':'',hint:''});
+  });
+}
+async function driveApiRequest(path,opt={}){
+  const token=await ensureGoogleAccessToken(false);
+  if(!token) return null;
+  const res=await fetch(`https://www.googleapis.com/drive/v3/${path}`,{
+    method:opt.method||'GET',
+    headers:{
+      Authorization:`Bearer ${token}`,
+      ...(opt.headers||{})
+    },
+    body:opt.body
+  });
+  if(!res.ok){
+    const txt=await res.text().catch(()=>'');
+    throw new Error(`Drive API ${res.status}: ${txt||res.statusText}`);
+  }
+  if(opt.raw) return res;
+  return await res.json();
+}
+async function findDriveSyncFileId(){
+  const q=encodeURIComponent(`name='${GOOGLE_DRIVE_SYNC_FILE_NAME}' and 'appDataFolder' in parents and trashed=false`);
+  const data=await driveApiRequest(`files?q=${q}&spaces=appDataFolder&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc&pageSize=1`);
+  return data&&Array.isArray(data.files)&&data.files[0]?data.files[0].id:'';
+}
+async function uploadPayloadToDrive(payload){
+  const fileId=await findDriveSyncFileId();
+  const boundary='klaws_boundary_'+Date.now();
+  const metadata={name:GOOGLE_DRIVE_SYNC_FILE_NAME,parents:['appDataFolder'],mimeType:GOOGLE_DRIVE_SYNC_MIME};
+  const body=
+`--${boundary}\r
+Content-Type: application/json; charset=UTF-8\r
+\r
+${JSON.stringify(metadata)}\r
+--${boundary}\r
+Content-Type: application/json; charset=UTF-8\r
+\r
+${JSON.stringify(payload)}\r
+--${boundary}--`;
+  const baseUrl=fileId
+    ?`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
+    :'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+  const token=await ensureGoogleAccessToken(false);
+  if(!token) throw new Error('no token');
+  const res=await fetch(baseUrl,{
+    method:fileId?'PATCH':'POST',
+    headers:{
+      Authorization:`Bearer ${token}`,
+      'Content-Type':`multipart/related; boundary=${boundary}`
+    },
+    body
+  });
+  if(!res.ok) throw new Error(`Upload failed: ${res.status}`);
+}
+async function downloadPayloadFromDrive(){
+  const fileId=await findDriveSyncFileId();
+  if(!fileId) return null;
+  const token=await ensureGoogleAccessToken(false);
+  if(!token) return null;
+  const res=await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,{
+    headers:{Authorization:`Bearer ${token}`}
+  });
+  if(!res.ok) throw new Error(`Download failed: ${res.status}`);
+  return await res.json();
+}
+async function cloudSyncPullLatest(opts={}){
+  const {silent=false}=opts||{};
+  try{
+    googleSyncBusy=true;updateCloudSyncStatus();
+    const remote=await downloadPayloadFromDrive();
+    if(!remote){ if(!silent) showToast('雲端沒有可下載資料'); return false; }
+    const localPayload=getPayload();
+    const remoteUpdatedAt=parseUpdatedAt(remote.updatedAt||'');
+    const localUpdatedAt=parseUpdatedAt(localPayload.updatedAt||'');
+    if(remoteUpdatedAt<localUpdatedAt&&!silent){
+      if(!confirm('雲端資料比本機舊，仍要覆蓋本機嗎？')) return false;
+    }
+    const ok=applySnapshotRaw(JSON.stringify(remote));
+    if(ok&&!silent) showToast('已自動載入最新雲端紀錄');
+    return ok;
+  }catch(e){
+    if(!silent) showToast('雲端下載失敗');
+    return false;
+  }finally{
+    googleSyncBusy=false;updateCloudSyncStatus();
+  }
+}
+async function cloudSyncPushNow(opts={}){
+  const {silent=false}=opts||{};
+  try{
+    googleSyncBusy=true;updateCloudSyncStatus();
+    const payload=getPayload();
+    payload.updatedAt=new Date().toISOString();
+    await uploadPayloadToDrive(payload);
+    if(!silent) showToast('已上傳到 Google 雲端');
+    return true;
+  }catch(e){
+    if(!silent) showToast('雲端上傳失敗');
+    return false;
+  }finally{
+    googleSyncBusy=false;updateCloudSyncStatus();
+  }
+}
+async function loginGoogleDriveAndSync(){
+  const token=await ensureGoogleAccessToken(true);
+  if(!token) return false;
+  const pulled=await cloudSyncPullLatest({silent:true});
+  if(pulled){
+    showToast('已登入並自動載入最新雲端紀錄');
+  }else{
+    showToast('已登入 Google 雲端');
+  }
+  return true;
+}
+function logoutGoogleDriveSync(){
+  googleAccessToken='';
+  googleTokenExpireAt=0;
+  updateCloudSyncStatus();
+  showToast('已登出 Google 雲端');
 }
 function manageArchives(){
+  if(isMapOpen) toggleMapView(false);
   g('ap')?.classList.add('open');
   ['dp','fp','tp'].forEach(p=>g(p)?.classList.remove('open'));
   renderArchivePanel();

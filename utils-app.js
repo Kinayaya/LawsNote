@@ -431,6 +431,19 @@ const assignNoteToMapPage = (noteId,rootId) => {
   setMapPageAssignedIds(rootId,[...ids]);
   return true;
 };
+const unassignNoteFromMapPage = (noteId,rootId) => {
+  const nid=parseInt(noteId,10);
+  if(!Number.isFinite(nid)) return false;
+  const resolvedRootId=rootId===undefined?currentSubpageRootId():rootId;
+  const key=mapPageNoteKey(resolvedRootId);
+  const numericRootId=parseInt(key,10);
+  if(Number.isFinite(numericRootId)&&numericRootId===nid) return false;
+  const ids=getMapPageAssignedIds(resolvedRootId);
+  if(!ids.has(nid)) return false;
+  ids.delete(nid);
+  setMapPageAssignedIds(resolvedRootId,[...ids]);
+  return true;
+};
 const normalizeMapCollapsed = raw => {
   const src=(raw&&typeof raw==='object'&&!Array.isArray(raw))?raw:{}, next={};
   const legacyPrefix='all::all::all::root::';

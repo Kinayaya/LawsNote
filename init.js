@@ -32,7 +32,11 @@
   });
   on('fc','change',()=>syncSectionSelect(selectedValues('fc'),selectedValues('fsec'),selectedValues('fs2')));
   const si=g('searchInput'),sc=g('searchClear');
-  si.addEventListener('input',debounce(()=>{searchQ=si.value;gridPage=1;sc.style.display=searchQ?'block':'none';updateNotesHomeVisibility();render();},250));
+  si.addEventListener('input',debounce(()=>{
+    searchQ=si.value;gridPage=1;sc.style.display=searchQ?'block':'none';
+    if(searchQ.trim()&&isMapOpen) toggleMapView(false);
+    updateNotesHomeVisibility();render();
+  },250));
   sc.addEventListener('click',()=>{si.value='';searchQ='';gridPage=1;sc.style.display='none';updateNotesHomeVisibility();render();si.focus();});
   const compactDefault=localStorage.getItem(COMPACT_FILTER_KEY);
   applyCompactFilterMode(compactDefault===null?true:compactDefault==='1');
@@ -49,7 +53,12 @@
   on('apClose','click',()=>{g('ap').classList.remove('open');syncSidePanelState();});
   on('archiveSaveBtn','click',createArchiveSnapshot);
   on('archiveExportBtn','click',exportData);
+  on('archivePortableExportBtn','click',exportPortablePackage);
   on('archiveImportBtn','click',()=>g('importFile')?.click());
+  on('cloudLoginBtn','click',loginGoogleDriveAndSync);
+  on('cloudPullBtn','click',()=>cloudSyncPullLatest());
+  on('cloudSyncBtn','click',()=>cloudSyncPushNow());
+  on('cloudLogoutBtn','click',logoutGoogleDriveSync);
   g('tpClose').addEventListener('click',()=>{g('tp').classList.remove('open');syncSidePanelState();});
   on('tagSearchInput','input',debounce(()=>{tagSearchQ=(val('tagSearchInput')||'').toLowerCase().trim();renderTagLists();},150));
   on('tagUnusedOnly','change',()=>{tagUnusedOnly=!!g('tagUnusedOnly').checked;renderTagLists();});
@@ -120,15 +129,15 @@
   on('mapSearchInput','input',debounce(()=>{mapFilter.q=g('mapSearchInput').value;saveDataDeferred();if(isMapOpen)drawMap();},250));
   on('mapFilterSub','change',()=>{
     const beforeRelayVisibleIds=new Set(visibleNotes().filter(isRelayNode).map(n=>n.id));
-    mapFilter.sub=g('mapFilterSub').value;mapPageStack=[];updateMapPagePath();buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();notifyHiddenRelaysByFilter(beforeRelayVisibleIds);}
+    mapFilter.sub=g('mapFilterSub').value;updateMapPagePath();buildMapFilters();saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){drawMap();notifyHiddenRelaysByFilter(beforeRelayVisibleIds);}
   });
   on('mapFilterChapter','change',()=>{
     const beforeRelayVisibleIds=new Set(visibleNotes().filter(isRelayNode).map(n=>n.id));
-    mapFilter.chapter=g('mapFilterChapter').value;mapPageStack=[];updateMapPagePath();buildMapFilters();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();notifyHiddenRelaysByFilter(beforeRelayVisibleIds);}
+    mapFilter.chapter=g('mapFilterChapter').value;updateMapPagePath();buildMapFilters();saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){drawMap();notifyHiddenRelaysByFilter(beforeRelayVisibleIds);}
   });
   on('mapFilterSection','change',()=>{
     const beforeRelayVisibleIds=new Set(visibleNotes().filter(isRelayNode).map(n=>n.id));
-    mapFilter.section=g('mapFilterSection').value;mapPageStack=[];updateMapPagePath();nodePos={};saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){forceLayout();drawMap();notifyHiddenRelaysByFilter(beforeRelayVisibleIds);}
+    mapFilter.section=g('mapFilterSection').value;updateMapPagePath();saveDataDeferred();if(g('lanePanel')&&g('lanePanel').classList.contains('open'))renderLanePanel();if(isMapOpen){drawMap();notifyHiddenRelaysByFilter(beforeRelayVisibleIds);}
   });
   on('mapAdvancedToggleBtn','click',()=>setMapAdvanced(!mapAdvancedOpen));
   mapDepth='all';
@@ -137,7 +146,7 @@
   on('zoomIn','click',()=>setZoom(mapScale+.15));on('zoomOut','click',()=>setZoom(mapScale-.15));
   on('zoomFit','click',()=>{const vis=visibleNotes();if(!vis.length)return;const xs=vis.map(n=>nodePos[n.id]?nodePos[n.id].x:mapW/2),ys=vis.map(n=>nodePos[n.id]?nodePos[n.id].y:mapH/2);const minX=Math.min(...xs)-40,maxX=Math.max(...xs)+40,minY=Math.min(...ys)-40,maxY=Math.max(...ys)+40;const sc=Math.min(mapW/(maxX-minX||1),mapH/(maxY-minY||1),2.5);mapScale=sc;mapOffX=-minX*sc+(mapW-(maxX-minX)*sc)/2;mapOffY=-minY*sc+(mapH-(maxY-minY)*sc)/2;g('zoomLabel').textContent=Math.round(sc*100)+'%';drawMap();});
   on('mpClose','click',closeMapPopup);
-  on('mapLinkedOnlyBtn','click',()=>{mapLinkedOnly=!mapLinkedOnly;setMapLinkedOnlyBtnStyle();nodePos={};forceLayout();drawMap();saveDataDeferred();showToast(mapLinkedOnly?`顯示 ${visibleNotes().length} 個有關聯節點`:'顯示全部節點');});
+  on('mapLinkedOnlyBtn','click',()=>{mapLinkedOnly=!mapLinkedOnly;setMapLinkedOnlyBtnStyle();drawMap();saveDataDeferred();showToast(mapLinkedOnly?`顯示 ${visibleNotes().length} 個有關聯節點`:'顯示全部節點');});
   on('mapAutoBtn','click',()=>{const btn=g('mapAutoBtn'),orig=btn.textContent;btn.textContent='排列中...';btn.disabled=true;setTimeout(()=>{nodePos={};mapScale=1;mapOffX=mapOffY=0;forceLayout();drawMap();saveDataDeferred();g('zoomLabel').textContent='100%';btn.textContent=orig;btn.disabled=false;showToast('已自動排列（保留核心節點）');},30);});
   on('mapLaneBtn','click',()=>{const panel=ensureLanePanel();if(!panel){showToast('泳道面板載入失敗');return;}if(panel.classList.contains('open'))closeLanePanel();else openLanePanel();});
   on('calendarBackBtn','click',()=>toggleCalendarView(false));

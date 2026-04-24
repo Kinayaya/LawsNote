@@ -34,6 +34,7 @@ let focusTimerRemainingSec=1500, focusTimerInterval=null, focusTimerRunning=fals
 let focusTimerDragState={active:false,pointerId:null,startX:0,startY:0,originX:0,originY:0};
 let focusTimerPos={x:null,y:null,initialized:false};
 let headerDatetimeTimer=null;
+let googleAccessToken='', googleTokenExpireAt=0, googleSyncBusy=false;
 let achievements={points:0,taskCompletions:0,unlocked:{},lastUsageMinuteReward:0}; // backward compatibility for legacy data
 const XP_BOOST_MULTIPLIER = 2.5;
 const BASE_XP_BY_DIFFICULTY = {E:12,N:22,H:36};

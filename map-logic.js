@@ -68,6 +68,13 @@ function forceLayout() {
   const connectedMaxLayer=Object.values(layers).reduce((m,v)=>Math.max(m,v),0);
   layoutNotes.forEach(n=>{if(!visited.has(n.id))layers[n.id]=connectedMaxLayer+1;});
   const laneGroups={};Object.keys(layers).forEach(nodeId=>{const lane=Math.max(0,Math.min(laneCount-1,layers[nodeId]||0));if(!laneGroups[lane])laneGroups[lane]=[];laneGroups[lane].push(parseInt(nodeId,10));});
+  const incomingParents={};
+  visLinks.forEach(lk=>{
+    const childLane=layers[lk.to],parentLane=layers[lk.from];
+    if(childLane===undefined||parentLane===undefined||childLane<=parentLane) return;
+    if(!incomingParents[lk.to]) incomingParents[lk.to]=[];
+    incomingParents[lk.to].push(lk.from);
+  });
   const byPreferredRank=(a,b)=>{
     const ra=nodePreferredRank(a,chIdxMap,secIdxMap),rb=nodePreferredRank(b,chIdxMap,secIdxMap);
     return ra.minChIdx-rb.minChIdx||ra.minSecIdx-rb.minSecIdx||ra.title.localeCompare(rb.title,'zh')||ra.nodeId-rb.nodeId;
@@ -101,6 +108,39 @@ function forceLayout() {
       clampNodeToCanvas(nodeId);
       yCursor+=cardH+LANE_CARD_GAP_Y;
     });
+  }
+  const laneNodeIds={};
+  Object.keys(mapNodeMeta).forEach(nodeId=>{
+    const lane=mapNodeMeta[nodeId]&&mapNodeMeta[nodeId].lane;
+    if(!Number.isFinite(lane)) return;
+    if(!laneNodeIds[lane]) laneNodeIds[lane]=[];
+    laneNodeIds[lane].push(parseInt(nodeId,10));
+  });
+  for(let pass=0;pass<2;pass++){
+    for(let lane=1;lane<laneCount;lane++){
+      const ids=(laneNodeIds[lane]||[]).slice().sort((a,b)=>nodePos[a].y-nodePos[b].y);
+      if(!ids.length) continue;
+      ids.forEach(nodeId=>{
+        const parents=(incomingParents[nodeId]||[]).filter(pid=>nodePos[pid]);
+        if(!parents.length) return;
+        const targetY=parents.reduce((sum,pid)=>sum+nodePos[pid].y,0)/parents.length;
+        nodePos[nodeId].y=nodePos[nodeId].y*0.45+targetY*0.55;
+      });
+      ids.sort((a,b)=>nodePos[a].y-nodePos[b].y);
+      let prevBottom=TOP_PAD-10;
+      ids.forEach(nodeId=>{
+        const box=getMapCardBox(nodeId),halfH=box.height/2,minY=prevBottom+LANE_CARD_GAP_Y+halfH;
+        if(nodePos[nodeId].y<minY) nodePos[nodeId].y=minY;
+        prevBottom=nodePos[nodeId].y+halfH;
+      });
+      let nextTop=mapH-BOT_PAD+10;
+      for(let i=ids.length-1;i>=0;i--){
+        const nodeId=ids[i],box=getMapCardBox(nodeId),halfH=box.height/2,maxY=nextTop-LANE_CARD_GAP_Y-halfH;
+        if(nodePos[nodeId].y>maxY) nodePos[nodeId].y=maxY;
+        nextTop=nodePos[nodeId].y-halfH;
+      }
+      ids.forEach(nodeId=>clampNodeToCanvas(nodeId));
+    }
   }
   saveDataDeferred();
 }
@@ -296,7 +336,7 @@ function visibleNotes(){
     while(stack.length){
       const current=stack.pop();
       links.forEach(lk=>{
-        if(lk.from!==current||!baseIds[lk.to]||hiddenByCollapse[lk.to]||collapsedNodes[lk.to]) return;
+        if(lk.from!==current||!baseIds[lk.to]||hiddenByCollapse[lk.to]) return;
         hiddenByCollapse[lk.to]=true;
         stack.push(lk.to);
       });

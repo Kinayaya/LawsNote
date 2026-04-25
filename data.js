@@ -463,7 +463,37 @@ function saveArchives(arr){
     .map(normalizeArchiveRecord)
     .filter(Boolean)
     .slice(0,ARCHIVE_SNAPSHOT_LIMIT);
-  writeJSON(ARCHIVES_KEY,next);
+  try{
+    writeJSON(ARCHIVES_KEY,next);
+    return {ok:true, kept:next.length, trimmed:0};
+  }catch(err){
+    const quotaExceeded=!!(err&&(
+      err.name==='QuotaExceededError'||
+      err.name==='NS_ERROR_DOM_QUOTA_REACHED'||
+      err.code===22||err.code===1014
+    ));
+    if(!quotaExceeded){
+      return {ok:false, reason:'unknown', error:err, kept:0, trimmed:0};
+    }
+    const trimmed=next.slice();
+    while(trimmed.length>1){
+      trimmed.pop();
+      try{
+        writeJSON(ARCHIVES_KEY,trimmed);
+        return {ok:true, kept:trimmed.length, trimmed:next.length-trimmed.length, quotaRecovered:true};
+      }catch(innerErr){
+        const stillQuota=!!(innerErr&&(
+          innerErr.name==='QuotaExceededError'||
+          innerErr.name==='NS_ERROR_DOM_QUOTA_REACHED'||
+          innerErr.code===22||innerErr.code===1014
+        ));
+        if(!stillQuota){
+          return {ok:false, reason:'unknown', error:innerErr, kept:0, trimmed:0};
+        }
+      }
+    }
+    return {ok:false, reason:'quota', kept:0, trimmed:next.length};
+  }
 }
 function loadRecycleBin(){
   const arr=readJSON(RECYCLE_BIN_KEY,[]);
@@ -541,8 +571,16 @@ function createArchiveSnapshot(){
     createdAt:new Date().toISOString(),
     payload:archivePayload
   });
-  saveArchives(archives);
+  const saved=saveArchives(archives);
+  if(!saved?.ok){
+    showToast('存檔失敗：裝置儲存空間不足。請先刪除舊存檔，或使用「下載備份」。');
+    return;
+  }
   renderArchivePanel();
+  if(saved.trimmed>0){
+    showToast(`已儲存存檔（空間不足，已自動移除最舊 ${saved.trimmed} 筆）`);
+    return;
+  }
   showToast('已儲存存檔');
 }
 function removeNotesToRecycle(noteIds){

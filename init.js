@@ -142,13 +142,24 @@
   on('mapAdvancedToggleBtn','click',()=>setMapAdvanced(!mapAdvancedOpen));
   mapDepth='all';
   mapFocusMode=false;
+  const updateMapScrollModeBtn=()=>{
+    const btn=g('mapScrollModeBtn'),canvas=g('mapCanvas');
+    if(canvas) canvas.classList.toggle('vertical-scroll-mode',!!mapVerticalScrollMode);
+    if(!btn) return;
+    btn.textContent=mapVerticalScrollMode?'↕ 垂直捲動：開':'↕ 垂直捲動';
+    btn.style.background=mapVerticalScrollMode?'#0C447C':'#f5f5f5';
+    btn.style.color=mapVerticalScrollMode?'#fff':'#555';
+    btn.style.borderColor=mapVerticalScrollMode?'#0C447C':'#ddd';
+  };
   const setZoom=z=>{mapScale=Math.max(.15,Math.min(3.5,z));g('zoomLabel').textContent=Math.round(mapScale*100)+'%';drawMap();};
   on('zoomIn','click',()=>setZoom(mapScale+.15));on('zoomOut','click',()=>setZoom(mapScale-.15));
+  on('mapScrollModeBtn','click',()=>{mapVerticalScrollMode=!mapVerticalScrollMode;updateMapScrollModeBtn();showToast(mapVerticalScrollMode?'已啟用垂直捲動模式':'已關閉垂直捲動模式');});
   on('zoomFit','click',()=>{const vis=visibleNotes();if(!vis.length)return;const xs=vis.map(n=>nodePos[n.id]?nodePos[n.id].x:mapW/2),ys=vis.map(n=>nodePos[n.id]?nodePos[n.id].y:mapH/2);const minX=Math.min(...xs)-40,maxX=Math.max(...xs)+40,minY=Math.min(...ys)-40,maxY=Math.max(...ys)+40;const sc=Math.min(mapW/(maxX-minX||1),mapH/(maxY-minY||1),2.5);mapScale=sc;mapOffX=-minX*sc+(mapW-(maxX-minX)*sc)/2;mapOffY=-minY*sc+(mapH-(maxY-minY)*sc)/2;g('zoomLabel').textContent=Math.round(sc*100)+'%';drawMap();});
   on('mpClose','click',closeMapPopup);
   on('mapLinkedOnlyBtn','click',()=>{mapLinkedOnly=!mapLinkedOnly;setMapLinkedOnlyBtnStyle();drawMap();saveDataDeferred();showToast(mapLinkedOnly?`顯示 ${visibleNotes().length} 個有關聯節點`:'顯示全部節點');});
   on('mapAutoBtn','click',()=>{const btn=g('mapAutoBtn'),orig=btn.textContent;btn.textContent='排列中...';btn.disabled=true;setTimeout(()=>{nodePos={};mapScale=1;mapOffX=mapOffY=0;forceLayout();drawMap();saveDataDeferred();g('zoomLabel').textContent='100%';btn.textContent=orig;btn.disabled=false;showToast('已自動排列（保留核心節點）');},30);});
   on('mapLaneBtn','click',()=>{const panel=ensureLanePanel();if(!panel){showToast('泳道面板載入失敗');return;}if(panel.classList.contains('open'))closeLanePanel();else openLanePanel();});
+  updateMapScrollModeBtn();
   on('calendarBackBtn','click',()=>toggleCalendarView(false));
   on('levelSystemBackBtn','click',()=>toggleLevelSystemView(false));
   on('levelEditorClose','click',closeLevelEditor);
@@ -179,14 +190,23 @@
   };
   const onPanMove=(x,y)=>{if(!panStart)return;mapOffX=panOffXStart+(x-panStart.x);mapOffY=panOffYStart+(y-panStart.y);if(rafId)cancelAnimationFrame(rafId);rafId=requestAnimationFrame(()=>{const gw=g('mapSvg').querySelector('#mapWrap');if(gw)gw.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`);rafId=null;});};
   canvas.addEventListener('click',e=>{if(e.target===canvas||e.target.id==='mapSvg'||e.target.id==='linksLayer'||e.target.id==='arrowsLayer')closeMapPopup();});
-  canvas.addEventListener('mousedown',e=>{if(!dragNode){panStart={x:e.clientX,y:e.clientY};panOffXStart=mapOffX;panOffYStart=mapOffY;canvas.style.cursor='grabbing';}});
+  canvas.addEventListener('mousedown',e=>{if(!dragNode&&!mapVerticalScrollMode){panStart={x:e.clientX,y:e.clientY};panOffXStart=mapOffX;panOffYStart=mapOffY;canvas.style.cursor='grabbing';}});
   canvas.addEventListener('mousemove',e=>{if(dragNode)onDragMove(e.clientX,e.clientY);else if(panStart)onPanMove(e.clientX,e.clientY);});
   canvas.addEventListener('mouseup',()=>{if(dragNode){if(rafId)cancelAnimationFrame(rafId);saveDataDeferred();dragNode=null;}panStart=null;canvas.style.cursor='';});
   canvas.addEventListener('mouseleave',()=>{panStart=null;canvas.style.cursor='';});
   canvas.addEventListener('touchmove',e=>{if(e.touches.length===1){if(dragNode){e.preventDefault();onDragMove(e.touches[0].clientX,e.touches[0].clientY);}else if(panStart){e.preventDefault();onPanMove(e.touches[0].clientX,e.touches[0].clientY);}}},{passive:false});
   canvas.addEventListener('touchend',()=>{if(dragNode){if(rafId)cancelAnimationFrame(rafId);saveDataDeferred();dragNode=null;}panStart=null;});
-  canvas.addEventListener('touchstart',e=>{if(e.touches.length===1&&!dragNode){panStart={x:e.touches[0].clientX,y:e.touches[0].clientY};panOffXStart=mapOffX;panOffYStart=mapOffY;}},{passive:true});
-  canvas.addEventListener('wheel',e=>{e.preventDefault();setZoom(mapScale+(e.deltaY>0?-.1:.1));},{passive:false});
+  canvas.addEventListener('touchstart',e=>{if(e.touches.length===1&&!dragNode&&!mapVerticalScrollMode){panStart={x:e.touches[0].clientX,y:e.touches[0].clientY};panOffXStart=mapOffX;panOffYStart=mapOffY;}},{passive:true});
+  canvas.addEventListener('wheel',e=>{
+    e.preventDefault();
+    if(mapVerticalScrollMode){
+      mapOffY-=e.deltaY*0.9;
+      const gw=g('mapSvg').querySelector('#mapWrap');
+      if(gw)gw.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`);
+      return;
+    }
+    setZoom(mapScale+(e.deltaY>0?-.1:.1));
+  },{passive:false});
   let pinchDist=0;
   canvas.addEventListener('touchstart',e=>{if(e.touches.length===2){const d=e.touches[0].clientX-e.touches[1].clientX,dd=e.touches[0].clientY-e.touches[1].clientY;pinchDist=Math.sqrt(d*d+dd*dd);}},{passive:true});
   canvas.addEventListener('touchmove',e=>{if(e.touches.length===2&&pinchDist){e.preventDefault();const d=e.touches[0].clientX-e.touches[1].clientX,dd=e.touches[0].clientY-e.touches[1].clientY,nd=Math.sqrt(d*d+dd*dd);setZoom(mapScale*nd/pinchDist);pinchDist=nd;}},{passive:false});

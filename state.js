@@ -12,6 +12,7 @@ let nodeSizes={};
 let mapScale=1, mapOffX=0, mapOffY=0, mapFilter={sub:'all',chapter:'all',section:'all',q:''}, mapLinkedOnly=true;
 let mapDepth='all', mapFocusMode=false, mapFocusedNodeId=null;
 let mapVerticalScrollMode=false;
+let mapContentH=500;
 let nodeEls={}, linkElsMap={}, nodeLinksIndex={}, linkCurveOffsets={}, isMapOpen=false;
 let gridPage=1, sortMode='date_desc', multiSelMode=false, selectedIds={};
 let examList=[], examTimer=null, examSec=0, examTotal=0, currentExam=null;

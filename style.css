@@ -211,7 +211,7 @@ body.compact-filters .filter-row,body.compact-filters #subbar,body.compact-filte
 .map-node-highlight .node-card{stroke:#FFD700!important;stroke-width:3.5px!important}
 .map-node.map-link-source .node-card{stroke:#0C447C!important;stroke-width:3.2px!important}
 #mapCanvas{width:100%;height:calc(100vh - 106px);min-height:480px;position:relative;overflow:hidden;background:#f9f9f9;touch-action:none;user-select:none}
-#mapCanvas.vertical-scroll-mode{touch-action:pan-y}
+#mapCanvas.vertical-scroll-mode{touch-action:pan-y;overflow-y:auto;overflow-x:hidden}
 .map-canvas-top-actions{position:absolute;left:10px;top:10px;z-index:28;display:flex;align-items:center;gap:8px}
 .map-canvas-top-actions .tool-btn{padding:5px 10px}
 .map-tree-toggle{position:static}
@@ -230,6 +230,7 @@ body.compact-filters .filter-row,body.compact-filters #subbar,body.compact-filte
 .map-tree-node-color{width:8px;height:8px;border-radius:99px;flex-shrink:0}
 .map-tree-empty{font-size:12px;color:#8a97a9;padding:8px}
 #mapSvg{position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible}
+#mapCanvas.vertical-scroll-mode #mapSvg{height:auto;min-height:100%}
 .map-node{cursor:grab}
 .map-node:active{cursor:grabbing}
 .map-card-inner{padding:10px 11px;display:flex;flex-direction:column;gap:5px;width:100%;height:100%;font-family:-apple-system,BlinkMacSystemFont,"PingFang TC",sans-serif;color:#1f2937;background:#fff}

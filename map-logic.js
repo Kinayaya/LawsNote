@@ -6,7 +6,8 @@ function clampNodeToCanvas(id){
   const box=getMapCardBox(id);
   const pad=12,halfW=box.width/2+pad,halfH=box.height/2+pad;
   nodePos[id].x=Math.max(halfW,Math.min(mapW-halfW,nodePos[id].x));
-  nodePos[id].y=Math.max(halfH,Math.min(mapH-halfH,nodePos[id].y));
+  if(mapVerticalScrollMode) nodePos[id].y=Math.max(halfH,nodePos[id].y);
+  else nodePos[id].y=Math.max(halfH,Math.min(mapH-halfH,nodePos[id].y));
 }
 function pointToSegmentDistance(px,py,x1,y1,x2,y2){
   const dx=x2-x1,dy=y2-y1,len2=dx*dx+dy*dy;
@@ -94,12 +95,12 @@ function forceLayout() {
   mapNodeMeta={};
   for(let lane=0;lane<laneCount;lane++){
     const arr=laneOrder[lane]||[],x=laneLeft+lane*laneGapX;
-    const usableHeight=Math.max(120,mapH-TOP_PAD-BOT_PAD);
     const boxes=arr.map(nodeId=>getMapCardBox(nodeId));
     const totalCardsHeight=boxes.reduce((sum,box)=>sum+box.height,0);
     const totalGap=Math.max(0,(arr.length-1)*LANE_CARD_GAP_Y);
     const requiredHeight=totalCardsHeight+totalGap;
-    let yCursor=TOP_PAD+(requiredHeight<usableHeight?(usableHeight-requiredHeight)/2:0);
+    const usableHeight=mapVerticalScrollMode?Math.max(120,requiredHeight):Math.max(120,mapH-TOP_PAD-BOT_PAD);
+    let yCursor=TOP_PAD+(mapVerticalScrollMode?0:(requiredHeight<usableHeight?(usableHeight-requiredHeight)/2:0));
     arr.forEach((nodeId,idx)=>{
       const cardH=boxes[idx].height;
       const y=yCursor+cardH/2;
@@ -133,11 +134,13 @@ function forceLayout() {
         if(nodePos[nodeId].y<minY) nodePos[nodeId].y=minY;
         prevBottom=nodePos[nodeId].y+halfH;
       });
-      let nextTop=mapH-BOT_PAD+10;
-      for(let i=ids.length-1;i>=0;i--){
-        const nodeId=ids[i],box=getMapCardBox(nodeId),halfH=box.height/2,maxY=nextTop-LANE_CARD_GAP_Y-halfH;
-        if(nodePos[nodeId].y>maxY) nodePos[nodeId].y=maxY;
-        nextTop=nodePos[nodeId].y-halfH;
+      if(!mapVerticalScrollMode){
+        let nextTop=mapH-BOT_PAD+10;
+        for(let i=ids.length-1;i>=0;i--){
+          const nodeId=ids[i],box=getMapCardBox(nodeId),halfH=box.height/2,maxY=nextTop-LANE_CARD_GAP_Y-halfH;
+          if(nodePos[nodeId].y>maxY) nodePos[nodeId].y=maxY;
+          nextTop=nodePos[nodeId].y-halfH;
+        }
       }
       ids.forEach(nodeId=>clampNodeToCanvas(nodeId));
     }
@@ -464,17 +467,28 @@ function drawMap(){
   clearMapCardBoxCache();
   const canvas=g('mapCanvas'),svg=g('mapSvg'),linksLayer=g('linksLayer'),nodesLayer=g('nodesLayer'),arrowsLayer=g('arrowsLayer');
   if(!canvas||!svg||!linksLayer||!nodesLayer||!arrowsLayer)return;
-  mapW=canvas.offsetWidth||1200;mapH=canvas.offsetHeight||1000;
-  svg.setAttribute('viewBox',`0 0 ${mapW} ${mapH}`);svg.setAttribute('width',String(mapW));svg.setAttribute('height',String(mapH));
+  const viewportW=canvas.clientWidth||canvas.offsetWidth||1200;
+  const viewportH=canvas.clientHeight||canvas.offsetHeight||1000;
+  mapW=viewportW;mapH=viewportH;
   let mapWrap=svg.querySelector('#mapWrap');
   if(!mapWrap){mapWrap=document.createElementNS('http://www.w3.org/2000/svg','g');mapWrap.id='mapWrap';svg.appendChild(mapWrap);mapWrap.appendChild(linksLayer);mapWrap.appendChild(arrowsLayer);mapWrap.appendChild(nodesLayer);}
-  mapWrap.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`);
+  if(mapVerticalScrollMode) mapOffY=0;
+  mapWrap.setAttribute('transform',`translate(${mapOffX},${mapVerticalScrollMode?0:mapOffY}) scale(${mapScale})`);
   const visNotes=visibleNotes(),visIds={};visNotes.forEach(n=>visIds[n.id]=true);
   buildMapTreeIndex(visNotes);
   if(visNotes.length===0){linksLayer.innerHTML='';nodesLayer.innerHTML='';arrowsLayer.innerHTML='';nodeEls={};linkElsMap={};nodeLinksIndex={};linkCurveOffsets={};closeMapPopup();return;}
   const missingPos=visNotes.some(n=>!nodePos[n.id]||isNaN(nodePos[n.id].x)||isNaN(nodePos[n.id].y));
   if(missingPos)forceLayout();
   visNotes.forEach(n=>{if(nodePos[n.id])clampNodeToCanvas(n.id);});
+  const contentBottom=Math.max(viewportH,Math.ceil(visNotes.reduce((maxY,n)=>{
+    const pos=nodePos[n.id];
+    if(!pos) return maxY;
+    const box=getMapCardBox(n.id);
+    return Math.max(maxY,pos.y+box.height/2+46);
+  },0)));
+  mapContentH=mapVerticalScrollMode?contentBottom:viewportH;
+  mapH=mapContentH;
+  svg.setAttribute('viewBox',`0 0 ${mapW} ${mapH}`);svg.setAttribute('width',String(mapW));svg.setAttribute('height',String(mapH));
   const visLinks=visibleLinks(visIds);linkCurveOffsets=buildLinkCurveOffsets(visLinks);
   nodeEls={};linkElsMap={};nodeLinksIndex={};linksLayer.innerHTML='';nodesLayer.innerHTML='';arrowsLayer.innerHTML='';
   const laneCfg=getLaneConfig(),laneCount=laneCfg.names.length;
@@ -760,8 +774,18 @@ function applyFocusStyles(){
   });
 }
 function highlightNode(id){ mapFocusedNodeId=id;applyFocusStyles(); }
-function startDrag(e,id){ e.preventDefault();e.stopPropagation();closeMapPopup();dragNode=id;const pos=nodePos[id],rect=g('mapCanvas').getBoundingClientRect();dragOffX=e.clientX-rect.left-(pos.x*mapScale+mapOffX);dragOffY=e.clientY-rect.top-(pos.y*mapScale+mapOffY); }
-function startDragTouch(e,id){ e.stopPropagation();dragNode=id;const pos=nodePos[id],rect=g('mapCanvas').getBoundingClientRect(),touch=e.touches[0];dragOffX=touch.clientX-rect.left-(pos.x*mapScale+mapOffX);dragOffY=touch.clientY-rect.top-(pos.y*mapScale+mapOffY); }
+function startDrag(e,id){
+  e.preventDefault();e.stopPropagation();closeMapPopup();dragNode=id;
+  const canvas=g('mapCanvas'),pos=nodePos[id],rect=canvas.getBoundingClientRect(),scrollTop=mapVerticalScrollMode?canvas.scrollTop:0;
+  dragOffX=e.clientX-rect.left-(pos.x*mapScale+mapOffX);
+  dragOffY=e.clientY-rect.top+scrollTop-(pos.y*mapScale+mapOffY);
+}
+function startDragTouch(e,id){
+  e.stopPropagation();dragNode=id;
+  const canvas=g('mapCanvas'),pos=nodePos[id],rect=canvas.getBoundingClientRect(),touch=e.touches[0],scrollTop=mapVerticalScrollMode?canvas.scrollTop:0;
+  dragOffX=touch.clientX-rect.left-(pos.x*mapScale+mapOffX);
+  dragOffY=touch.clientY-rect.top+scrollTop-(pos.y*mapScale+mapOffY);
+}
 function buildMapFilters(){
   const ss=g('mapFilterSub'),sch=g('mapFilterChapter'),ssc=g('mapFilterSection'),sd=g('mapDepthSel');if(!ss||!sch||!ssc)return;
   ss.innerHTML='<option value="all">全部科目</option>'+subjects.map(s=>`<option value="${s.key}">${s.label}</option>`).join('');

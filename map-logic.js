@@ -1,4 +1,5 @@
 // ==================== 體系圖 ====================
+let mapScrollHeight = 0;
 function initNodePos() { const canvas=g('mapCanvas');mapW=canvas.offsetWidth||800;mapH=canvas.offsetHeight||500;const cx=mapW/2,cy=mapH/2,r=Math.min(mapW,mapH)*.44;notes.forEach((n,i)=>{if(!nodePos[n.id]){const angle=(i/notes.length)*2*Math.PI;nodePos[n.id]={x:cx+r*Math.cos(angle),y:cy+r*Math.sin(angle)};}}); }
 function getNodeRadius(id){ return MAP_NODE_RADIUS_DEFAULT; }
 function clampNodeToCanvas(id){
@@ -42,10 +43,14 @@ const nodePreferredRank = (nodeId,chIdxMap,secIdxMap) => {
   return {minChIdx,minSecIdx,title,nodeId};
 };
 function forceLayout() {
-  const canvas=g('mapCanvas');mapW=canvas.offsetWidth||800;mapH=canvas.offsetHeight||600;
+  const canvas=g('mapCanvas');mapW=canvas.offsetWidth||800;const viewportH=canvas.clientHeight||canvas.offsetHeight||600;mapH=viewportH;
   clearMapCardBoxCache();
   const layoutNotes=visibleNotes(),visIds={};layoutNotes.forEach(n=>visIds[n.id]=true);
-  const visLinks=visibleLinks(visIds),n2=layoutNotes.length;if(!n2)return;
+  const visLinks=visibleLinks(visIds),n2=layoutNotes.length;
+  if(!n2){
+    mapScrollHeight=viewportH;
+    return;
+  }
   const scopedCenterId=getMapCenterFromScopes();
   const hasStoredCenter=!!scopedCenterId&&!!mapNodeById(scopedCenterId);
   if(!hasStoredCenter&&!mapCenterNodeId){
@@ -58,7 +63,7 @@ function forceLayout() {
     return layoutNotes.reduce((max,n)=>linkCount[n.id]>linkCount[max.id]?n:max,layoutNotes[0]).id;
   })();
   const laneCfg=getLaneConfig(),laneCount=laneCfg.names.length;
-  const LANE_CARD_GAP_Y=34,TOP_PAD=72,BOT_PAD=40;
+  const LANE_CARD_GAP_Y=20,TOP_PAD=72,BOT_PAD=40;
   const laneLeft=Math.max(80,mapW*.1),laneRight=Math.min(mapW-80,mapW*.9);
   const laneGapX=laneCount>1?(laneRight-laneLeft)/(laneCount-1):0;
   const chIdxMap=chapterIndexMap(),secIdxMap=sectionIndexMap();
@@ -92,6 +97,7 @@ function forceLayout() {
     }
   }
   mapNodeMeta={};
+  let requiredMapHeight=viewportH;
   for(let lane=0;lane<laneCount;lane++){
     const arr=laneOrder[lane]||[],x=laneLeft+lane*laneGapX;
     const usableHeight=Math.max(120,mapH-TOP_PAD-BOT_PAD);
@@ -99,6 +105,7 @@ function forceLayout() {
     const totalCardsHeight=boxes.reduce((sum,box)=>sum+box.height,0);
     const totalGap=Math.max(0,(arr.length-1)*LANE_CARD_GAP_Y);
     const requiredHeight=totalCardsHeight+totalGap;
+    requiredMapHeight=Math.max(requiredMapHeight,requiredHeight+TOP_PAD+BOT_PAD);
     let yCursor=TOP_PAD+(requiredHeight<usableHeight?(usableHeight-requiredHeight)/2:0);
     arr.forEach((nodeId,idx)=>{
       const cardH=boxes[idx].height;
@@ -109,6 +116,8 @@ function forceLayout() {
       yCursor+=cardH+LANE_CARD_GAP_Y;
     });
   }
+  mapScrollHeight=Math.max(viewportH,Math.ceil(requiredMapHeight+20));
+  mapH=mapScrollHeight;
   const laneNodeIds={};
   Object.keys(mapNodeMeta).forEach(nodeId=>{
     const lane=mapNodeMeta[nodeId]&&mapNodeMeta[nodeId].lane;
@@ -464,8 +473,12 @@ function drawMap(){
   clearMapCardBoxCache();
   const canvas=g('mapCanvas'),svg=g('mapSvg'),linksLayer=g('linksLayer'),nodesLayer=g('nodesLayer'),arrowsLayer=g('arrowsLayer');
   if(!canvas||!svg||!linksLayer||!nodesLayer||!arrowsLayer)return;
-  mapW=canvas.offsetWidth||1200;mapH=canvas.offsetHeight||1000;
+  mapW=canvas.offsetWidth||1200;
+  const viewportH=canvas.clientHeight||canvas.offsetHeight||1000;
+  const effectiveH=Math.max(viewportH,mapScrollHeight||0);
+  mapH=effectiveH;
   svg.setAttribute('viewBox',`0 0 ${mapW} ${mapH}`);svg.setAttribute('width',String(mapW));svg.setAttribute('height',String(mapH));
+  svg.style.height=`${mapH}px`;
   let mapWrap=svg.querySelector('#mapWrap');
   if(!mapWrap){mapWrap=document.createElementNS('http://www.w3.org/2000/svg','g');mapWrap.id='mapWrap';svg.appendChild(mapWrap);mapWrap.appendChild(linksLayer);mapWrap.appendChild(arrowsLayer);mapWrap.appendChild(nodesLayer);}
   mapWrap.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`);

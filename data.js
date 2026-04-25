@@ -692,7 +692,25 @@ function cloudSyncErrorText(err){
   if(msg.includes('access_denied')) return 'Google 權限被拒絕';
   if(/Drive API 401|Upload failed: 401|Download failed: 401/.test(msg)) return '登入已失效，請重新登入';
   if(/Drive API 403|Upload failed: 403|Download failed: 403/.test(msg)) return 'Google 權限不足（請確認 Drive API 與 scope）';
+  if(/Failed to fetch|NetworkError|Load failed|Network request failed/.test(msg)) return '網路或 CORS 阻擋（請確認不是用 file:// 開啟）';
   return msg.length>70?`${msg.slice(0,70)}…`:msg;
+}
+function cloudSyncErrorDetail(err){
+  if(err instanceof Error){
+    const msg=safeStr(err.message||'').trim();
+    if(msg) return msg;
+  }
+  if(typeof err==='string') return err;
+  try{
+    const raw=JSON.stringify(err);
+    if(raw&&raw!=='{}') return raw;
+  }catch(_){}
+  return 'unknown error object';
+}
+function ensureCloudRuntimeSupported(){
+  if(location&&location.protocol==='file:'){
+    throw new Error('目前以 file:// 開啟，Google 雲端同步需使用 http(s) 網址（例如 localhost）。');
+  }
 }
 function logCloudSync(level='log',...args){
   const fn=(console&&typeof console[level]==='function')?console[level]:console.log;
@@ -726,6 +744,7 @@ function askGoogleDriveClientId(){
   return next;
 }
 async function ensureGoogleAccessToken(forcePrompt=false){
+  ensureCloudRuntimeSupported();
   const now=Date.now();
   if(googleAccessToken&&now<googleTokenExpireAt-5000) return googleAccessToken;
   const ready=await ensureGoogleIdentityClient();
@@ -781,14 +800,19 @@ async function driveApiRequest(path,opt={}){
   logCloudSync('info','Drive request',opt.method||'GET',path);
   const token=await ensureGoogleAccessToken(false);
   if(!token) throw new Error(googleSyncLastError||'no token');
-  const res=await fetch(`https://www.googleapis.com/drive/v3/${path}`,{
-    method:opt.method||'GET',
-    headers:{
-      Authorization:`Bearer ${token}`,
-      ...(opt.headers||{})
-    },
-    body:opt.body
-  });
+  let res=null;
+  try{
+    res=await fetch(`https://www.googleapis.com/drive/v3/${path}`,{
+      method:opt.method||'GET',
+      headers:{
+        Authorization:`Bearer ${token}`,
+        ...(opt.headers||{})
+      },
+      body:opt.body
+    });
+  }catch(fetchErr){
+    throw new Error(`Drive request fetch failed: ${cloudSyncErrorText(fetchErr)} / ${cloudSyncErrorDetail(fetchErr)}`);
+  }
   if(!res.ok){
     const txt=await res.text().catch(()=>'');
     throw new Error(`Drive API ${res.status}: ${txt||res.statusText}`);
@@ -804,6 +828,7 @@ async function findDriveSyncFileId(){
   return '';
 }
 async function uploadPayloadToDrive(payload){
+  ensureCloudRuntimeSupported();
   const q=encodeURIComponent(`name='${GOOGLE_DRIVE_SYNC_FILE_NAME}' and trashed=false`);
   const visible=await driveApiRequest(`files?q=${q}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc&pageSize=1`);
   const fileId=visible&&Array.isArray(visible.files)&&visible.files[0]?visible.files[0].id:'';
@@ -827,27 +852,38 @@ async function uploadPayloadToDrive(payload){
     :'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
   const token=await ensureGoogleAccessToken(false);
   if(!token) throw new Error(googleSyncLastError||'no token');
-  const res=await fetch(baseUrl,{
-    method:fileId?'PATCH':'POST',
-    headers:{
-      Authorization:`Bearer ${token}`,
-      'Content-Type':`multipart/related; boundary=${boundary}`
-    },
-    body
-  });
+  let res=null;
+  try{
+    res=await fetch(baseUrl,{
+      method:fileId?'PATCH':'POST',
+      headers:{
+        Authorization:`Bearer ${token}`,
+        'Content-Type':`multipart/related; boundary=${boundary}`
+      },
+      body
+    });
+  }catch(fetchErr){
+    throw new Error(`Upload fetch failed: ${cloudSyncErrorText(fetchErr)} / ${cloudSyncErrorDetail(fetchErr)}`);
+  }
   if(!res.ok){
     const txt=await res.text().catch(()=>'');
     throw new Error(`Upload failed: ${res.status}${txt?` ${txt}`:''}`);
   }
 }
 async function downloadPayloadFromDrive(){
+  ensureCloudRuntimeSupported();
   const fileId=await findDriveSyncFileId();
   if(!fileId) return null;
   const token=await ensureGoogleAccessToken(false);
   if(!token) throw new Error(googleSyncLastError||'no token');
-  const res=await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,{
-    headers:{Authorization:`Bearer ${token}`}
-  });
+  let res=null;
+  try{
+    res=await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,{
+      headers:{Authorization:`Bearer ${token}`}
+    });
+  }catch(fetchErr){
+    throw new Error(`Download fetch failed: ${cloudSyncErrorText(fetchErr)} / ${cloudSyncErrorDetail(fetchErr)}`);
+  }
   if(!res.ok){
     const txt=await res.text().catch(()=>'');
     throw new Error(`Download failed: ${res.status}${txt?` ${txt}`:''}`);
@@ -873,7 +909,7 @@ async function cloudSyncPullLatest(opts={}){
     return ok;
   }catch(e){
     googleSyncLastError=cloudSyncErrorText(e);
-    logCloudSync('error','pull failed:',e);
+    logCloudSync('error','pull failed:',cloudSyncErrorDetail(e),e);
     if(!silent) showToast(`雲端下載失敗：${googleSyncLastError}`);
     return false;
   }finally{
@@ -893,7 +929,7 @@ async function cloudSyncPushNow(opts={}){
     return true;
   }catch(e){
     googleSyncLastError=cloudSyncErrorText(e);
-    logCloudSync('error','push failed:',e);
+    logCloudSync('error','push failed:',cloudSyncErrorDetail(e),e);
     if(!silent) showToast(`雲端上傳失敗：${googleSyncLastError}`);
     return false;
   }finally{

@@ -528,6 +528,60 @@ function renderLinksForNote(id) {
 function closeDetail() { g('dp').classList.remove('open'); openId=null; syncSidePanelState(); }
 
 let debugVisible=false;
+let debugMode='';
+let debugCaptureInstalled=false;
+let debugLines=[];
+let debugPanelEl=null, debugPanelBodyEl=null;
+const debugConsoleRaw={};
+function serializeDebugArg(v){
+  if(v instanceof Error) return `${v.name}: ${v.message}${v.stack?`\n${v.stack}`:''}`;
+  if(typeof v==='string') return v;
+  try{return JSON.stringify(v);}catch(_){ return String(v); }
+}
+function appendDebugLine(level,args=[]){
+  const time=new Date().toLocaleTimeString('zh-TW',{hour12:false});
+  const text=`[${time}] ${level.toUpperCase()} ${args.map(serializeDebugArg).join(' ')}`;
+  debugLines.push(text);
+  if(debugLines.length>300) debugLines=debugLines.slice(-300);
+  if(debugPanelBodyEl){
+    debugPanelBodyEl.textContent=debugLines.join('\n');
+    debugPanelBodyEl.scrollTop=debugPanelBodyEl.scrollHeight;
+  }
+}
+function installDebugConsoleCapture(){
+  if(debugCaptureInstalled) return;
+  ['log','info','warn','error'].forEach(level=>{
+    if(typeof console[level]!=='function') return;
+    debugConsoleRaw[level]=console[level].bind(console);
+    console[level]=(...args)=>{
+      appendDebugLine(level,args);
+      debugConsoleRaw[level](...args);
+    };
+  });
+  debugCaptureInstalled=true;
+}
+function ensureLocalDebugConsole(){
+  if(debugPanelEl) return;
+  const panel=document.createElement('div');
+  panel.id='localDebugPanel';
+  panel.innerHTML='<div class="local-debug-head"><b>內建偵錯主控台</b><div><button type="button" class="tool-btn mini-btn" id="localDebugClearBtn">清空</button><button type="button" class="tool-btn mini-btn" id="localDebugCloseBtn">關閉</button></div></div><pre class="local-debug-body" id="localDebugBody"></pre>';
+  document.body.appendChild(panel);
+  debugPanelEl=panel;
+  debugPanelBodyEl=panel.querySelector('#localDebugBody');
+  panel.querySelector('#localDebugClearBtn')?.addEventListener('click',()=>{
+    debugLines=[];
+    if(debugPanelBodyEl) debugPanelBodyEl.textContent='';
+  });
+  panel.querySelector('#localDebugCloseBtn')?.addEventListener('click',()=>toggleDebugTool());
+  if(debugPanelBodyEl) debugPanelBodyEl.textContent=debugLines.join('\n');
+}
+function showLocalDebugConsole(){
+  ensureLocalDebugConsole();
+  if(debugPanelEl) debugPanelEl.classList.add('open');
+}
+function hideLocalDebugConsole(){
+  if(debugPanelEl) debugPanelEl.classList.remove('open');
+}
 function ensureEruda(){
   return new Promise((resolve,reject)=>{
     if(window.eruda){resolve(window.eruda);return;}
@@ -540,11 +594,31 @@ function ensureEruda(){
 }
 async function toggleDebugTool(){
   const btn=g('debugToggle');
+  if(debugVisible){
+    if(debugMode==='eruda'&&window.eruda) window.eruda.hide();
+    if(debugMode==='local') hideLocalDebugConsole();
+    debugVisible=false;
+    debugMode='';
+    btn?.classList.remove('active');
+    showToast('偵錯工具已隱藏');
+    return;
+  }
   try{
     const er=await ensureEruda();
+    if(!er||typeof er.init!=='function') throw new Error('eruda unavailable');
     if(!er._isInit) er.init();
-    debugVisible=!debugVisible;
-    if(debugVisible){ er.show(); btn?.classList.add('active'); showToast('偵錯工具已開啟'); }
-    else { er.hide(); btn?.classList.remove('active'); showToast('偵錯工具已隱藏'); }
-  }catch(e){ showToast('偵錯工具載入失敗'); }
+    er.show();
+    debugVisible=true;
+    debugMode='eruda';
+    btn?.classList.add('active');
+    showToast('偵錯工具已開啟');
+  }catch(e){
+    showLocalDebugConsole();
+    debugVisible=true;
+    debugMode='local';
+    btn?.classList.add('active');
+    showToast('CDN 偵錯失敗，已改用內建主控台');
+    appendDebugLine('warn',['Eruda fallback:',e]);
+  }
 }
+installDebugConsoleCapture();

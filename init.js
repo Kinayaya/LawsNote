@@ -153,7 +153,15 @@
   };
   const setZoom=z=>{mapScale=Math.max(.15,Math.min(3.5,z));g('zoomLabel').textContent=Math.round(mapScale*100)+'%';drawMap();};
   on('zoomIn','click',()=>setZoom(mapScale+.15));on('zoomOut','click',()=>setZoom(mapScale-.15));
-  on('mapScrollModeBtn','click',()=>{mapVerticalScrollMode=!mapVerticalScrollMode;updateMapScrollModeBtn();showToast(mapVerticalScrollMode?'已啟用垂直捲動模式':'已關閉垂直捲動模式');});
+  on('mapScrollModeBtn','click',()=>{
+    mapVerticalScrollMode=!mapVerticalScrollMode;
+    const canvas=g('mapCanvas');
+    if(mapVerticalScrollMode) mapOffY=0;
+    else if(canvas) canvas.scrollTop=0;
+    updateMapScrollModeBtn();
+    drawMap();
+    showToast(mapVerticalScrollMode?'已啟用垂直捲動模式':'已關閉垂直捲動模式');
+  });
   on('zoomFit','click',()=>{const vis=visibleNotes();if(!vis.length)return;const xs=vis.map(n=>nodePos[n.id]?nodePos[n.id].x:mapW/2),ys=vis.map(n=>nodePos[n.id]?nodePos[n.id].y:mapH/2);const minX=Math.min(...xs)-40,maxX=Math.max(...xs)+40,minY=Math.min(...ys)-40,maxY=Math.max(...ys)+40;const sc=Math.min(mapW/(maxX-minX||1),mapH/(maxY-minY||1),2.5);mapScale=sc;mapOffX=-minX*sc+(mapW-(maxX-minX)*sc)/2;mapOffY=-minY*sc+(mapH-(maxY-minY)*sc)/2;g('zoomLabel').textContent=Math.round(sc*100)+'%';drawMap();});
   on('mpClose','click',closeMapPopup);
   on('mapLinkedOnlyBtn','click',()=>{mapLinkedOnly=!mapLinkedOnly;setMapLinkedOnlyBtnStyle();drawMap();saveDataDeferred();showToast(mapLinkedOnly?`顯示 ${visibleNotes().length} 個有關聯節點`:'顯示全部節點');});
@@ -180,9 +188,14 @@
   on('calendarEventDelete','click',()=>{ if(editingCalendarEventId!=null) deleteCalendarEvent(editingCalendarEventId); });
   on('lanePanelClose','click',closeLanePanel);on('laneSaveBtn','click',saveLanePanel);on('laneResetBtn','click',resetLanePanel);
   const canvas=g('mapCanvas');let panStart=null,panOffXStart=0,panOffYStart=0;
+  const pointerInCanvas=(x,y)=>{
+    const rect=canvas.getBoundingClientRect();
+    return { x:x-rect.left, y:y-rect.top+(mapVerticalScrollMode?canvas.scrollTop:0) };
+  };
   const onDragMove=(x,y)=>{
-    if(!dragNode||!nodePos[dragNode])return;const activeNodeId=dragNode,rect=canvas.getBoundingClientRect();
-    let cx=(x-rect.left-dragOffX-mapOffX)/mapScale,cy=(y-rect.top-dragOffY-mapOffY)/mapScale;
+    if(!dragNode||!nodePos[dragNode])return;const activeNodeId=dragNode;
+    const p=pointerInCanvas(x,y);
+    let cx=(p.x-dragOffX-mapOffX)/mapScale,cy=(p.y-dragOffY-mapOffY)/mapScale;
     nodePos[activeNodeId]={x:cx,y:cy};clampNodeToCanvas(activeNodeId);
     const visIds={};visibleNotes().forEach(n=>visIds[n.id]=true);pushNodeOffLinks(activeNodeId,visibleLinks(visIds),10);
     cx=nodePos[activeNodeId].x;cy=nodePos[activeNodeId].y;
@@ -198,15 +211,11 @@
   canvas.addEventListener('touchend',()=>{if(dragNode){if(rafId)cancelAnimationFrame(rafId);saveDataDeferred();dragNode=null;}panStart=null;});
   canvas.addEventListener('touchstart',e=>{if(e.touches.length===1&&!dragNode&&!mapVerticalScrollMode){panStart={x:e.touches[0].clientX,y:e.touches[0].clientY};panOffXStart=mapOffX;panOffYStart=mapOffY;}},{passive:true});
   canvas.addEventListener('wheel',e=>{
+    if(mapVerticalScrollMode) return;
     e.preventDefault();
-    if(mapVerticalScrollMode){
-      mapOffY-=e.deltaY*0.9;
-      const gw=g('mapSvg').querySelector('#mapWrap');
-      if(gw)gw.setAttribute('transform',`translate(${mapOffX},${mapOffY}) scale(${mapScale})`);
-      return;
-    }
     setZoom(mapScale+(e.deltaY>0?-.1:.1));
   },{passive:false});
+  canvas.addEventListener('scroll',()=>{ if(mapVerticalScrollMode&&isMapOpen) closeMapPopup(); },{passive:true});
   let pinchDist=0;
   canvas.addEventListener('touchstart',e=>{if(e.touches.length===2){const d=e.touches[0].clientX-e.touches[1].clientX,dd=e.touches[0].clientY-e.touches[1].clientY;pinchDist=Math.sqrt(d*d+dd*dd);}},{passive:true});
   canvas.addEventListener('touchmove',e=>{if(e.touches.length===2&&pinchDist){e.preventDefault();const d=e.touches[0].clientX-e.touches[1].clientX,dd=e.touches[0].clientY-e.touches[1].clientY,nd=Math.sqrt(d*d+dd*dd);setZoom(mapScale*nd/pinchDist);pinchDist=nd;}},{passive:false});

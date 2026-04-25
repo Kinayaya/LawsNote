@@ -226,7 +226,11 @@ function exportPortablePackage(){
     const d=new Date();
     a.download=`klaws_portable_${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}.json`;
     a.href=url;
+    a.style.display='none';
+    a.rel='noopener';
+    document.body.appendChild(a);
     a.click();
+    a.remove();
     URL.revokeObjectURL(url);
     showToast(`已匯出通用包（${pkg.manifest.noteCount} 筆筆記）`);
   }catch(e){
@@ -813,7 +817,10 @@ function logoutGoogleDriveSync(){
   showToast('已登出 Google 雲端');
 }
 function manageArchives(){
-  if(isMapOpen) toggleMapView(false);
+  if(isMapOpen){
+    if(typeof leaveMapSubpage==='function') leaveMapSubpage();
+    toggleMapView(false);
+  }
   g('ap')?.classList.add('open');
   ['dp','fp','tp'].forEach(p=>g(p)?.classList.remove('open'));
   renderArchivePanel();

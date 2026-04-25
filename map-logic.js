@@ -58,7 +58,7 @@ function forceLayout() {
     return layoutNotes.reduce((max,n)=>linkCount[n.id]>linkCount[max.id]?n:max,layoutNotes[0]).id;
   })();
   const laneCfg=getLaneConfig(),laneCount=laneCfg.names.length;
-  const LANE_CARD_GAP_Y=34,TOP_PAD=72,BOT_PAD=40;
+  const LANE_CARD_GAP_Y=20,TOP_PAD=72,BOT_PAD=40;
   const laneLeft=Math.max(80,mapW*.1),laneRight=Math.min(mapW-80,mapW*.9);
   const laneGapX=laneCount>1?(laneRight-laneLeft)/(laneCount-1):0;
   const chIdxMap=chapterIndexMap(),secIdxMap=sectionIndexMap();

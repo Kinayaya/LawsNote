@@ -678,8 +678,25 @@ function updateCloudSyncStatus(extra=''){
     return;
   }
   const loggedIn=!!googleAccessToken&&Date.now()<googleTokenExpireAt;
-  const suffix=extra?`（${extra}）`:'';
+  const reason=safeStr(extra||googleSyncLastError||'').trim();
+  const suffix=reason?`（${reason}）`:'';
   el.textContent=loggedIn?`雲端同步：已登入${suffix}`:`雲端同步：未登入${suffix}`;
+}
+function cloudSyncErrorText(err){
+  const msg=safeStr(err&&err.message||err||'').trim();
+  if(!msg) return '未知錯誤';
+  if(msg.includes('popup_closed')) return '登入視窗被關閉';
+  if(msg.includes('popup_failed_to_open')) return '無法開啟 Google 登入視窗';
+  if(msg.includes('origin_mismatch')) return 'Client ID 的授權來源不符';
+  if(msg.includes('invalid_client')) return 'Google Client ID 無效';
+  if(msg.includes('access_denied')) return 'Google 權限被拒絕';
+  if(/Drive API 401|Upload failed: 401|Download failed: 401/.test(msg)) return '登入已失效，請重新登入';
+  if(/Drive API 403|Upload failed: 403|Download failed: 403/.test(msg)) return 'Google 權限不足（請確認 Drive API 與 scope）';
+  return msg.length>70?`${msg.slice(0,70)}…`:msg;
+}
+function logCloudSync(level='log',...args){
+  const fn=(console&&typeof console[level]==='function')?console[level]:console.log;
+  fn('[CloudSync]',...args);
 }
 async function ensureScriptLoaded(src){
   if(document.querySelector(`script[src="${src}"]`)) return true;
@@ -718,7 +735,7 @@ async function ensureGoogleAccessToken(forcePrompt=false){
   if(!clientId){showToast('未設定 Google Client ID');return '';}
   const tokenClient=google.accounts.oauth2.initTokenClient({
     client_id:clientId,
-    scope:'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.appdata',
+    scope:'https://www.googleapis.com/auth/drive.file',
     callback:()=>{}
   });
   const requestToken=(promptValue='')=>new Promise(resolve=>{
@@ -728,15 +745,31 @@ async function ensureGoogleAccessToken(forcePrompt=false){
         googleAccessToken=resp.access_token;
         const expiresIn=parseInt(resp.expires_in,10)||3600;
         googleTokenExpireAt=Date.now()+expiresIn*1000;
+        googleSyncLastError='';
         updateCloudSyncStatus();
         settled=true;
         resolve(googleAccessToken);
         return;
       }
+      if(resp&&resp.error){
+        googleSyncLastError=cloudSyncErrorText(resp.error_description||resp.error);
+        logCloudSync('error','token callback error:',resp);
+        updateCloudSyncStatus();
+      }else{
+        logCloudSync('warn','token callback without access_token',resp||'');
+      }
       settled=true;
       resolve('');
     };
-    tokenClient.error_callback=()=>{ if(!settled) resolve(''); };
+    tokenClient.error_callback=err=>{
+      if(!settled){
+        googleSyncLastError=cloudSyncErrorText(err);
+        logCloudSync('error','token error callback:',err);
+        updateCloudSyncStatus();
+        resolve('');
+      }
+    };
+    logCloudSync('info','requestAccessToken', { prompt: promptValue||'(silent)' });
     tokenClient.requestAccessToken({prompt:promptValue,hint:''});
   });
   if(forcePrompt) return await requestToken('consent');
@@ -745,8 +778,9 @@ async function ensureGoogleAccessToken(forcePrompt=false){
   return await requestToken('consent');
 }
 async function driveApiRequest(path,opt={}){
+  logCloudSync('info','Drive request',opt.method||'GET',path);
   const token=await ensureGoogleAccessToken(false);
-  if(!token) return null;
+  if(!token) throw new Error(googleSyncLastError||'no token');
   const res=await fetch(`https://www.googleapis.com/drive/v3/${path}`,{
     method:opt.method||'GET',
     headers:{
@@ -764,12 +798,10 @@ async function driveApiRequest(path,opt={}){
 }
 async function findDriveSyncFileId(){
   const q=encodeURIComponent(`name='${GOOGLE_DRIVE_SYNC_FILE_NAME}' and trashed=false`);
-  const appDataQ=encodeURIComponent(`name='${GOOGLE_DRIVE_SYNC_FILE_NAME}' and 'appDataFolder' in parents and trashed=false`);
   const fields='files(id,name,modifiedTime,parents)';
   const mainData=await driveApiRequest(`files?q=${q}&fields=${fields}&orderBy=modifiedTime desc&pageSize=1`);
   if(mainData&&Array.isArray(mainData.files)&&mainData.files[0]) return mainData.files[0].id;
-  const appData=await driveApiRequest(`files?q=${appDataQ}&spaces=appDataFolder&fields=${fields}&orderBy=modifiedTime desc&pageSize=1`);
-  return appData&&Array.isArray(appData.files)&&appData.files[0]?appData.files[0].id:'';
+  return '';
 }
 async function uploadPayloadToDrive(payload){
   const q=encodeURIComponent(`name='${GOOGLE_DRIVE_SYNC_FILE_NAME}' and trashed=false`);
@@ -794,7 +826,7 @@ async function uploadPayloadToDrive(payload){
     ?`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
     :'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
   const token=await ensureGoogleAccessToken(false);
-  if(!token) throw new Error('no token');
+  if(!token) throw new Error(googleSyncLastError||'no token');
   const res=await fetch(baseUrl,{
     method:fileId?'PATCH':'POST',
     headers:{
@@ -803,22 +835,29 @@ async function uploadPayloadToDrive(payload){
     },
     body
   });
-  if(!res.ok) throw new Error(`Upload failed: ${res.status}`);
+  if(!res.ok){
+    const txt=await res.text().catch(()=>'');
+    throw new Error(`Upload failed: ${res.status}${txt?` ${txt}`:''}`);
+  }
 }
 async function downloadPayloadFromDrive(){
   const fileId=await findDriveSyncFileId();
   if(!fileId) return null;
   const token=await ensureGoogleAccessToken(false);
-  if(!token) return null;
+  if(!token) throw new Error(googleSyncLastError||'no token');
   const res=await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,{
     headers:{Authorization:`Bearer ${token}`}
   });
-  if(!res.ok) throw new Error(`Download failed: ${res.status}`);
+  if(!res.ok){
+    const txt=await res.text().catch(()=>'');
+    throw new Error(`Download failed: ${res.status}${txt?` ${txt}`:''}`);
+  }
   return await res.json();
 }
 async function cloudSyncPullLatest(opts={}){
   const {silent=false}=opts||{};
   try{
+    logCloudSync('info','pull start', { silent });
     googleSyncBusy=true;updateCloudSyncStatus();
     const remote=await downloadPayloadFromDrive();
     if(!remote){ if(!silent) showToast('雲端沒有可下載資料'); return false; }
@@ -829,10 +868,13 @@ async function cloudSyncPullLatest(opts={}){
       if(!confirm('雲端資料比本機舊，仍要覆蓋本機嗎？')) return false;
     }
     const ok=applySnapshotRaw(JSON.stringify(remote));
+    if(ok) googleSyncLastError='';
     if(ok&&!silent) showToast('已自動載入最新雲端紀錄');
     return ok;
   }catch(e){
-    if(!silent) showToast('雲端下載失敗');
+    googleSyncLastError=cloudSyncErrorText(e);
+    logCloudSync('error','pull failed:',e);
+    if(!silent) showToast(`雲端下載失敗：${googleSyncLastError}`);
     return false;
   }finally{
     googleSyncBusy=false;updateCloudSyncStatus();
@@ -841,14 +883,18 @@ async function cloudSyncPullLatest(opts={}){
 async function cloudSyncPushNow(opts={}){
   const {silent=false}=opts||{};
   try{
+    logCloudSync('info','push start', { silent });
     googleSyncBusy=true;updateCloudSyncStatus();
     const payload=getPayload();
     payload.updatedAt=new Date().toISOString();
     await uploadPayloadToDrive(payload);
+    googleSyncLastError='';
     if(!silent) showToast('已上傳到 Google 雲端');
     return true;
   }catch(e){
-    if(!silent) showToast('雲端上傳失敗');
+    googleSyncLastError=cloudSyncErrorText(e);
+    logCloudSync('error','push failed:',e);
+    if(!silent) showToast(`雲端上傳失敗：${googleSyncLastError}`);
     return false;
   }finally{
     googleSyncBusy=false;updateCloudSyncStatus();
@@ -868,6 +914,7 @@ async function loginGoogleDriveAndSync(){
 function logoutGoogleDriveSync(){
   googleAccessToken='';
   googleTokenExpireAt=0;
+  googleSyncLastError='';
   updateCloudSyncStatus();
   showToast('已登出 Google 雲端');
 }

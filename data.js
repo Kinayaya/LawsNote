@@ -680,7 +680,7 @@ async function ensureGoogleAccessToken(forcePrompt=false){
   if(!clientId){showToast('未設定 Google Client ID');return '';}
   const tokenClient=google.accounts.oauth2.initTokenClient({
     client_id:clientId,
-    scope:'https://www.googleapis.com/auth/drive.appdata',
+    scope:'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.appdata',
     callback:()=>{}
   });
   return await new Promise(resolve=>{
@@ -717,14 +717,20 @@ async function driveApiRequest(path,opt={}){
   return await res.json();
 }
 async function findDriveSyncFileId(){
-  const q=encodeURIComponent(`name='${GOOGLE_DRIVE_SYNC_FILE_NAME}' and 'appDataFolder' in parents and trashed=false`);
-  const data=await driveApiRequest(`files?q=${q}&spaces=appDataFolder&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc&pageSize=1`);
-  return data&&Array.isArray(data.files)&&data.files[0]?data.files[0].id:'';
+  const q=encodeURIComponent(`name='${GOOGLE_DRIVE_SYNC_FILE_NAME}' and trashed=false`);
+  const appDataQ=encodeURIComponent(`name='${GOOGLE_DRIVE_SYNC_FILE_NAME}' and 'appDataFolder' in parents and trashed=false`);
+  const fields='files(id,name,modifiedTime,parents)';
+  const mainData=await driveApiRequest(`files?q=${q}&fields=${fields}&orderBy=modifiedTime desc&pageSize=1`);
+  if(mainData&&Array.isArray(mainData.files)&&mainData.files[0]) return mainData.files[0].id;
+  const appData=await driveApiRequest(`files?q=${appDataQ}&spaces=appDataFolder&fields=${fields}&orderBy=modifiedTime desc&pageSize=1`);
+  return appData&&Array.isArray(appData.files)&&appData.files[0]?appData.files[0].id:'';
 }
 async function uploadPayloadToDrive(payload){
-  const fileId=await findDriveSyncFileId();
+  const q=encodeURIComponent(`name='${GOOGLE_DRIVE_SYNC_FILE_NAME}' and trashed=false`);
+  const visible=await driveApiRequest(`files?q=${q}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc&pageSize=1`);
+  const fileId=visible&&Array.isArray(visible.files)&&visible.files[0]?visible.files[0].id:'';
   const boundary='klaws_boundary_'+Date.now();
-  const metadata={name:GOOGLE_DRIVE_SYNC_FILE_NAME,parents:['appDataFolder'],mimeType:GOOGLE_DRIVE_SYNC_MIME};
+  const metadata={name:GOOGLE_DRIVE_SYNC_FILE_NAME,mimeType:GOOGLE_DRIVE_SYNC_MIME};
   const body=
 `--${boundary}\r
 Content-Type: application/json; charset=UTF-8\r

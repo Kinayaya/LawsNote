@@ -721,20 +721,28 @@ async function ensureGoogleAccessToken(forcePrompt=false){
     scope:'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.appdata',
     callback:()=>{}
   });
-  return await new Promise(resolve=>{
+  const requestToken=(promptValue='')=>new Promise(resolve=>{
+    let settled=false;
     tokenClient.callback=resp=>{
       if(resp&&resp.access_token){
         googleAccessToken=resp.access_token;
         const expiresIn=parseInt(resp.expires_in,10)||3600;
         googleTokenExpireAt=Date.now()+expiresIn*1000;
         updateCloudSyncStatus();
+        settled=true;
         resolve(googleAccessToken);
         return;
       }
+      settled=true;
       resolve('');
     };
-    tokenClient.requestAccessToken({prompt:forcePrompt?'consent':'',hint:''});
+    tokenClient.error_callback=()=>{ if(!settled) resolve(''); };
+    tokenClient.requestAccessToken({prompt:promptValue,hint:''});
   });
+  if(forcePrompt) return await requestToken('consent');
+  const silentToken=await requestToken('');
+  if(silentToken) return silentToken;
+  return await requestToken('consent');
 }
 async function driveApiRequest(path,opt={}){
   const token=await ensureGoogleAccessToken(false);
@@ -769,16 +777,19 @@ async function uploadPayloadToDrive(payload){
   const fileId=visible&&Array.isArray(visible.files)&&visible.files[0]?visible.files[0].id:'';
   const boundary='klaws_boundary_'+Date.now();
   const metadata={name:GOOGLE_DRIVE_SYNC_FILE_NAME,mimeType:GOOGLE_DRIVE_SYNC_MIME};
-  const body=
-`--${boundary}\r
-Content-Type: application/json; charset=UTF-8\r
-\r
-${JSON.stringify(metadata)}\r
---${boundary}\r
-Content-Type: application/json; charset=UTF-8\r
-\r
-${JSON.stringify(payload)}\r
---${boundary}--`;
+  const crlf='\r\n';
+  const body=[
+    `--${boundary}`,
+    'Content-Type: application/json; charset=UTF-8',
+    '',
+    JSON.stringify(metadata),
+    `--${boundary}`,
+    'Content-Type: application/json; charset=UTF-8',
+    '',
+    JSON.stringify(payload),
+    `--${boundary}--`,
+    ''
+  ].join(crlf);
   const baseUrl=fileId
     ?`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
     :'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
@@ -844,7 +855,7 @@ async function cloudSyncPushNow(opts={}){
   }
 }
 async function loginGoogleDriveAndSync(){
-  const token=await ensureGoogleAccessToken(true);
+  const token=await ensureGoogleAccessToken(false);
   if(!token) return false;
   const pulled=await cloudSyncPullLatest({silent:true});
   if(pulled){

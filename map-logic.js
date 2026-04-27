@@ -693,7 +693,7 @@ function showMapInfo(id){
   };
   const hideFromPageBtn=document.createElement('button');
   hideFromPageBtn.className='mp-hide-page-btn';
-  hideFromPageBtn.textContent='🙈 本頁隱藏節點';
+  hideFromPageBtn.textContent='🙈 取消顯示';
   hideFromPageBtn.style.cssText='width:100%;padding:8px;margin:4px 0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #e8d59b;background:#fff9e9;color:#8a6400;';
   hideFromPageBtn.onclick=()=>{
     if(!unassignNoteFromMapPage(id)){
@@ -705,7 +705,7 @@ function showMapInfo(id){
     closeMapPopup();
     drawMap();
     updateMapPagePath();
-    showToast(`已在本頁隱藏「${n.title||'（未命名）'}」`);
+    showToast(`已取消顯示「${n.title||'（未命名）'}」`);
   };
   if(goBtn&&goBtn.parentNode){
     goBtn.parentNode.querySelectorAll('.mp-set-center,.mp-subpage-btn,.mp-subpage-cancel-btn,.mp-link-start-btn,.mp-hide-page-btn').forEach(el=>el.remove());

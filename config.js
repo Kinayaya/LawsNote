@@ -58,11 +58,11 @@ const BUILTIN_FIELD_DEFS = {
 const DEFAULT_TYPE_FIELD_KEYS = {diary:['body','todos']};
 const DEFAULT_NORMAL_FIELD_KEYS = ['question','answer','prompt','application'];
 const RELATION_TYPE_META = {
-  cause:{label:'cause',color:'#2563EB'},
+  cause:{label:'cause',color:'#2563EB',needsNote:true,notePlaceholder:'請輸入因果說明（例如：A 造成 B）'},
   example:{label:'example',color:'#2F8F6B'},
-  contrast:{label:'contrast',color:'#8A5CF6'},
-  application:{label:'application',color:'#D97706'},
-  analogy:{label:'analogy',color:'#0EA5A4'}
+  contrast:{label:'contrast',color:'#8A5CF6',needsNote:true,notePlaceholder:'請輸入對比重點（例如：兩者差異）'},
+  application:{label:'application',color:'#D97706',needsNote:true,notePlaceholder:'請輸入應用情境（例如：在哪裡使用）'},
+  analogy:{label:'analogy',color:'#0EA5A4',needsNote:true,notePlaceholder:'請輸入類比說明（例如：像什麼）'}
 };
 const REVIEW_INTERVALS_DAYS = { forgot:1, hard:3, knew:7, easy:14 };
 

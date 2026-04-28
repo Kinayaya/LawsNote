@@ -88,6 +88,11 @@
     <div id="dp-title" class="dp-ttl"></div>
     <div class="dp-lbl">摘要</div><div id="dp-body" class="dp-txt"></div>
     <div class="dp-lbl">詳細筆記</div><div id="dp-detail" class="dp-txt"></div>
+    <div class="dp-lbl">路徑</div>
+    <div id="dp-path-editor" class="dp-txt" style="display:flex;gap:8px;align-items:center;">
+      <input class="fi" id="dp-path-input" placeholder="例如：民法 > 總則 > 法律行為 > 代理">
+      <button class="tool-btn" id="dp-path-save">儲存路徑</button>
+    </div>
     <div class="dp-lbl" id="dp-todo-label" style="display:none;">&#128221; 待辦清單</div><div id="dp-todo" class="dp-txt" style="display:none;"></div>
     <div class="dp-lbl">資訊</div><div id="dp-chips" class="dp-chips"></div>
     <div id="dp-inline-actions" class="dp-inline-actions"></div>
@@ -109,6 +114,8 @@
     </div>
     <label class="flbl">標題</label>
     <input class="fi" id="fti" placeholder="標題">
+    <label class="flbl">路徑</label>
+    <input class="fi" id="fpath" placeholder="例如：民法 > 總則 > 法律行為 > 代理（之後可只輸入代理）">
     <div style="font-size:12px;color:#6b7280;margin:6px 0 2px;">提示：一筆一概念（Atomic Note），先寫「難回想」的知識點。</div>
     <div id="mapAssignFormWrap" style="display:none;">
       <div style="font-size:12px;color:#667;margin:4px 0 10px;">請用和新增/編輯筆記相同的側邊表單，將筆記加入指定頁面。</div>
@@ -134,6 +141,7 @@
       <select class="fs" id="fl-relation-type" style="margin-bottom:6px;">
         <option value="cause">cause</option><option value="example">example</option><option value="contrast">contrast</option><option value="application">application</option><option value="analogy">analogy</option>
       </select>
+      <input class="fi" id="fl-relation-note" placeholder="關聯說明（部分關聯必填）" style="margin-bottom:6px;display:none;">
       <input class="fi" id="fl-search" placeholder="搜尋關聯" style="margin-bottom:6px;">
       <div id="fl-bulk-actions" style="display:none;align-items:center;justify-content:space-between;gap:8px;margin:4px 0 8px;">
         <button class="tool-btn" id="flSelectAllBtn">全選結果</button>

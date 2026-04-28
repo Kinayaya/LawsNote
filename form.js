@@ -27,11 +27,11 @@ function openForm(isEdit) {
     const relay=isRelayNode(n);
     formMode=relay?'relay':'note';
     g('form-title').textContent=relay?'編輯中繼站':'編輯筆記';
-    g('ft').value=n.type;setSelectedValues('fs2',noteSubjects(n));syncChapterSelect(noteSubjects(n),noteChapters(n));syncSectionSelect(noteChapters(n),noteSections(n),noteSubjects(n));g('fti').value=n.title;
+    g('ft').value=n.type;setSelectedValues('fs2',noteSubjects(n));syncChapterSelect(noteSubjects(n),noteChapters(n));syncSectionSelect(noteChapters(n),noteSections(n),noteSubjects(n));g('fti').value=n.title;g('fpath').value=n.path||'';
     renderDynamicFields(n.type,n);
   } else {
     g('form-title').textContent=formMode==='relay'?'新增中繼站':'新增筆記';
-  ['fti'].forEach(id=>{const el=g(id);if(el)el.value='';});
+  ['fti','fpath'].forEach(id=>{const el=g(id);if(el)el.value='';});
     const pref=loadFormTaxonomyPref();
     const filterSub=(mapFilter.sub!=='all'&&subjects.some(s=>s.key===mapFilter.sub))?mapFilter.sub:'';
     const defaultSub=(pref.subject&&subjects.some(s=>s.key===pref.subject))
@@ -109,6 +109,16 @@ function syncSidePanelState(){
 function buildInlineLinksPanel() {
   formLinkSelections={};
   renderFormLinks();
+  const relTypeEl=g('fl-relation-type'),relNoteEl=g('fl-relation-note');
+  const refreshRelNoteState=()=>{
+    const relType=relTypeEl?.value||'cause';
+    if(!relNoteEl) return;
+    relNoteEl.placeholder=relationNotePlaceholder(relType);
+    relNoteEl.style.display=relationNeedsNote(relType)?'block':'none';
+  };
+  if(relTypeEl) relTypeEl.onchange=refreshRelNoteState;
+  if(relNoteEl) relNoteEl.value='';
+  refreshRelNoteState();
   const searchEl=g('fl-search');
   if(searchEl){searchEl.value='';searchEl.oninput=debounce(renderFormLinkSearch,200);}
   const selAllBtn=g('flSelectAllBtn'),addSelBtn=g('flAddSelectedBtn');
@@ -124,7 +134,7 @@ function renderFormLinks() {
   if(!el||!openId){if(el)el.innerHTML='';return;}
   const related=links.filter(l=>l.from===openId||l.to===openId);
   if(!related.length){el.innerHTML='<span style="font-size:12px;color:#bbb">尚無關聯</span>';return;}
-  el.innerHTML=related.map(l=>{const otherId=l.from===openId?l.to:l.from,other=mapNodeById(otherId),tag=isRelayNode(other)?'<span class="chip" style="margin-right:6px;background:#F2E8FF;color:#7A34B0;border-color:#D4B5EF">中繼站</span>':'';return `<div class="fl-item">${tag}<span class="chip" style="margin-right:6px;background:${relationColor(l.rel)};color:#fff;border-color:${relationColor(l.rel)}">${relationLabel(l.rel)}</span><span class="fl-item-title">${other?other.title:'（已刪除）'}</span><button class="fl-del" data-lid="${l.id}">✕</button></div>`;}).join('');
+  el.innerHTML=related.map(l=>{const otherId=l.from===openId?l.to:l.from,other=mapNodeById(otherId),tag=isRelayNode(other)?'<span class="chip" style="margin-right:6px;background:#F2E8FF;color:#7A34B0;border-color:#D4B5EF">中繼站</span>':'',relNote=normalizeRelationNote(l.note);return `<div class="fl-item">${tag}<span class="chip" style="margin-right:6px;background:${relationColor(l.rel)};color:#fff;border-color:${relationColor(l.rel)}">${relationLabel(l.rel)}</span><span class="fl-item-title">${other?other.title:'（已刪除）'}</span>${relNote?`<span class="chip" title="${escapeHtml(relNote)}">${escapeHtml(relNote)}</span>`:''}<button class="fl-del" data-lid="${l.id}">✕</button></div>`;}).join('');
   el.querySelectorAll('.fl-del').forEach(btn=>btn.addEventListener('click',()=>{links=links.filter(l=>l.id!==parseInt(btn.dataset.lid));saveData();renderFormLinks();if(isMapOpen)scheduleMapRedraw(100);showToast('關聯已刪除');}));
 }
 function renderFormLinkSearch() {
@@ -160,7 +170,10 @@ function addSelectedFormLinks(){
   if(!targetIds.length){showToast('請先選擇要關聯的筆記');return;}
   let added=0;
   const relType=g('fl-relation-type')?.value||'cause';
-  targetIds.forEach(toId=>{ if(createRelationLink(openId,toId,relType)) added++; });
+  const relNote=normalizeRelationNote(g('fl-relation-note')?.value||'');
+  if(relationNeedsNote(relType)&&!relNote){showToast('此關聯類型需要輸入關聯說明');return;}
+  targetIds.forEach(toId=>{ if(createRelationLink(openId,toId,relType,relNote)) added++; });
+  const relNoteEl=g('fl-relation-note'); if(relNoteEl) relNoteEl.value='';
   formLinkSelections={};saveData();renderFormLinks();renderFormLinkSearch();showToast(`已建立 ${added} 筆關聯`);if(isMapOpen)scheduleMapRedraw(100);
 }
 
@@ -258,6 +271,7 @@ function saveNote() {
   if(!title){g('fti').style.borderColor='#FF3B30';showToast('請輸入標題');return;}
   g('fti').style.borderColor='';
   const typeKey=g('ft').value;
+  const path=resolvePathInput(g('fpath').value||'');
   const fieldData=collectFormValuesByType(typeKey);
   if(!fieldData.application.trim()){showToast('Application 為必填：請填「你會在何處使用這個知識」');return;}
   if((fieldData.question.length+fieldData.answer.length)>600){
@@ -279,7 +293,7 @@ function saveNote() {
     const shouldSyncMeta=multiSelMode&&selectedIds[openId]&&selectedIdNums.length>1;
     const prevDone=idx!==-1?doneTodoCount(source[idx].todos):0;
     if(idx!==-1){
-      const updated=normalizeNoteSchema({...source[idx],type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,question:fieldData.question,answer:fieldData.answer,prompt:fieldData.prompt,application:fieldData.application,body:fieldData.body,detail:fieldData.detail,todos:fieldData.todos,extraFields:fieldData.extraFields});
+      const updated=normalizeNoteSchema({...source[idx],type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,path,question:fieldData.question,answer:fieldData.answer,prompt:fieldData.prompt,application:fieldData.application,body:fieldData.body,detail:fieldData.detail,todos:fieldData.todos,extraFields:fieldData.extraFields});
       source[idx]=isRelay?{...updated,isRelay:true,pageRootId:relayPageRootId(source[idx]),noteTypeBackup:typeKey}:updated;
     }
     const mentionAdded=idx!==-1?autoLinkMentionsForNote(source[idx]):0;
@@ -301,7 +315,7 @@ function saveNote() {
   } else {
     const d=new Date(),dt=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const nowIso=new Date().toISOString();
-    const newNote=normalizeNoteSchema({id:nid++,type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,question:fieldData.question,answer:fieldData.answer,prompt:fieldData.prompt,application:fieldData.application,body:fieldData.body,detail:fieldData.detail,date:dt,created_at:nowIso,last_reviewed:'',next_review:nowIso,todos:fieldData.todos,extraFields:fieldData.extraFields});
+    const newNote=normalizeNoteSchema({id:nid++,type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,path,question:fieldData.question,answer:fieldData.answer,prompt:fieldData.prompt,application:fieldData.application,body:fieldData.body,detail:fieldData.detail,date:dt,created_at:nowIso,last_reviewed:'',next_review:nowIso,todos:fieldData.todos,extraFields:fieldData.extraFields});
     if(doneTodoCount(newNote.todos)>0&&levelSystem.tasks.length&&levelSystem.skills.length){
       completeLevelTask(levelSystem.tasks[0].id,levelSystem.skills[0].id);
     }
@@ -328,9 +342,10 @@ function saveNoteDraftFromForm(){
   const title=(g('fti').value||'').trim();
   if(!title) return;
   const typeKey=g('ft').value;
+  const path=resolvePathInput(g('fpath').value||'');
   const fieldData=collectFormValuesByType(typeKey);
   const selectedSubs=selectedValues('fs2').slice(0,1),selectedChs=selectedValues('fc').slice(0,1),selectedSecs=selectedValues('fsec').slice(0,1);
-  Object.assign(target,normalizeNoteSchema({...target,type:typeKey,subject:selectedSubs[0]||'',subjects:selectedSubs,chapter:selectedChs[0]||'',chapters:selectedChs,section:selectedSecs[0]||'',sections:selectedSecs,title,question:fieldData.question,answer:fieldData.answer,prompt:fieldData.prompt,application:fieldData.application,body:fieldData.body,detail:fieldData.detail,todos:fieldData.todos,extraFields:fieldData.extraFields}));
+  Object.assign(target,normalizeNoteSchema({...target,type:typeKey,subject:selectedSubs[0]||'',subjects:selectedSubs,chapter:selectedChs[0]||'',chapters:selectedChs,section:selectedSecs[0]||'',sections:selectedSecs,title,path,question:fieldData.question,answer:fieldData.answer,prompt:fieldData.prompt,application:fieldData.application,body:fieldData.body,detail:fieldData.detail,todos:fieldData.todos,extraFields:fieldData.extraFields}));
   saveDataDeferred();
 }
 function duplicateNote(targetId=openId) {
@@ -349,6 +364,7 @@ function duplicateNote(targetId=openId) {
     section:src.section||'',
     sections:[...noteSections(src)],
     title:copyTitle,
+    path:src.path||'',
     question:src.question||'',
     answer:src.answer||'',
     prompt:src.prompt||'',

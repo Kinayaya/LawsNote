@@ -238,7 +238,7 @@ function applyCompactFilterMode(enabled){
   const btn=g('compactToggleBtn');
   if(btn) btn.textContent=enabled?'☰ 顯示分類':'☰ 收合分類';
 }
-function createRelationLink(fromId,toId,relType='cause'){
+function createRelationLink(fromId,toId,relType='cause',relNote=''){
   const a=parseInt(fromId,10),b=parseInt(toId,10);
   if(!Number.isFinite(a)||!Number.isFinite(b)||a===b) return false;
   const src=mapNodeById(a),target=mapNodeById(b);
@@ -246,7 +246,7 @@ function createRelationLink(fromId,toId,relType='cause'){
   if((isRelayNode(src)||isRelayNode(target))&&(!isNodeInCurrentMapPage(a)||!isNodeInCurrentMapPage(b))) return false;
   if(links.some(l=>(l.from===a&&l.to===b)||(l.from===b&&l.to===a))) return false;
   const rel=normalizeRelationType(relType);
-  links.push({id:lid++,from:a,to:b,rel,color:relationColor(rel)});
+  links.push({id:lid++,from:a,to:b,rel,color:relationColor(rel),note:normalizeRelationNote(relNote)});
   return true;
 }
 function clearMapLinkSource(opts={}){
@@ -490,6 +490,20 @@ function openNote(id) {
   g('dp-detail').style.display=fields.includes('detail')?'block':'none';
   g('dp-body').innerHTML=n.question?renderMentionText(n.question,n.id):'（尚無問題）';
   g('dp-detail').innerHTML=n.answer?renderDetailRichText(n.answer,n.id):'（尚無答案）';
+  const pathInput=g('dp-path-input');
+  if(pathInput) pathInput.value=n.path||'';
+  const pathSaveBtn=g('dp-path-save');
+  if(pathSaveBtn){
+    pathSaveBtn.onclick=()=>{
+      const target=mapNodeById(id);
+      if(!target) return;
+      target.path=resolvePathInput(pathInput?.value||'');
+      if(pathInput) pathInput.value=target.path||'';
+      saveData();
+      showToast('路徑已更新');
+      if(editMode&&openId===id&&g('fpath')) g('fpath').value=target.path||'';
+    };
+  }
   bindMentionJumps(g('dp-body'));
   bindMentionJumps(g('dp-detail'));
   const reveal=!!reviewReveal;
@@ -507,11 +521,12 @@ function openNote(id) {
   const subChips=subs.map(sk=>{const sb=subByKey(sk);return `<span class="chip" style="background:${lightC(sb.color)};color:${darkC(sb.color)}">${sb.label}</span>`;}).join('');
   const chapterChips=chs.map(ch=>`<span class="chip" style="background:#E6F1FB;color:#0C447C">${chapterByKey(ch).label}</span>`).join('');
   const sectionChips=secs.map(sec=>`<span class="chip" style="background:#EEF7FF;color:#1E5AA5">${sectionByKey(sec).label}</span>`).join('');
+  const pathChip=n.path?`<span class="chip" style="background:#EEF2FF;color:#334155">${escapeHtml(n.path)}</span>`:'';
   const customHtml=fields.filter(k=>!BUILTIN_FIELD_DEFS[k]).map(k=>{
     const v=renderFieldValue(n,k);
     return `<span class="chip" title="${getFieldDef(k).label}">${getFieldDef(k).label}：${String(v).slice(0,20)||'（空）'}</span>`;
   }).join('');
-  g('dp-chips').innerHTML=subChips+chapterChips+sectionChips+customHtml;
+  g('dp-chips').innerHTML=subChips+chapterChips+sectionChips+pathChip+customHtml;
   g('dp-inline-actions').innerHTML=`<button class="inline-note-action" data-action="edit">✏️ 編輯</button><button class="inline-note-action" data-action="duplicate">📄 建立副本</button><button class="inline-note-action" data-action="copy">📋 複製內容</button><button class="inline-note-action" data-action="delete">🗑️ 刪除</button>`;
   g('dp-inline-actions').querySelectorAll('.inline-note-action').forEach(btn=>{
     btn.addEventListener('click',()=>{
@@ -536,7 +551,8 @@ function renderLinksForNote(id) {
   if(!related.length){el.innerHTML='<span style="font-size:12px;color:#bbb">尚無關聯</span>';return;}
   el.innerHTML=related.map(l=>{
     const otherId=l.from===id?l.to:l.from,other=mapNodeById(otherId),dir=l.from===id?'→':'←';
-    return `<div class="link-item"><div class="link-dot" style="background:${relationColor(l.rel)}"></div><span class="link-rel" style="background:${relationColor(l.rel)}">${dir} ${relationLabel(l.rel)}</span><span class="link-title link-jump" data-nid="${otherId}" style="cursor:pointer;color:#007AFF;text-decoration:underline;">${other?other.title:'（已刪除）'}</span><button class="link-del" data-lid="${l.id}">✕</button></div>`;
+    const relationNote=normalizeRelationNote(l.note);
+    return `<div class="link-item"><div class="link-dot" style="background:${relationColor(l.rel)}"></div><span class="link-rel" style="background:${relationColor(l.rel)}">${dir} ${relationLabel(l.rel)}</span><span class="link-title link-jump" data-nid="${otherId}" style="cursor:pointer;color:#007AFF;text-decoration:underline;">${other?other.title:'（已刪除）'}</span>${relationNote?`<span class="chip" title="${escapeHtml(relationNote)}">${escapeHtml(relationNote)}</span>`:''}<button class="link-del" data-lid="${l.id}">✕</button></div>`;
   }).join('');
   el.querySelectorAll('.link-jump').forEach(btn=>btn.addEventListener('click',()=>{
     const nid2=parseInt(btn.dataset.nid,10);

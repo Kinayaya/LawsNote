@@ -6,7 +6,7 @@ function loadData() {
       notes=mergeRelaysIntoNotes(Array.isArray(d.notes)?d.notes:DEFAULTS.notes.slice(),Array.isArray(d.mapRelays)?d.mapRelays:[]);
       mapRelays=[];
       links=Array.isArray(d.links)?d.links:DEFAULTS.links.slice();
-      links=links.map(l=>({...l,rel:normalizeRelationType(l.rel),color:relationColor(l.rel)}));
+      links=links.map(l=>({...l,rel:normalizeRelationType(l.rel),color:relationColor(l.rel),note:normalizeRelationNote(l.note)}));
       nid=Number.isFinite(d.nid)?d.nid:Math.max(10,[...notes].reduce((m,n)=>Math.max(m,n.id||0),0)+1);
       lid=Number.isFinite(d.lid)?d.lid:Math.max(10,links.reduce((m,l)=>Math.max(m,l.id||0),0)+1);
       types=Array.isArray(d.types)?d.types:DEFAULTS.types.slice();
@@ -313,7 +313,7 @@ function parseImportPayload(rawText){
       return;
     }
     const rel=normalizeRelationType(item.rel||item.type);
-    normalizedLinks.push({id:Number(item.id),from,to,rel,color:relationColor(rel)});
+    normalizedLinks.push({id:Number(item.id),from,to,rel,color:relationColor(rel),note:normalizeRelationNote(item.note)});
   });
   report.validLinks=normalizedLinks.length;
   if(report.validNotes===0&&report.validRelays===0){

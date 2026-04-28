@@ -355,6 +355,29 @@ const relationMetaByKey = key => RELATION_TYPE_META[key]||{label:key||'cause',co
 const normalizeRelationType = key => RELATION_TYPE_META[key]?key:'cause';
 const relationLabel = key => relationMetaByKey(normalizeRelationType(key)).label;
 const relationColor = key => relationMetaByKey(normalizeRelationType(key)).color;
+const relationNeedsNote = key => !!relationMetaByKey(normalizeRelationType(key)).needsNote;
+const relationNotePlaceholder = key => relationMetaByKey(normalizeRelationType(key)).notePlaceholder||'請輸入關聯說明';
+const normalizeRelationNote = value => safeStr(value).trim();
+const splitNotePath = raw => safeStr(raw).split('>').map(x=>x.trim()).filter(Boolean);
+const normalizePathText = raw => splitNotePath(raw).join(' > ');
+const buildPathAliasMap = () => {
+  const map={};
+  [...notes,...mapRelays].forEach(n=>{
+    const full=normalizePathText(n.path||'');
+    if(!full) return;
+    const parts=splitNotePath(full);
+    const leaf=parts[parts.length-1];
+    if(leaf) map[leaf]=full;
+  });
+  return map;
+};
+const resolvePathInput = raw => {
+  const normalized=normalizePathText(raw);
+  if(!normalized) return '';
+  if(normalized.includes(' > ')) return normalized;
+  const aliases=buildPathAliasMap();
+  return aliases[normalized]||normalized;
+};
 const nextReviewDateISO = (status='knew', now=new Date()) => {
   const day=REVIEW_INTERVALS_DAYS[status]||REVIEW_INTERVALS_DAYS.knew;
   const ts=now.getTime()+day*24*60*60*1000;

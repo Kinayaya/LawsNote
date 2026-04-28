@@ -41,6 +41,10 @@
     if(!Array.isArray(n.tags)) n.tags=[];
     n.tags=uniq(n.tags.map(x=>safeStr(x).trim()).filter(Boolean));
     n.title=safeStr(n.title);
+    n.question=safeStr(n.question||n.title);
+    n.answer=safeStr(n.answer||n.body);
+    n.prompt=safeStr(n.prompt);
+    n.application=safeStr(n.application);
     n.body=safeStr(n.body);
     n.detail=safeStr(n.detail);
     if(!n.extraFields||typeof n.extraFields!=='object'||Array.isArray(n.extraFields)) n.extraFields={};
@@ -54,6 +58,9 @@
     n.chapter=n.chapters[0]||'';
     n.section=n.sections[0]||'';
     n.date=formatDate(n.date)||'1970-01-01';
+    n.created_at=safeStr(n.created_at)||new Date(`${n.date}T00:00:00`).toISOString();
+    n.last_reviewed=safeStr(n.last_reviewed);
+    n.next_review=safeStr(n.next_review||n.date)||n.date;
     return n;
   };
 

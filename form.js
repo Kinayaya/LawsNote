@@ -124,7 +124,7 @@ function renderFormLinks() {
   if(!el||!openId){if(el)el.innerHTML='';return;}
   const related=links.filter(l=>l.from===openId||l.to===openId);
   if(!related.length){el.innerHTML='<span style="font-size:12px;color:#bbb">尚無關聯</span>';return;}
-  el.innerHTML=related.map(l=>{const otherId=l.from===openId?l.to:l.from,other=mapNodeById(otherId),tag=isRelayNode(other)?'<span class="chip" style="margin-right:6px;background:#F2E8FF;color:#7A34B0;border-color:#D4B5EF">中繼站</span>':'';return `<div class="fl-item">${tag}<span class="fl-item-title">${other?other.title:'（已刪除）'}</span><button class="fl-del" data-lid="${l.id}">✕</button></div>`;}).join('');
+  el.innerHTML=related.map(l=>{const otherId=l.from===openId?l.to:l.from,other=mapNodeById(otherId),tag=isRelayNode(other)?'<span class="chip" style="margin-right:6px;background:#F2E8FF;color:#7A34B0;border-color:#D4B5EF">中繼站</span>':'';return `<div class="fl-item">${tag}<span class="chip" style="margin-right:6px;background:${relationColor(l.rel)};color:#fff;border-color:${relationColor(l.rel)}">${relationLabel(l.rel)}</span><span class="fl-item-title">${other?other.title:'（已刪除）'}</span><button class="fl-del" data-lid="${l.id}">✕</button></div>`;}).join('');
   el.querySelectorAll('.fl-del').forEach(btn=>btn.addEventListener('click',()=>{links=links.filter(l=>l.id!==parseInt(btn.dataset.lid));saveData();renderFormLinks();if(isMapOpen)scheduleMapRedraw(100);showToast('關聯已刪除');}));
 }
 function renderFormLinkSearch() {
@@ -159,17 +159,22 @@ function addSelectedFormLinks(){
   const targetIds=Object.keys(formLinkSelections).filter(id=>formLinkSelections[id]).map(Number);
   if(!targetIds.length){showToast('請先選擇要關聯的筆記');return;}
   let added=0;
-  targetIds.forEach(toId=>{ if(createRelationLink(openId,toId)) added++; });
+  const relType=g('fl-relation-type')?.value||'cause';
+  targetIds.forEach(toId=>{ if(createRelationLink(openId,toId,relType)) added++; });
   formLinkSelections={};saveData();renderFormLinks();renderFormLinkSearch();showToast(`已建立 ${added} 筆關聯`);if(isMapOpen)scheduleMapRedraw(100);
 }
 
 function collectFormValuesByType(typeKey){
-  const result={body:'',detail:'',todos:[],extraFields:{}};
+  const result={question:'',answer:'',prompt:'',application:'',body:'',detail:'',todos:[],extraFields:{}};
   getTypeFieldKeys(typeKey).forEach(key=>{
     const el=g(`f-field-${key}`);
     if(!el) return;
     const raw=(el.value||'').trim();
-    if(key==='body') result.body=raw;
+    if(key==='question') result.question=raw;
+    else if(key==='answer') result.answer=raw;
+    else if(key==='prompt') result.prompt=raw;
+    else if(key==='application') result.application=raw;
+    else if(key==='body') result.body=raw;
     else if(key==='detail') result.detail=raw;
     else if(key==='todos') result.todos=parseTodos(raw);
     else result.extraFields[key]=raw;
@@ -254,6 +259,10 @@ function saveNote() {
   g('fti').style.borderColor='';
   const typeKey=g('ft').value;
   const fieldData=collectFormValuesByType(typeKey);
+  if(!fieldData.application.trim()){showToast('Application 為必填：請填「你會在何處使用這個知識」');return;}
+  if((fieldData.question.length+fieldData.answer.length)>600){
+    showToast('提示：請保持原子化（單一概念、精簡問答）');
+  }
   const selectedSubs=selectedValues('fs2').slice(0,1);
   if(!selectedSubs.length){showToast('請至少選擇一個科目');return;}
   const selectedChs=selectedValues('fc').slice(0,1);
@@ -270,7 +279,7 @@ function saveNote() {
     const shouldSyncMeta=multiSelMode&&selectedIds[openId]&&selectedIdNums.length>1;
     const prevDone=idx!==-1?doneTodoCount(source[idx].todos):0;
     if(idx!==-1){
-      const updated=normalizeNoteSchema({...source[idx],type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,body:fieldData.body,detail:fieldData.detail,todos:fieldData.todos,extraFields:fieldData.extraFields});
+      const updated=normalizeNoteSchema({...source[idx],type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,question:fieldData.question,answer:fieldData.answer,prompt:fieldData.prompt,application:fieldData.application,body:fieldData.body,detail:fieldData.detail,todos:fieldData.todos,extraFields:fieldData.extraFields});
       source[idx]=isRelay?{...updated,isRelay:true,pageRootId:relayPageRootId(source[idx]),noteTypeBackup:typeKey}:updated;
     }
     const mentionAdded=idx!==-1?autoLinkMentionsForNote(source[idx]):0;
@@ -291,7 +300,8 @@ function saveNote() {
     setTimeout(()=>openNote(openId),150);
   } else {
     const d=new Date(),dt=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    const newNote=normalizeNoteSchema({id:nid++,type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,body:fieldData.body,detail:fieldData.detail,date:dt,todos:fieldData.todos,extraFields:fieldData.extraFields});
+    const nowIso=new Date().toISOString();
+    const newNote=normalizeNoteSchema({id:nid++,type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,question:fieldData.question,answer:fieldData.answer,prompt:fieldData.prompt,application:fieldData.application,body:fieldData.body,detail:fieldData.detail,date:dt,created_at:nowIso,last_reviewed:'',next_review:nowIso,todos:fieldData.todos,extraFields:fieldData.extraFields});
     if(doneTodoCount(newNote.todos)>0&&levelSystem.tasks.length&&levelSystem.skills.length){
       completeLevelTask(levelSystem.tasks[0].id,levelSystem.skills[0].id);
     }
@@ -320,7 +330,7 @@ function saveNoteDraftFromForm(){
   const typeKey=g('ft').value;
   const fieldData=collectFormValuesByType(typeKey);
   const selectedSubs=selectedValues('fs2').slice(0,1),selectedChs=selectedValues('fc').slice(0,1),selectedSecs=selectedValues('fsec').slice(0,1);
-  Object.assign(target,normalizeNoteSchema({...target,type:typeKey,subject:selectedSubs[0]||'',subjects:selectedSubs,chapter:selectedChs[0]||'',chapters:selectedChs,section:selectedSecs[0]||'',sections:selectedSecs,title,body:fieldData.body,detail:fieldData.detail,todos:fieldData.todos,extraFields:fieldData.extraFields}));
+  Object.assign(target,normalizeNoteSchema({...target,type:typeKey,subject:selectedSubs[0]||'',subjects:selectedSubs,chapter:selectedChs[0]||'',chapters:selectedChs,section:selectedSecs[0]||'',sections:selectedSecs,title,question:fieldData.question,answer:fieldData.answer,prompt:fieldData.prompt,application:fieldData.application,body:fieldData.body,detail:fieldData.detail,todos:fieldData.todos,extraFields:fieldData.extraFields}));
   saveDataDeferred();
 }
 function duplicateNote(targetId=openId) {
@@ -339,6 +349,10 @@ function duplicateNote(targetId=openId) {
     section:src.section||'',
     sections:[...noteSections(src)],
     title:copyTitle,
+    question:src.question||'',
+    answer:src.answer||'',
+    prompt:src.prompt||'',
+    application:src.application||'',
     body:src.body||'',
     detail:src.detail||'',
     date:dt,
@@ -358,6 +372,10 @@ async function copyNoteToClipboard(targetId=openId) {
   if(!n){showToast('找不到要複製的筆記');return;}
   const text=[
     n.title||'（未命名）',
+    n.question?`Q: ${n.question}`:'',
+    n.answer?`A: ${n.answer}`:'',
+    n.prompt?`Hint: ${n.prompt}`:'',
+    n.application?`Application: ${n.application}`:'',
     n.body||'',
     n.detail||''
   ].filter(v=>safeStr(v).trim()).join('\n\n');

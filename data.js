@@ -6,7 +6,7 @@ function loadData() {
       notes=mergeRelaysIntoNotes(Array.isArray(d.notes)?d.notes:DEFAULTS.notes.slice(),Array.isArray(d.mapRelays)?d.mapRelays:[]);
       mapRelays=[];
       links=Array.isArray(d.links)?d.links:DEFAULTS.links.slice();
-      links.forEach(l=>{l.rel='關聯';l.color=LINK_COLOR;});
+      links=links.map(l=>({...l,rel:normalizeRelationType(l.rel),color:relationColor(l.rel)}));
       nid=Number.isFinite(d.nid)?d.nid:Math.max(10,[...notes].reduce((m,n)=>Math.max(m,n.id||0),0)+1);
       lid=Number.isFinite(d.lid)?d.lid:Math.max(10,links.reduce((m,l)=>Math.max(m,l.id||0),0)+1);
       types=Array.isArray(d.types)?d.types:DEFAULTS.types.slice();
@@ -140,6 +140,8 @@ function portableFrontmatter(note){
     '---',
     `id: ${n.id}`,
     `title: "${safeStr(n.title).replace(/"/g,'\\"')}"`,
+    `question: "${safeStr(n.question).replace(/"/g,'\\"')}"`,
+    `application: "${safeStr(n.application).replace(/"/g,'\\"')}"`,
     `date: ${n.date||''}`,
     `type: ${n.type||''}`,
     `subjects: [${noteSubjects(n).join(', ')}]`,
@@ -155,8 +157,12 @@ function portableNoteMarkdown(note){
   const fm=portableFrontmatter(n);
   const detail=safeStr(n.detail).trim();
   const body=safeStr(n.body).trim();
+  const question=safeStr(n.question).trim();
+  const answer=safeStr(n.answer).trim();
+  const prompt=safeStr(n.prompt).trim();
+  const application=safeStr(n.application).trim();
   const todos=(Array.isArray(n.todos)?n.todos:[]).map(t=>`- [${t.done?'x':' '}] ${safeStr(t.text).trim()}`).filter(Boolean);
-  return `${fm}\n\n# ${safeStr(n.title)||'Untitled'}\n\n${body||''}${detail?`\n\n## Detail\n\n${detail}`:''}${todos.length?`\n\n## Todos\n\n${todos.join('\n')}`:''}\n`;
+  return `${fm}\n\n# ${safeStr(n.title)||'Untitled'}\n\n${question?`## Question\n\n${question}\n\n`:''}${prompt?`## Prompt\n\n${prompt}\n\n`:''}${answer?`## Answer\n\n${answer}\n\n`:''}${application?`## Application\n\n${application}\n\n`:''}${body||''}${detail?`\n\n## Detail\n\n${detail}`:''}${todos.length?`\n\n## Todos\n\n${todos.join('\n')}`:''}\n`;
 }
 function buildPortableExportPackage(){
   const noteItems=notes.map(n=>{
@@ -194,7 +200,7 @@ function buildPortableExportPackage(){
       }
     };
   });
-  const relationItems=links.map(l=>({id:l.id,from:l.from,to:l.to,type:'relation'}));
+  const relationItems=links.map(l=>({id:l.id,from:l.from,to:l.to,type:normalizeRelationType(l.rel)}));
   const checksumSource=[
     ...noteItems.map(x=>x.hash),
     ...relayItems.map(x=>x.hash),
@@ -306,7 +312,8 @@ function parseImportPayload(rawText){
       report.warnings.push(`第 ${idx+1} 筆 links from/to 無效，已略過`);
       return;
     }
-    normalizedLinks.push({id:Number(item.id),from,to,rel:'關聯',color:LINK_COLOR});
+    const rel=normalizeRelationType(item.rel||item.type);
+    normalizedLinks.push({id:Number(item.id),from,to,rel,color:relationColor(rel)});
   });
   report.validLinks=normalizedLinks.length;
   if(report.validNotes===0&&report.validRelays===0){
@@ -385,7 +392,8 @@ function importData(file) {
             if(!Number.isFinite(from)||!Number.isFinite(to)||from===to) return;
             const edgeKey=`${Math.min(from,to)}-${Math.max(from,to)}`;
             if(edgeSet.has(edgeKey)) return;
-            links.push({id:lid++,from,to,rel:'關聯',color:LINK_COLOR});
+            const rel='cause';
+            links.push({id:lid++,from,to,rel,color:relationColor(rel)});
             edgeSet.add(edgeKey);
           });
         }
@@ -632,7 +640,8 @@ function restoreRecycleItem(itemId){
     const from=idMap[l.from]??l.from;
     const to=idMap[l.to]??l.to;
     if(!noteById(from)||!noteById(to)||from===to) return;
-    links.push({id:lid++,from,to,rel:'關聯',color:LINK_COLOR});
+    const rel=normalizeRelationType(l.rel);
+    links.push({id:lid++,from,to,rel,color:relationColor(rel)});
   });
   recycleBin.splice(idx,1);
   normalizeNotesTaxonomy();

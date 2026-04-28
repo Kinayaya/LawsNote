@@ -42,6 +42,15 @@
   applyCompactFilterMode(compactDefault===null?true:compactDefault==='1');
   on('compactToggleBtn','click',()=>applyCompactFilterMode(!document.body.classList.contains('compact-filters')));
   on('tagMgrBtn','click',openTagMgr);
+  on('reviewNowBtn','click',()=>{
+    reviewMode=!reviewMode;
+    reviewReveal=false;
+    const dueCount=dueReviewNotes().length;
+    g('reviewNowBtn').textContent=reviewMode?`🧠 Reviewing (${dueCount})`:'🧠 Review Now';
+    showToast(reviewMode?`今日待複習：${dueCount} 筆`:'已離開複習模式');
+    if(reviewMode&&dueCount>0) openNote(dueReviewNotes()[0].id);
+    render();
+  });
   bindCoreButtons();
   bindTouchQuickActions();
   const draftSaver=debounce(saveNoteDraftFromForm,900);

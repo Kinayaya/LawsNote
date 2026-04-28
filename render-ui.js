@@ -139,7 +139,7 @@ function baseScopeMatch(note) {
 function noteMatchesSearch(note, q, normalizedDate='') {
   if(!q) return true;
   const subs=noteSubjects(note), chs=noteChapters(note), secs=noteSections(note);
-  const hay=`${note.title} ${note.body} ${subs.join(' ')} ${chs.join(' ')} ${secs.join(' ')} ${note.date||''}`.toLowerCase();
+  const hay=`${note.title} ${note.question||''} ${note.answer||''} ${note.prompt||''} ${note.application||''} ${note.body} ${subs.join(' ')} ${chs.join(' ')} ${secs.join(' ')} ${note.date||''}`.toLowerCase();
   return hay.includes(q)||(normalizedDate&&formatDate(note.date)===normalizedDate);
 }
 function relayMatchesSearch(relay, q) {
@@ -173,13 +173,14 @@ function expandWithChildLinkedNotes(seedIds) {
 // ==================== 渲染 ====================
 function render() {
   updateNotesHomeVisibility();
-  if(currentView==='notes'&&!searchQ.trim()) return;
+  if(currentView==='notes'&&!searchQ.trim()&&!reviewMode) return;
   const q=searchQ.trim().toLowerCase();
   const normalizedDate=parseSearchDateVariants(searchQ);
   const seedIds=new Set(notes.filter(n=>baseScopeMatch(n)).map(n=>n.id));
   const shouldExpand=scopeLinkedEnabled&&hasTaxonomyFilter();
   const visibleIds=shouldExpand?expandWithLinkedNotes(seedIds):seedIds;
-  const filtered=sortedNotes(notes,{sortMode,safeStr,noteSubjectText,noteChapterText}).filter(n=>visibleIds.has(n.id)&&noteMatchesSearch(n,q,normalizedDate));
+  const dueSet=new Set(dueReviewNotes().map(n=>n.id));
+  const filtered=sortedNotes(notes,{sortMode,safeStr,noteSubjectText,noteChapterText}).filter(n=>visibleIds.has(n.id)&&noteMatchesSearch(n,q,normalizedDate)&&(!reviewMode||dueSet.has(n.id)));
   const sb=g('search-results-bar');
   if(q){sb.style.display='block';sb.textContent=`搜尋「${searchQ}」：找到 ${filtered.length} 筆筆記`;}
   else if(shouldExpand){
@@ -208,7 +209,8 @@ function render() {
     const noteActionChips=isReminder?'':`<span class="chip card-action-chip" data-action="duplicate">建立副本</span><span class="chip card-action-chip" data-action="copy">複製內容</span><span class="chip card-action-chip" data-action="delete">刪除</span>`;
     const linkedChip=(shouldExpand&&!seedIds.has(n.id))?'<span class="chip" style="background:#EAF3DE;color:#3B6D11;border-color:#97C459">跨科關聯</span>':'';
     const hasContent=isReminder?!!safeStr(n.body):noteHasVisibleContent(n);
-    return `<div class="card ${hasContent?'':'card-empty-content'} ${isReminder?'calendar-reminder-card':''}" data-id="${n.id}" data-reminder-id="${isReminder?n.eventId:''}" style="--type-color:${tp.color}"><button class="sel-check" type="button" aria-label="勾選筆記"></button><div class="ctop"><span class="ctag">${tp.label}</span><div class="ctitle-inline">${hl(n.title,q)}</div></div>${hasContent?`<div class="cbody">${escapeHtml(n.body)}</div>`:''}<div class="cfoot">${subChips}${chapterChips}${sectionChips}${linkedChip}${noteActionChips}</div></div>`;
+    const previewText=reviewMode?(n.prompt||n.question||'（尚未填寫問題）'):(n.question||n.body);
+    return `<div class="card ${hasContent?'':'card-empty-content'} ${isReminder?'calendar-reminder-card':''}" data-id="${n.id}" data-reminder-id="${isReminder?n.eventId:''}" style="--type-color:${tp.color}"><button class="sel-check" type="button" aria-label="勾選筆記"></button><div class="ctop"><span class="ctag">${tp.label}</span><div class="ctitle-inline">${hl(n.title,q)}</div></div>${hasContent?`<div class="cbody">${escapeHtml(previewText)}</div>`:''}<div class="cfoot">${subChips}${chapterChips}${sectionChips}${linkedChip}${noteActionChips}</div></div>`;
   }).join('');
   grid.querySelectorAll('.card').forEach(c=>{
     const rid=c.dataset.reminderId?parseInt(c.dataset.reminderId,10):0;
@@ -236,14 +238,15 @@ function applyCompactFilterMode(enabled){
   const btn=g('compactToggleBtn');
   if(btn) btn.textContent=enabled?'☰ 顯示分類':'☰ 收合分類';
 }
-function createRelationLink(fromId,toId){
+function createRelationLink(fromId,toId,relType='cause'){
   const a=parseInt(fromId,10),b=parseInt(toId,10);
   if(!Number.isFinite(a)||!Number.isFinite(b)||a===b) return false;
   const src=mapNodeById(a),target=mapNodeById(b);
   if(!src||!target) return false;
   if((isRelayNode(src)||isRelayNode(target))&&(!isNodeInCurrentMapPage(a)||!isNodeInCurrentMapPage(b))) return false;
   if(links.some(l=>(l.from===a&&l.to===b)||(l.from===b&&l.to===a))) return false;
-  links.push({id:lid++,from:a,to:b,rel:'關聯',color:LINK_COLOR});
+  const rel=normalizeRelationType(relType);
+  links.push({id:lid++,from:a,to:b,rel,color:relationColor(rel)});
   return true;
 }
 function clearMapLinkSource(opts={}){
@@ -455,7 +458,7 @@ function bindMentionJumps(root){
 }
 function autoLinkMentionsForNote(note){
   if(!note||!note.id) return 0;
-  const blocks=[note.title,note.body,note.detail];
+  const blocks=[note.title,note.question,note.answer,note.body,note.detail,note.application];
   Object.values(noteExtraFields(note)).forEach(v=>blocks.push(safeStr(v)));
   const mentionIds=extractMentionTargets(blocks.join('\n'),note.id);
   let added=0;
@@ -463,6 +466,14 @@ function autoLinkMentionsForNote(note){
   return added;
 }
 
+function applyReviewResult(noteId,status){
+  const n=mapNodeById(noteId);
+  if(!n) return;
+  const now=new Date();
+  n.last_reviewed=now.toISOString();
+  n.next_review=nextReviewDateISO(status,now);
+  saveData();
+}
 function openNote(id) {
   const n=mapNodeById(id); if(!n) return;
   const relay=isRelayNode(n);
@@ -477,11 +488,21 @@ function openNote(id) {
   if(detailLabel){detailLabel.style.display=fields.includes('detail')?'block':'none';}
   g('dp-body').style.display=fields.includes('body')?'block':'none';
   g('dp-detail').style.display=fields.includes('detail')?'block':'none';
-  g('dp-body').innerHTML=n.body?renderMentionText(n.body,n.id):'（尚無摘要）';
-  g('dp-detail').innerHTML=n.detail?renderDetailRichText(n.detail,n.id):'（尚無詳細筆記）';
+  g('dp-body').innerHTML=n.question?renderMentionText(n.question,n.id):'（尚無問題）';
+  g('dp-detail').innerHTML=n.answer?renderDetailRichText(n.answer,n.id):'（尚無答案）';
   bindMentionJumps(g('dp-body'));
   bindMentionJumps(g('dp-detail'));
-  if(fields.includes('todos')){todoLabel.style.display='block';todoWrap.style.display='block';todoWrap.innerHTML=renderTodoHtml(n.todos);}
+  const reveal=!!reviewReveal;
+  if(reviewMode){
+    g('dp-body').innerHTML=n.prompt?`${renderMentionText(n.prompt,n.id)}<hr style="margin:8px 0;border:none;border-top:1px solid #eee;">${renderMentionText(n.question,n.id)}`:renderMentionText(n.question,n.id);
+    g('dp-detail').style.display=reveal?'block':'none';
+    if(!reveal) g('dp-detail').innerHTML='（先回想，再按「顯示答案」）';
+    todoLabel.style.display='none';todoWrap.style.display='block';
+    todoWrap.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="tool-btn" id="reviewRevealBtn">${reveal?'已顯示答案':'顯示答案'}</button><button class="tool-btn" id="reviewKnewBtn" style="background:#EAF3DE;color:#2F6B1B;border-color:#97C459;">✅ 我記得</button><button class="tool-btn" id="reviewForgotBtn" style="background:#FFF1F2;color:#B42318;border-color:#F5B8BF;">❌ 我忘了</button></div><div style="margin-top:8px;font-size:12px;color:#666;">Application：${escapeHtml(n.application||'（請補上真實情境）')}</div>`;
+    g('reviewRevealBtn')?.addEventListener('click',()=>{reviewReveal=true;openNote(id);});
+    g('reviewKnewBtn')?.addEventListener('click',()=>{applyReviewResult(id,'knew');reviewReveal=false;showToast('已安排較長複習間隔');render();});
+    g('reviewForgotBtn')?.addEventListener('click',()=>{applyReviewResult(id,'forgot');reviewReveal=false;showToast('已安排短期複習');render();});
+  }else if(fields.includes('todos')){todoLabel.style.display='block';todoWrap.style.display='block';todoWrap.innerHTML=renderTodoHtml(n.todos);}
   else{todoLabel.style.display='none';todoWrap.style.display='none';todoWrap.innerHTML='';}
   const subChips=subs.map(sk=>{const sb=subByKey(sk);return `<span class="chip" style="background:${lightC(sb.color)};color:${darkC(sb.color)}">${sb.label}</span>`;}).join('');
   const chapterChips=chs.map(ch=>`<span class="chip" style="background:#E6F1FB;color:#0C447C">${chapterByKey(ch).label}</span>`).join('');
@@ -515,7 +536,7 @@ function renderLinksForNote(id) {
   if(!related.length){el.innerHTML='<span style="font-size:12px;color:#bbb">尚無關聯</span>';return;}
   el.innerHTML=related.map(l=>{
     const otherId=l.from===id?l.to:l.from,other=mapNodeById(otherId),dir=l.from===id?'→':'←';
-    return `<div class="link-item"><div class="link-dot" style="background:${LINK_COLOR}"></div><span class="link-rel" style="background:${LINK_COLOR}">${dir} 關聯</span><span class="link-title link-jump" data-nid="${otherId}" style="cursor:pointer;color:#007AFF;text-decoration:underline;">${other?other.title:'（已刪除）'}</span><button class="link-del" data-lid="${l.id}">✕</button></div>`;
+    return `<div class="link-item"><div class="link-dot" style="background:${relationColor(l.rel)}"></div><span class="link-rel" style="background:${relationColor(l.rel)}">${dir} ${relationLabel(l.rel)}</span><span class="link-title link-jump" data-nid="${otherId}" style="cursor:pointer;color:#007AFF;text-decoration:underline;">${other?other.title:'（已刪除）'}</span><button class="link-del" data-lid="${l.id}">✕</button></div>`;
   }).join('');
   el.querySelectorAll('.link-jump').forEach(btn=>btn.addEventListener('click',()=>{
     const nid2=parseInt(btn.dataset.nid,10);

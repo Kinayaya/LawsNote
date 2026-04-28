@@ -2,10 +2,10 @@
 // ==================== 資料定義 ====================
 const DEFAULTS = {
   notes: [
-    {id:1,type:'article',subject:'民法',title:'民法第 184 條 — 侵權行為',body:'因故意或過失，不法侵害他人之權利者，負損害賠償責任。',tags:['侵權行為','損害賠償'],date:'2025-03-10',detail:'構成要件：\n1. 須有加害行為\n2. 行為須不法\n3. 須有故意或過失\n4. 須有損害\n5. 加害行為與損害間有因果關係'},
-    {id:2,type:'case',subject:'刑法',title:'釋字第 775 號 — 累犯加重規定',body:'累犯一律加重最低本刑，違反憲法比例原則，應依個案審查。',tags:['累犯','比例原則'],date:'2025-02-28',detail:'大法官認定相關規定違憲，法院應依個案情形審查，不得機械式適用加重。'},
+    {id:1,type:'article',subject:'民法',title:'民法第 184 條 — 侵權行為',question:'民法第 184 條要件是什麼？',answer:'因故意或過失，不法侵害他人之權利者，負損害賠償責任。',prompt:'先回想「侵害權利 + 故意過失 + 因果關係」。',application:'在侵權責任題型中，用它判斷是否成立損害賠償。',tags:['侵權行為','損害賠償'],date:'2025-03-10',detail:'構成要件：\n1. 須有加害行為\n2. 行為須不法\n3. 須有故意或過失\n4. 須有損害\n5. 加害行為與損害間有因果關係'},
+    {id:2,type:'case',subject:'刑法',title:'釋字第 775 號 — 累犯加重規定',question:'釋字 775 對累犯加重的核心見解是什麼？',answer:'累犯一律加重最低本刑違反比例原則，應依個案審查。',prompt:'想想「不能機械式一律加重」。',application:'在量刑與比例原則爭點，主張個案審查與裁量。',tags:['累犯','比例原則'],date:'2025-02-28',detail:'大法官認定相關規定違憲，法院應依個案情形審查，不得機械式適用加重。'},
   ],
-  links: [{id:1,from:3,to:4,rel:'關聯',color:'#6F86A0'},{id:2,from:3,to:2,rel:'關聯',color:'#6F86A0'},{id:3,from:1,to:5,rel:'關聯',color:'#6F86A0'}],
+  links: [{id:1,from:3,to:4,rel:'example',color:'#2F8F6B'},{id:2,from:3,to:2,rel:'contrast',color:'#8A5CF6'},{id:3,from:1,to:5,rel:'application',color:'#D97706'}],
   types: [{key:'article',label:'條文',color:'#007AFF'},{key:'case',label:'案例',color:'#1D9E75'},{key:'concept',label:'概念',color:'#7F77DD'},{key:'diary',label:'日記',color:'#D85A30'}],
   subjects: [{key:'民法',label:'民法',color:'#D85A30'},{key:'刑法',label:'刑法',color:'#1D9E75'},{key:'憲法',label:'憲法',color:'#7F77DD'},{key:'行政法',label:'行政法',color:'#378ADD'}],
   chapters: [
@@ -47,12 +47,24 @@ const DEFAULT_SHORTCUTS = [
   {id:'stats',label:'統計',code:'KeyI',alt:true}
 ];
 const BUILTIN_FIELD_DEFS = {
+  question:{key:'question',label:'Recall Question',kind:'textarea',placeholder:'關掉資料後，先嘗試回想：你要回答什麼？'},
+  answer:{key:'answer',label:'Recall Answer',kind:'textarea',placeholder:'用最短可驗證答案回答。'},
+  prompt:{key:'prompt',label:'Prompt（提示，可選）',kind:'text',placeholder:'提示詞：想不起來時給自己一個線索'},
+  application:{key:'application',label:'Application（必填）',kind:'textarea',placeholder:'你會在什麼真實情境使用這個概念？'},
   body:{key:'body',label:'摘要',kind:'textarea',placeholder:''},
   detail:{key:'detail',label:'詳細筆記',kind:'textarea',placeholder:''},
   todos:{key:'todos',label:'📝 待辦清單',kind:'textarea',placeholder:''}
 };
 const DEFAULT_TYPE_FIELD_KEYS = {diary:['body','todos']};
-const DEFAULT_NORMAL_FIELD_KEYS = ['body','detail'];
+const DEFAULT_NORMAL_FIELD_KEYS = ['question','answer','prompt','application'];
+const RELATION_TYPE_META = {
+  cause:{label:'cause',color:'#2563EB'},
+  example:{label:'example',color:'#2F8F6B'},
+  contrast:{label:'contrast',color:'#8A5CF6'},
+  application:{label:'application',color:'#D97706'},
+  analogy:{label:'analogy',color:'#0EA5A4'}
+};
+const REVIEW_INTERVALS_DAYS = { forgot:1, hard:3, knew:7, easy:14 };
 
 
 const { safeStr, uniq, pad2, escapeHtml, hl, parseTodos, formatTodosForEdit, parseSearchDateVariants, formatDate, normalizeNoteSchema } = window.KLawsUtils;

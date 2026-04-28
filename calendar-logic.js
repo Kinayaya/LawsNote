@@ -122,7 +122,7 @@ function saveCalendarEvent(){
     const defaultDiarySubject=(mapFilter.sub!=='all'&&subjects.some(s=>s.key===mapFilter.sub))
       ?mapFilter.sub
       :((subjects[0]&&subjects[0].key)||'');
-    notes.unshift(normalizeNoteSchema({id:nid++,type:'diary',subject:defaultDiarySubject,subjects:defaultDiarySubject?[defaultDiarySubject]:[],chapter:'',chapters:[],section:'',sections:[],title,body,detail:body,date:d,todos:[],extraFields:{}}));
+    notes.unshift(normalizeNoteSchema({id:nid++,type:'diary',subject:defaultDiarySubject,subjects:defaultDiarySubject?[defaultDiarySubject]:[],chapter:'',chapters:[],section:'',sections:[],title,question:title,answer:body,prompt:'',application:'日常回顧與行動追蹤',body,detail:body,date:d,todos:[],extraFields:{}}));
   }
   saveData();rebuildUI();renderCalendar();g('calendarEventModal').classList.remove('open');
   const dayBox=g('calendarDayDetail');if(dayBox?.classList.contains('open')) toggleCalendarDayDetail(activeCalendarDate);
@@ -174,4 +174,3 @@ function checkReminders(){
     reminderSent[e.id]=true;
   });
 }
-

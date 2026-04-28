@@ -55,7 +55,7 @@ function toggleThemeMode(){
 }
 function updateNotesHomeVisibility(){
   if(currentView!=='notes') return;
-  const hasSearch=!!searchQ.trim();
+  const hasSearch=!!searchQ.trim()||reviewMode;
   const notesView=g('notesView');
   if(notesView) notesView.style.display=hasSearch?'block':'none';
   const subbar=g('subbar');
@@ -311,7 +311,7 @@ const mapNodeById = id => noteById(id);
 const allMapNodes = () => [...notes];
 const isRelayNode = _n => false;
 const noteTags = _n => [];
-const noteHasVisibleContent = n => !!(safeStr(n.body).trim()||safeStr(n.detail).trim()||noteTags(n).length||(Array.isArray(n.todos)&&n.todos.length));
+const noteHasVisibleContent = n => !!(safeStr(n.question).trim()||safeStr(n.answer).trim()||safeStr(n.application).trim()||safeStr(n.body).trim()||safeStr(n.detail).trim()||noteTags(n).length||(Array.isArray(n.todos)&&n.todos.length));
 const noteExtraFields = n => (n&&n.extraFields&&typeof n.extraFields==='object'&&!Array.isArray(n.extraFields))?n.extraFields:{};
 const getFieldDef = key => BUILTIN_FIELD_DEFS[key]||customFieldDefs[key]||{key,label:key,kind:'text',placeholder:''};
 const getTypeFieldKeys = typeKey => {
@@ -319,6 +319,10 @@ const getTypeFieldKeys = typeKey => {
   return uniq(base.filter(k=>getFieldDef(k)));
 };
 const renderFieldValue = (n,key) => {
+  if(key==='question') return n.question||'';
+  if(key==='answer') return n.answer||'';
+  if(key==='prompt') return n.prompt||'';
+  if(key==='application') return n.application||'';
   if(key==='body') return n.body||'';
   if(key==='detail') return n.detail||'';
   if(key==='todos') return renderTodoHtml(n.todos);
@@ -338,11 +342,31 @@ const renderMapCardPreview = n => {
   return sections.map(text=>`<div class="map-card-body-segment"><div class="map-card-body-text">${escapeHtml(text)}</div></div>`).join('');
 };
 const noteFieldValueForEdit = (n,key) => {
+  if(key==='question') return n.question||'';
+  if(key==='answer') return n.answer||'';
+  if(key==='prompt') return n.prompt||'';
+  if(key==='application') return n.application||'';
   if(key==='body') return n.body||'';
   if(key==='detail') return n.detail||'';
   if(key==='todos') return formatTodosForEdit(n.todos);
   return noteExtraFields(n)[key]||'';
 };
+const relationMetaByKey = key => RELATION_TYPE_META[key]||{label:key||'cause',color:LINK_COLOR};
+const normalizeRelationType = key => RELATION_TYPE_META[key]?key:'cause';
+const relationLabel = key => relationMetaByKey(normalizeRelationType(key)).label;
+const relationColor = key => relationMetaByKey(normalizeRelationType(key)).color;
+const nextReviewDateISO = (status='knew', now=new Date()) => {
+  const day=REVIEW_INTERVALS_DAYS[status]||REVIEW_INTERVALS_DAYS.knew;
+  const ts=now.getTime()+day*24*60*60*1000;
+  return new Date(ts).toISOString();
+};
+const isNoteDueForReview = (n, now=new Date()) => {
+  if(!n) return false;
+  const nextTs=new Date(n.next_review||0).getTime();
+  if(Number.isNaN(nextTs)) return true;
+  return nextTs<=now.getTime();
+};
+const dueReviewNotes = (now=new Date()) => notes.filter(n=>isNoteDueForReview(n,now)).sort((a,b)=>new Date(a.next_review||0)-new Date(b.next_review||0));
 const hexRgb = hex => { if(hex.length===4) hex='#'+hex[1]+hex[1]+hex[2]+hex[2]+hex[3]+hex[3]; return [parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)]; };
 const lightC = hex => `rgba(${hexRgb(hex).join(',')},0.12)`;
 const darkC = hex => { let r=hexRgb(hex); return `rgb(${Math.round(r[0]*.55)},${Math.round(r[1]*.55)},${Math.round(r[2]*.55)})`; };

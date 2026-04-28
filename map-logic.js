@@ -736,7 +736,7 @@ function showMapInfo(id){
   const slashLinks=extractSlashLinks(n.detail,id);
   if(!related.length&&!slashLinks.length){linksEl.innerHTML='<span class="mp-no-links">尚無關聯</span>';}
   else{
-    const relationHtml=related.map(l=>{const otherId=l.from===id?l.to:l.from,other=mapNodeById(otherId),dir=l.from===id?'→':'←',name=other?other.title:'（已刪除）';return `<div class="mp-link-row"><span class="mp-link-badge" style="background:${LINK_COLOR}">${dir} 關聯</span><span class="mp-link-name" data-nid="${otherId}">${name}</span></div>`;}).join('');
+    const relationHtml=related.map(l=>{const otherId=l.from===id?l.to:l.from,other=mapNodeById(otherId),dir=l.from===id?'→':'←',name=other?other.title:'（已刪除）',type=relationTypeByKey(l.relType);const note=type.requiresNote&&l.relNote?`<span style="font-size:11px;color:#64748B;">${escapeHtml(l.relNote)}</span>`:'';return `<div class="mp-link-row"><span class="mp-link-badge" style="background:${LINK_COLOR}">${dir} ${type.label}</span><span class="mp-link-name" data-nid="${otherId}">${name}</span>${note}</div>`;}).join('');
     const slashHtml=slashLinks.map(item=>`<div class="mp-link-row"><span class="mp-link-badge" style="background:#64748B">/ 連結</span><span class="mp-link-name" data-nid="${item.id}">${escapeHtml(item.title)}</span></div>`).join('');
     linksEl.innerHTML=relationHtml+slashHtml;
     linksEl.querySelectorAll('.mp-link-name').forEach(el=>{el.addEventListener('click',()=>{

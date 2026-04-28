@@ -5,8 +5,7 @@ function loadData() {
     if(d) {
       notes=mergeRelaysIntoNotes(Array.isArray(d.notes)?d.notes:DEFAULTS.notes.slice(),Array.isArray(d.mapRelays)?d.mapRelays:[]);
       mapRelays=[];
-      links=Array.isArray(d.links)?d.links:DEFAULTS.links.slice();
-      links.forEach(l=>{l.rel='關聯';l.color=LINK_COLOR;});
+      links=(Array.isArray(d.links)?d.links:DEFAULTS.links.slice()).map(normalizeRelationLink);
       nid=Number.isFinite(d.nid)?d.nid:Math.max(10,[...notes].reduce((m,n)=>Math.max(m,n.id||0),0)+1);
       lid=Number.isFinite(d.lid)?d.lid:Math.max(10,links.reduce((m,l)=>Math.max(m,l.id||0),0)+1);
       types=Array.isArray(d.types)?d.types:DEFAULTS.types.slice();
@@ -306,7 +305,7 @@ function parseImportPayload(rawText){
       report.warnings.push(`第 ${idx+1} 筆 links from/to 無效，已略過`);
       return;
     }
-    normalizedLinks.push({id:Number(item.id),from,to,rel:'關聯',color:LINK_COLOR});
+    normalizedLinks.push(normalizeRelationLink({id:Number(item.id),from,to,relType:item.relType,rel:item.rel,relNote:item.relNote,color:LINK_COLOR}));
   });
   report.validLinks=normalizedLinks.length;
   if(report.validNotes===0&&report.validRelays===0){
@@ -385,7 +384,7 @@ function importData(file) {
             if(!Number.isFinite(from)||!Number.isFinite(to)||from===to) return;
             const edgeKey=`${Math.min(from,to)}-${Math.max(from,to)}`;
             if(edgeSet.has(edgeKey)) return;
-            links.push({id:lid++,from,to,rel:'關聯',color:LINK_COLOR});
+            links.push(normalizeRelationLink({id:lid++,from,to}));
             edgeSet.add(edgeKey);
           });
         }
@@ -632,7 +631,7 @@ function restoreRecycleItem(itemId){
     const from=idMap[l.from]??l.from;
     const to=idMap[l.to]??l.to;
     if(!noteById(from)||!noteById(to)||from===to) return;
-    links.push({id:lid++,from,to,rel:'關聯',color:LINK_COLOR});
+    links.push(normalizeRelationLink({id:lid++,from,to}));
   });
   recycleBin.splice(idx,1);
   normalizeNotesTaxonomy();

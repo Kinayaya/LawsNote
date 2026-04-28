@@ -43,6 +43,7 @@
     n.title=safeStr(n.title);
     n.body=safeStr(n.body);
     n.detail=safeStr(n.detail);
+    n.path=safeStr(n.path).trim();
     if(!n.extraFields||typeof n.extraFields!=='object'||Array.isArray(n.extraFields)) n.extraFields={};
     const subjects=Array.isArray(n.subjects)?n.subjects:(safeStr(n.subject)?[n.subject]:[]);
     const chapters=Array.isArray(n.chapters)?n.chapters:(safeStr(n.chapter)?[n.chapter]:[]);

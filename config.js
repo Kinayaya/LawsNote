@@ -51,6 +51,11 @@ const BUILTIN_FIELD_DEFS = {
   detail:{key:'detail',label:'詳細筆記',kind:'textarea',placeholder:''},
   todos:{key:'todos',label:'📝 待辦清單',kind:'textarea',placeholder:''}
 };
+const RELATION_TYPES = [
+  {key:'related',label:'關聯',requiresNote:false},
+  {key:'cause',label:'因果',requiresNote:true,placeholder:'例如：A 導致 B（寫明哪個要件造成結果）'},
+  {key:'contrast',label:'對比',requiresNote:true,placeholder:'例如：與前案見解不同之處'}
+];
 const DEFAULT_TYPE_FIELD_KEYS = {diary:['body','todos']};
 const DEFAULT_NORMAL_FIELD_KEYS = ['body','detail'];
 

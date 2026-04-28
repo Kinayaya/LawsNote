@@ -124,8 +124,29 @@ function renderFormLinks() {
   if(!el||!openId){if(el)el.innerHTML='';return;}
   const related=links.filter(l=>l.from===openId||l.to===openId);
   if(!related.length){el.innerHTML='<span style="font-size:12px;color:#bbb">尚無關聯</span>';return;}
-  el.innerHTML=related.map(l=>{const otherId=l.from===openId?l.to:l.from,other=mapNodeById(otherId),tag=isRelayNode(other)?'<span class="chip" style="margin-right:6px;background:#F2E8FF;color:#7A34B0;border-color:#D4B5EF">中繼站</span>':'';return `<div class="fl-item">${tag}<span class="fl-item-title">${other?other.title:'（已刪除）'}</span><button class="fl-del" data-lid="${l.id}">✕</button></div>`;}).join('');
+  el.innerHTML=related.map(l=>{
+    const otherId=l.from===openId?l.to:l.from,other=mapNodeById(otherId),tag=isRelayNode(other)?'<span class="chip" style="margin-right:6px;background:#F2E8FF;color:#7A34B0;border-color:#D4B5EF">中繼站</span>':'',type=relationTypeByKey(l.relType);
+    const options=RELATION_TYPES.map(item=>`<option value="${item.key}" ${item.key===type.key?'selected':''}>${item.label}</option>`).join('');
+    const noteInput=type.requiresNote?`<input class="fi" data-fl-note="${l.id}" placeholder="${type.placeholder||'補充說明'}" value="${escapeHtml(safeStr(l.relNote))}" style="max-width:220px;">`:'';
+    return `<div class="fl-item">${tag}<span class="fl-item-title">${other?other.title:'（已刪除）'}</span><select class="fs" data-fl-rel="${l.id}" style="height:28px;max-width:110px;">${options}</select>${noteInput}<button class="fl-del" data-lid="${l.id}">✕</button></div>`;
+  }).join('');
   el.querySelectorAll('.fl-del').forEach(btn=>btn.addEventListener('click',()=>{links=links.filter(l=>l.id!==parseInt(btn.dataset.lid));saveData();renderFormLinks();if(isMapOpen)scheduleMapRedraw(100);showToast('關聯已刪除');}));
+  el.querySelectorAll('[data-fl-rel]').forEach(sel=>sel.addEventListener('change',()=>{
+    const link=links.find(item=>item.id===parseInt(sel.dataset.flRel,10));
+    if(!link) return;
+    const type=relationTypeByKey(sel.value);
+    link.relType=type.key;
+    link.rel=type.label;
+    if(!type.requiresNote) link.relNote='';
+    saveData();
+    renderFormLinks();
+  }));
+  el.querySelectorAll('[data-fl-note]').forEach(input=>input.addEventListener('change',()=>{
+    const link=links.find(item=>item.id===parseInt(input.dataset.flNote,10));
+    if(!link) return;
+    link.relNote=safeStr(input.value).trim();
+    saveData();
+  }));
 }
 function renderFormLinkSearch() {
   const el=g('fl-results'); if(!el) return;

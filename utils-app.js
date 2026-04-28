@@ -313,6 +313,39 @@ const isRelayNode = _n => false;
 const noteTags = _n => [];
 const noteHasVisibleContent = n => !!(safeStr(n.body).trim()||safeStr(n.detail).trim()||noteTags(n).length||(Array.isArray(n.todos)&&n.todos.length));
 const noteExtraFields = n => (n&&n.extraFields&&typeof n.extraFields==='object'&&!Array.isArray(n.extraFields))?n.extraFields:{};
+const normalizePathInput = raw => safeStr(raw).split('>').map(x=>x.trim()).filter(Boolean).join(' > ');
+const pathLeaf = raw => {
+  const path=normalizePathInput(raw);
+  if(!path) return '';
+  const parts=path.split(' > ').map(x=>x.trim()).filter(Boolean);
+  return parts[parts.length-1]||'';
+};
+const resolveNotePath = raw => {
+  const normalized=normalizePathInput(raw);
+  if(!normalized) return '';
+  if(normalized.includes(' > ')) return normalized;
+  const leaf=pathLeaf(normalized);
+  if(!leaf) return normalized;
+  const candidates=allMapNodes()
+    .map(n=>normalizePathInput(n.path))
+    .filter(Boolean);
+  const exact=candidates.find(path=>pathLeaf(path)===leaf);
+  return exact||normalized;
+};
+const relationTypeByKey = key => {
+  const k=safeStr(key).trim();
+  return RELATION_TYPES.find(item=>item.key===k)||RELATION_TYPES[0];
+};
+const normalizeRelationLink = link => {
+  const item=(link&&typeof link==='object')?{...link}:{};
+  const guessedType=item.relType||((item.rel==='因果')?'cause':(item.rel==='對比')?'contrast':'related');
+  const type=relationTypeByKey(guessedType);
+  item.relType=type.key;
+  item.rel=type.label;
+  item.relNote=safeStr(item.relNote).trim();
+  item.color=LINK_COLOR;
+  return item;
+};
 const getFieldDef = key => BUILTIN_FIELD_DEFS[key]||customFieldDefs[key]||{key,label:key,kind:'text',placeholder:''};
 const getTypeFieldKeys = typeKey => {
   const base=Array.isArray(typeFieldConfigs[typeKey])&&typeFieldConfigs[typeKey].length?typeFieldConfigs[typeKey]:(DEFAULT_TYPE_FIELD_KEYS[typeKey]||DEFAULT_NORMAL_FIELD_KEYS);

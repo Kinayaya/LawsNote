@@ -236,14 +236,15 @@ function applyCompactFilterMode(enabled){
   const btn=g('compactToggleBtn');
   if(btn) btn.textContent=enabled?'☰ 顯示分類':'☰ 收合分類';
 }
-function createRelationLink(fromId,toId){
+function createRelationLink(fromId,toId,opts={}){
   const a=parseInt(fromId,10),b=parseInt(toId,10);
   if(!Number.isFinite(a)||!Number.isFinite(b)||a===b) return false;
   const src=mapNodeById(a),target=mapNodeById(b);
   if(!src||!target) return false;
   if((isRelayNode(src)||isRelayNode(target))&&(!isNodeInCurrentMapPage(a)||!isNodeInCurrentMapPage(b))) return false;
   if(links.some(l=>(l.from===a&&l.to===b)||(l.from===b&&l.to===a))) return false;
-  links.push({id:lid++,from:a,to:b,rel:'關聯',color:LINK_COLOR});
+  const type=relationTypeByKey(opts.relType);
+  links.push(normalizeRelationLink({id:lid++,from:a,to:b,relType:type.key,relNote:safeStr(opts.relNote).trim()}));
   return true;
 }
 function clearMapLinkSource(opts={}){
@@ -491,6 +492,24 @@ function openNote(id) {
     return `<span class="chip" title="${getFieldDef(k).label}">${getFieldDef(k).label}：${String(v).slice(0,20)||'（空）'}</span>`;
   }).join('');
   g('dp-chips').innerHTML=subChips+chapterChips+sectionChips+customHtml;
+  const pathInput=g('dp-path-input'),pathHint=g('dp-path-hint'),pathSaveBtn=g('dp-path-save');
+  if(pathInput){
+    pathInput.value=safeStr(n.path);
+    const renderPathHint=()=>{
+      const resolved=resolveNotePath(pathInput.value);
+      pathHint.textContent=resolved&&resolved!==normalizePathInput(pathInput.value)?`將自動補全為：${resolved}`:'';
+    };
+    renderPathHint();
+    pathInput.oninput=renderPathHint;
+    pathSaveBtn.onclick=()=>{
+      const target=mapNodeById(id);
+      if(!target) return;
+      target.path=resolveNotePath(pathInput.value);
+      saveData();
+      renderPathHint();
+      showToast(target.path?'已儲存路徑':'已清除路徑');
+    };
+  }
   g('dp-inline-actions').innerHTML=`<button class="inline-note-action" data-action="edit">✏️ 編輯</button><button class="inline-note-action" data-action="duplicate">📄 建立副本</button><button class="inline-note-action" data-action="copy">📋 複製內容</button><button class="inline-note-action" data-action="delete">🗑️ 刪除</button>`;
   g('dp-inline-actions').querySelectorAll('.inline-note-action').forEach(btn=>{
     btn.addEventListener('click',()=>{
@@ -514,8 +533,10 @@ function renderLinksForNote(id) {
   const el=g('dp-links');
   if(!related.length){el.innerHTML='<span style="font-size:12px;color:#bbb">尚無關聯</span>';return;}
   el.innerHTML=related.map(l=>{
-    const otherId=l.from===id?l.to:l.from,other=mapNodeById(otherId),dir=l.from===id?'→':'←';
-    return `<div class="link-item"><div class="link-dot" style="background:${LINK_COLOR}"></div><span class="link-rel" style="background:${LINK_COLOR}">${dir} 關聯</span><span class="link-title link-jump" data-nid="${otherId}" style="cursor:pointer;color:#007AFF;text-decoration:underline;">${other?other.title:'（已刪除）'}</span><button class="link-del" data-lid="${l.id}">✕</button></div>`;
+    const otherId=l.from===id?l.to:l.from,other=mapNodeById(otherId),dir=l.from===id?'→':'←',type=relationTypeByKey(l.relType);
+    const options=RELATION_TYPES.map(item=>`<option value="${item.key}" ${item.key===type.key?'selected':''}>${item.label}</option>`).join('');
+    const noteInput=type.requiresNote?`<input class="fi link-rel-note" data-link-note="${l.id}" placeholder="${type.placeholder||'補充說明'}" value="${escapeHtml(safeStr(l.relNote))}" style="max-width:260px;">`:'';
+    return `<div class="link-item"><div class="link-dot" style="background:${LINK_COLOR}"></div><span class="link-title link-jump" data-nid="${otherId}" style="cursor:pointer;color:#007AFF;text-decoration:underline;">${other?other.title:'（已刪除）'}</span><span class="link-rel-edit"><span style="font-size:11px;color:#667;">${dir}</span><select class="fs link-rel-select" data-link-rel="${l.id}" style="height:30px;padding:0 8px;">${options}</select>${noteInput}</span><button class="link-del" data-lid="${l.id}">✕</button></div>`;
   }).join('');
   el.querySelectorAll('.link-jump').forEach(btn=>btn.addEventListener('click',()=>{
     const nid2=parseInt(btn.dataset.nid,10);
@@ -523,6 +544,25 @@ function renderLinksForNote(id) {
     openMapNodeFromLink(nid2);
   }));
   el.querySelectorAll('.link-del').forEach(btn=>btn.addEventListener('click',()=>{links=links.filter(l=>l.id!==parseInt(btn.dataset.lid));saveData();renderLinksForNote(id);renderDetailQuickLinkSearch();render();showToast('關聯已刪除');}));
+  el.querySelectorAll('[data-link-rel]').forEach(sel=>sel.addEventListener('change',()=>{
+    const linkId=parseInt(sel.dataset.linkRel,10);
+    const link=links.find(item=>item.id===linkId);
+    if(!link) return;
+    const type=relationTypeByKey(sel.value);
+    link.relType=type.key;
+    link.rel=type.label;
+    if(!type.requiresNote) link.relNote='';
+    saveData();
+    renderLinksForNote(id);
+    if(isMapOpen) scheduleMapRedraw(80);
+  }));
+  el.querySelectorAll('[data-link-note]').forEach(input=>input.addEventListener('change',()=>{
+    const linkId=parseInt(input.dataset.linkNote,10);
+    const link=links.find(item=>item.id===linkId);
+    if(!link) return;
+    link.relNote=safeStr(input.value).trim();
+    saveData();
+  }));
 }
 
 function closeDetail() { g('dp').classList.remove('open'); openId=null; syncSidePanelState(); }

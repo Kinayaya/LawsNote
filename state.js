@@ -69,17 +69,5 @@ const TASK_REPEAT_OPTIONS=[
   {key:'yearly',label:'每年'}
 ];
 function mergeRelaysIntoNotes(baseNotes=[], relayList=[]){
-  const normalizedNotes=(Array.isArray(baseNotes)?baseNotes:[]).map(normalizeNoteSchema);
-  const relayNotes=(Array.isArray(relayList)?relayList:[]).map(r=>{
-    const backupType=safeStr(r&&r.noteTypeBackup)||safeStr(r&&r.type)||'article';
-    const normalized=normalizeNoteSchema({...r,isRelay:false,noteTypeBackup:''});
-    return {...normalized,type:backupType};
-  });
-  const merged=[...normalizedNotes,...relayNotes];
-  const seen=new Set();
-  return merged.filter(n=>{
-    if(!Number.isFinite(n.id)||seen.has(n.id)) return false;
-    seen.add(n.id);
-    return true;
-  });
+  return KLawsCore.mergeRelaysIntoNotes(baseNotes, relayList, {normalizeNoteSchema, safeStr});
 }

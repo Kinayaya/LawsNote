@@ -297,11 +297,11 @@ function saveNote() {
   }
   const selectedSubs=selectedValues('fs2').slice(0,1);
   if(!selectedSubs.length){showToast('請至少選擇一個科目');return;}
-  const selectedChs=selectedValues('fc').slice(0,1);
-  const selectedSecs=selectedValues('fsec').slice(0,1);
+  const selectedChs=[];
+  const selectedSecs=[];
   const primarySubject=selectedSubs[0]||'';
-  const primaryChapter=selectedChs[0]||'';
-  const primarySection=selectedSecs[0]||'';
+  const primaryChapter='';
+  const primarySection='';
   saveFormTaxonomyPref(primarySubject,primaryChapter,primarySection);
   if(editMode&&openId) {
     const isRelay=formMode==='relay';
@@ -311,7 +311,8 @@ function saveNote() {
     const shouldSyncMeta=multiSelMode&&selectedIds[openId]&&selectedIdNums.length>1;
     const prevDone=idx!==-1?doneTodoCount(source[idx].todos):0;
     if(idx!==-1){
-      const updated=normalizeNoteSchema({...source[idx],type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,path,question:fieldData.question,answer:fieldData.answer,prompt:fieldData.prompt,application:fieldData.application,body:fieldData.body,detail:fieldData.detail,todos:fieldData.todos,extraFields:fieldData.extraFields});
+      const updated=normalizeNoteSchema({...source[idx],type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:'',chapters:[],section:'',sections:[],title,path,question:fieldData.question,answer:fieldData.answer,prompt:fieldData.prompt,application:fieldData.application,body:fieldData.body,detail:fieldData.detail,todos:fieldData.todos,extraFields:fieldData.extraFields});
+      if(!updated.path) inheritPathFromParent(updated,source);
       source[idx]=isRelay?{...updated,isRelay:true,pageRootId:relayPageRootId(source[idx]),noteTypeBackup:typeKey}:updated;
     }
     const mentionAdded=idx!==-1?autoLinkMentionsForNote(source[idx]):0;
@@ -325,7 +326,7 @@ function saveNote() {
         if(id===openId) return;
         const target=noteById(id);
         if(!target) return;
-        Object.assign(target,{type:typeKey,subject:primarySubject,subjects:[...selectedSubs],chapter:primaryChapter,chapters:[...selectedChs],section:primarySection,sections:[...selectedSecs]});
+        Object.assign(target,{type:typeKey,subject:primarySubject,subjects:[...selectedSubs],chapter:'',chapters:[],section:'',sections:[]});
       });
     }
     saveData();closeForm();render();if(isMapOpen) scheduleMapRedraw(0);showToast(`${isRelay?'中繼站':'筆記'}已更新！${mentionAdded?`（@ 自動建立 ${mentionAdded} 筆關聯）`:''}`);
@@ -333,7 +334,8 @@ function saveNote() {
   } else {
     const d=new Date(),dt=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const nowIso=new Date().toISOString();
-    const newNote=normalizeNoteSchema({id:nid++,type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:primaryChapter,chapters:selectedChs,section:primarySection,sections:selectedSecs,title,path,question:fieldData.question,answer:fieldData.answer,prompt:fieldData.prompt,application:fieldData.application,body:fieldData.body,detail:fieldData.detail,date:dt,created_at:nowIso,last_reviewed:'',next_review:nowIso,todos:fieldData.todos,extraFields:fieldData.extraFields});
+    const newNote=normalizeNoteSchema({id:nid++,type:typeKey,subject:primarySubject,subjects:selectedSubs,chapter:'',chapters:[],section:'',sections:[],title,path,question:fieldData.question,answer:fieldData.answer,prompt:fieldData.prompt,application:fieldData.application,body:fieldData.body,detail:fieldData.detail,date:dt,created_at:nowIso,last_reviewed:'',next_review:nowIso,todos:fieldData.todos,extraFields:fieldData.extraFields});
+    if(!newNote.path) inheritPathFromParent(newNote,notes);
     if(doneTodoCount(newNote.todos)>0&&levelSystem.tasks.length&&levelSystem.skills.length){
       completeLevelTask(levelSystem.tasks[0].id,levelSystem.skills[0].id);
     }
@@ -362,8 +364,9 @@ function saveNoteDraftFromForm(){
   const typeKey=g('ft').value;
   const path=resolvePathInput(g('fpath').value||'');
   const fieldData=collectFormValuesByType(typeKey);
-  const selectedSubs=selectedValues('fs2').slice(0,1),selectedChs=selectedValues('fc').slice(0,1),selectedSecs=selectedValues('fsec').slice(0,1);
-  Object.assign(target,normalizeNoteSchema({...target,type:typeKey,subject:selectedSubs[0]||'',subjects:selectedSubs,chapter:selectedChs[0]||'',chapters:selectedChs,section:selectedSecs[0]||'',sections:selectedSecs,title,path,question:fieldData.question,answer:fieldData.answer,prompt:fieldData.prompt,application:fieldData.application,body:fieldData.body,detail:fieldData.detail,todos:fieldData.todos,extraFields:fieldData.extraFields}));
+  const selectedSubs=selectedValues('fs2').slice(0,1);
+  Object.assign(target,normalizeNoteSchema({...target,type:typeKey,subject:selectedSubs[0]||'',subjects:selectedSubs,chapter:'',chapters:[],section:'',sections:[],title,path,question:fieldData.question,answer:fieldData.answer,prompt:fieldData.prompt,application:fieldData.application,body:fieldData.body,detail:fieldData.detail,todos:fieldData.todos,extraFields:fieldData.extraFields}));
+  if(!target.path) inheritPathFromParent(target,allMapNodes());
   saveDataDeferred();
 }
 function duplicateNote(targetId=openId) {

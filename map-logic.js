@@ -177,7 +177,7 @@ function enterMapSubpage(rootId){
   updateMapPagePath();
   forceLayout();
   drawMap();
-  saveDataDeferred();
+  saveData();
   saveLastViewState();
 }
 function leaveMapSubpage(){
@@ -187,7 +187,7 @@ function leaveMapSubpage(){
   updateMapPagePath();
   forceLayout();
   drawMap();
-  saveDataDeferred();
+  saveData();
   saveLastViewState();
   return true;
 }

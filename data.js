@@ -74,7 +74,7 @@ function loadData() {
       normalizeNotesTaxonomy();
       if(normalizeNoteIds(true)) repaired=true;
       if(repaired||chapterMigrated) saveData();
-      mapPageStack=[];
+      mapPageStack=normalizeMapPageStack(d.mapPageStack);
       applyPanelDir(d.panelDir||getPanelDir());
       lastSavedPayloadRaw=JSON.stringify(getPayload());
     } else {

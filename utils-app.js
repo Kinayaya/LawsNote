@@ -38,7 +38,7 @@ function saveFormTaxonomyPref(subject='', chapter='', section=''){
 }
 function saveLastViewState(){
   const view=(currentView==='map'||currentView==='calendar'||currentView==='level')?currentView:'notes';
-  const mapStack=(view==='map'&&Array.isArray(mapPageStack))?mapPageStack.filter(id=>mapNodeById(id)).slice(-12):[];
+  const mapStack=(view==='map')?normalizeMapPageStack(mapPageStack):[];
   localStorage.setItem(LAST_VIEW_STATE_KEY,JSON.stringify({view,mapPageStack:mapStack}));
 }
 function applyThemeMode(mode='light'){
@@ -73,7 +73,7 @@ function restoreLastViewState(){
   try{
     const raw=JSON.parse(localStorage.getItem(LAST_VIEW_STATE_KEY)||'{}');
     if(['notes','map','calendar','level'].includes(raw.view)) state.view=raw.view;
-    if(Array.isArray(raw.mapPageStack)) state.mapPageStack=raw.mapPageStack.map(v=>parseInt(v,10)).filter(id=>mapNodeById(id));
+    if(Array.isArray(raw.mapPageStack)) state.mapPageStack=normalizeMapPageStack(raw.mapPageStack);
   }catch(e){}
   if(state.view==='map'){
     toggleMapView(true);
@@ -360,6 +360,18 @@ const relationNotePlaceholder = key => relationMetaByKey(normalizeRelationType(k
 const normalizeRelationNote = value => safeStr(value).trim();
 const splitNotePath = raw => safeStr(raw).split(/[>＞，、。]/).map(x=>x.trim()).filter(Boolean);
 const normalizePathText = raw => splitNotePath(raw).join(' > ');
+const normalizeMapPageStack = stack => {
+  if(!Array.isArray(stack)) return [];
+  const deduped=[];
+  const seen=new Set();
+  stack.forEach(v=>{
+    const id=parseInt(v,10);
+    if(!Number.isFinite(id)||seen.has(id)||!mapNodeById(id)) return;
+    deduped.push(id);
+    seen.add(id);
+  });
+  return deduped.slice(-12);
+};
 const buildPathAliasMap = () => {
   const map={};
   [...notes,...mapRelays].forEach(n=>{
@@ -557,7 +569,7 @@ const setMapCenterForSubpageScope = (subpageRootId,id,opt={}) => {
   setMapCenterForCurrentScope(target,opt);
   mapPageStack=prevStack;
 };
-const getPayload = () => ({notes,mapRelays:[],links,nid,lid,types,subjects,chapters,sections,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,mapSubpages,mapPageNotes,typeFieldConfigs,customFieldDefs,calendarEvents,calendarSettings,achievements,levelSystem,panelDir:getPanelDir(),updatedAt:new Date().toISOString()});
+const getPayload = () => ({notes,mapRelays:[],links,nid,lid,types,subjects,chapters,sections,nodePos,nodeSizes,sortMode,mapCenterNodeId,mapCenterNodeIds,mapFilter,mapLinkedOnly,mapDepth,mapFocusMode,mapLaneConfigs,mapCollapsed,mapSubpages,mapPageNotes,mapPageStack:normalizeMapPageStack(mapPageStack),typeFieldConfigs,customFieldDefs,calendarEvents,calendarSettings,achievements,levelSystem,panelDir:getPanelDir(),updatedAt:new Date().toISOString()});
 const parseUpdatedAt = raw => {
   const n=Date.parse(raw||'');
   return Number.isFinite(n)?n:0;

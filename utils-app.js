@@ -358,7 +358,7 @@ const relationColor = key => relationMetaByKey(normalizeRelationType(key)).color
 const relationNeedsNote = key => !!relationMetaByKey(normalizeRelationType(key)).needsNote;
 const relationNotePlaceholder = key => relationMetaByKey(normalizeRelationType(key)).notePlaceholder||'請輸入關聯說明';
 const normalizeRelationNote = value => safeStr(value).trim();
-const splitNotePath = raw => safeStr(raw).split('>').map(x=>x.trim()).filter(Boolean);
+const splitNotePath = raw => safeStr(raw).split(/[>＞，、。]/).map(x=>x.trim()).filter(Boolean);
 const normalizePathText = raw => splitNotePath(raw).join(' > ');
 const buildPathAliasMap = () => {
   const map={};
@@ -374,7 +374,8 @@ const buildPathAliasMap = () => {
 const resolvePathInput = raw => {
   const normalized=normalizePathText(raw);
   if(!normalized) return '';
-  if(normalized.includes(' > ')) return normalized;
+  const parts=splitNotePath(raw);
+  if(parts.length>1) return normalized;
   const aliases=buildPathAliasMap();
   return aliases[normalized]||normalized;
 };

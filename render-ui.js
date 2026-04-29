@@ -511,18 +511,40 @@ function openNote(id) {
   const pathOverrides=loadPathOverrides();
   const fallbackPath=typeof pathOverrides[String(id)]==='string'?pathOverrides[String(id)]:'';
   if(pathInput) pathInput.value=n.path||fallbackPath||'';
+  const syncPathToForm=(target)=>{
+    if(editMode&&openId===id&&g('fpath')) g('fpath').value=target.path||'';
+  };
   const pathSaveBtn=g('dp-path-save');
   if(pathSaveBtn){
     pathSaveBtn.onclick=()=>{
       if(!persistPath(id,pathInput?.value||'')) return;
       const target=mapNodeById(id);
       if(pathInput) pathInput.value=target?.path||'';
+      syncPathToForm(target);
       showToast('路徑已更新');
-      if(editMode&&openId===id&&g('fpath')) g('fpath').value=target.path||'';
     };
   }
   if(pathInput){
-    pathInput.onblur=()=>{persistPath(id,pathInput.value||'');};
+    let pathPersistTimer=null;
+    const persistPathNow=(showSavedToast=false)=>{
+      if(pathPersistTimer){clearTimeout(pathPersistTimer);pathPersistTimer=null;}
+      if(!persistPath(id,pathInput.value||'')) return;
+      const target=mapNodeById(id);
+      if(pathInput) pathInput.value=target?.path||'';
+      syncPathToForm(target);
+      if(showSavedToast) showToast('路徑已更新');
+    };
+    pathInput.oninput=()=>{
+      if(pathPersistTimer) clearTimeout(pathPersistTimer);
+      pathPersistTimer=setTimeout(()=>persistPathNow(false),350);
+    };
+    pathInput.onkeydown=(ev)=>{
+      if(ev.key==='Enter'){
+        ev.preventDefault();
+        persistPathNow(true);
+      }
+    };
+    pathInput.onblur=()=>{persistPathNow(false);};
   }
   bindMentionJumps(g('dp-body'));
   bindMentionJumps(g('dp-detail'));

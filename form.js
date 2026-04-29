@@ -51,7 +51,14 @@ function openForm(isEdit) {
   g('fp').classList.add('open');['dp','tp'].forEach(p=>g(p).classList.remove('open'));
   syncSidePanelState();
 }
-function closeForm() { g('fp').classList.remove('open'); if(!editMode) formMode='note'; syncFormModeVisibility(); syncSidePanelState(); }
+function closeForm() {
+  g('fp').classList.remove('open');
+  if(_saveTimer){ clearTimeout(_saveTimer); _saveTimer=null; }
+  editMode=false;
+  formMode='note';
+  syncFormModeVisibility();
+  syncSidePanelState();
+}
 
 function renderMapAssignSearch(){
   const result=g('mapAssignSearchResult'),sel=g('mapAssignPageSel'),input=g('mapAssignSearchInput');

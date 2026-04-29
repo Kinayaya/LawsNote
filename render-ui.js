@@ -490,13 +490,22 @@ function openNote(id) {
   g('dp-detail').style.display=fields.includes('detail')?'block':'none';
   g('dp-body').innerHTML=n.question?renderMentionText(n.question,n.id):'（尚無問題）';
   g('dp-detail').innerHTML=n.answer?renderDetailRichText(n.answer,n.id):'（尚無答案）';
-  const loadPathOverrides=()=>{try{return JSON.parse(localStorage.getItem('klaws_note_paths_v1')||'{}');}catch(_e){return {};}};
+  const NOTE_PATH_CACHE_KEY='klaws_note_paths_v1';
+  const loadPathOverrides=()=>{try{return JSON.parse(localStorage.getItem(NOTE_PATH_CACHE_KEY)||'{}');}catch(_e){return {};}};
   const savePathOverride=(noteId,path)=>{
     const cache=loadPathOverrides();
     const key=String(noteId);
     if(path) cache[key]=path;
     else delete cache[key];
-    localStorage.setItem('klaws_note_paths_v1',JSON.stringify(cache));
+    localStorage.setItem(NOTE_PATH_CACHE_KEY,JSON.stringify(cache));
+  };
+  const persistPath=(targetId,rawPath='')=>{
+    const target=mapNodeById(targetId);
+    if(!target) return false;
+    target.path=resolvePathInput(rawPath);
+    savePathOverride(targetId,target.path||'');
+    saveData();
+    return true;
   };
   const pathInput=g('dp-path-input');
   const pathOverrides=loadPathOverrides();
@@ -505,15 +514,15 @@ function openNote(id) {
   const pathSaveBtn=g('dp-path-save');
   if(pathSaveBtn){
     pathSaveBtn.onclick=()=>{
+      if(!persistPath(id,pathInput?.value||'')) return;
       const target=mapNodeById(id);
-      if(!target) return;
-      target.path=resolvePathInput(pathInput?.value||'');
-      if(pathInput) pathInput.value=target.path||'';
-      savePathOverride(id,target.path||'');
-      saveData();
+      if(pathInput) pathInput.value=target?.path||'';
       showToast('路徑已更新');
       if(editMode&&openId===id&&g('fpath')) g('fpath').value=target.path||'';
     };
+  }
+  if(pathInput){
+    pathInput.onblur=()=>{persistPath(id,pathInput.value||'');};
   }
   bindMentionJumps(g('dp-body'));
   bindMentionJumps(g('dp-detail'));

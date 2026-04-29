@@ -1,3 +1,23 @@
+
+function migratePathOverridesIntoNotes(){
+  let overrides={};
+  try{overrides=JSON.parse(localStorage.getItem('klaws_note_paths_v1')||'{}')||{};}catch(_e){overrides={};}
+  if(!overrides||typeof overrides!=='object'||Array.isArray(overrides)) return false;
+  let changed=false;
+  [...notes,...mapRelays].forEach(n=>{
+    const key=String(n&&n.id);
+    if(!key) return;
+    const ov=typeof overrides[key]==='string'?normalizePathText(overrides[key]):'';
+    if(!ov) return;
+    if((n.path||'')!==ov){
+      n.path=ov;
+      changed=true;
+    }
+  });
+  if(changed) localStorage.removeItem('klaws_note_paths_v1');
+  return changed;
+}
+
 // ==================== 資料儲存 ====================
 function loadData() {
   try {
@@ -72,6 +92,7 @@ function loadData() {
         }
       });
       normalizeNotesTaxonomy();
+      if(migratePathOverridesIntoNotes()) repaired=true;
       if(normalizeNoteIds(true)) repaired=true;
       if(repaired||chapterMigrated) saveData();
       mapPageStack=normalizeMapPageStack(d.mapPageStack);

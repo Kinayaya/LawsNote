@@ -490,8 +490,18 @@ function openNote(id) {
   g('dp-detail').style.display=fields.includes('detail')?'block':'none';
   g('dp-body').innerHTML=n.question?renderMentionText(n.question,n.id):'（尚無問題）';
   g('dp-detail').innerHTML=n.answer?renderDetailRichText(n.answer,n.id):'（尚無答案）';
+  const loadPathOverrides=()=>{try{return JSON.parse(localStorage.getItem('klaws_note_paths_v1')||'{}');}catch(_e){return {};}};
+  const savePathOverride=(noteId,path)=>{
+    const cache=loadPathOverrides();
+    const key=String(noteId);
+    if(path) cache[key]=path;
+    else delete cache[key];
+    localStorage.setItem('klaws_note_paths_v1',JSON.stringify(cache));
+  };
   const pathInput=g('dp-path-input');
-  if(pathInput) pathInput.value=n.path||'';
+  const pathOverrides=loadPathOverrides();
+  const fallbackPath=typeof pathOverrides[String(id)]==='string'?pathOverrides[String(id)]:'';
+  if(pathInput) pathInput.value=n.path||fallbackPath||'';
   const pathSaveBtn=g('dp-path-save');
   if(pathSaveBtn){
     pathSaveBtn.onclick=()=>{
@@ -499,6 +509,7 @@ function openNote(id) {
       if(!target) return;
       target.path=resolvePathInput(pathInput?.value||'');
       if(pathInput) pathInput.value=target.path||'';
+      savePathOverride(id,target.path||'');
       saveData();
       showToast('路徑已更新');
       if(editMode&&openId===id&&g('fpath')) g('fpath').value=target.path||'';

@@ -26,11 +26,8 @@
   startHeaderDatetimeTicker();
   applyThemeMode(localStorage.getItem(THEME_MODE_KEY)||'light');
   on('ft','change',()=>renderDynamicFields(g('ft').value,editMode&&openId?noteById(openId):null));
-  on('fs2','change',()=>{
-    syncChapterSelect(selectedValues('fs2'),selectedValues('fc'));
-    syncSectionSelect(selectedValues('fc'),selectedValues('fsec'),selectedValues('fs2'));
-  });
-  on('fc','change',()=>syncSectionSelect(selectedValues('fc'),selectedValues('fsec'),selectedValues('fs2')));
+  on('fs2','change',()=>{ syncChapterSelect([],[]); syncSectionSelect([],[],selectedValues('fs2')); });
+  on('fc','change',()=>syncSectionSelect([],[],selectedValues('fs2')));
   const si=g('searchInput'),sc=g('searchClear');
   si.addEventListener('input',debounce(()=>{
     searchQ=si.value;gridPage=1;sc.style.display=searchQ?'block':'none';
@@ -72,7 +69,7 @@
   on('tagSearchInput','input',debounce(()=>{tagSearchQ=(val('tagSearchInput')||'').toLowerCase().trim();renderTagLists();},150));
   on('tagUnusedOnly','change',()=>{tagUnusedOnly=!!g('tagUnusedOnly').checked;renderTagLists();});
   on('clearUnusedTagsBtn','click',clearUnusedTags);
-  g('addTypeBtn').addEventListener('click',()=>addTag('type'));g('addSubBtn').addEventListener('click',()=>addTag('sub'));g('addChapterBtn').addEventListener('click',()=>addTag('chapter'));g('addSectionBtn').addEventListener('click',()=>addTag('section'));
+  g('addTypeBtn').addEventListener('click',()=>addTag('type'));g('addSubBtn').addEventListener('click',()=>addTag('sub'));
   on('panelDirBtn','click',togglePanelDir);
   on('addTypeFieldBtn','click',addTypeFieldForCurrentType);
   on('removeTypeFieldBtn','click',removeTypeFieldForCurrentType);

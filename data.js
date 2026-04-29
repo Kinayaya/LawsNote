@@ -84,13 +84,12 @@ function loadData() {
       types.forEach(t=>{if(/^tag_t_/.test(t.key)){let old=t.key;t.key=t.label;notes.forEach(n=>{if(n.type===old)n.type=t.label;});repaired=true;}});
       subjects.forEach(s=>{if(/^tag_s_/.test(s.key)){let old=s.key;s.key=s.label;allMapNodes().forEach(n=>{n.subjects=noteSubjects(n).map(x=>x===old?s.label:x);n.subject=n.subjects[0]||'';});repaired=true;}});
       allMapNodes().forEach(n=>{
-        if(!noteChapters(n).length){
-          const fromTag=noteTags(n).find(t=>chapters.some(c=>c.key===t&&(noteSubjects(n).includes(c.subject)||c.subject==='all')));
-          n.chapters=fromTag?[fromTag]:[];
-          n.chapter=n.chapters[0]||'';
+        if(n.chapter||n.section||(Array.isArray(n.chapters)&&n.chapters.length)||(Array.isArray(n.sections)&&n.sections.length)){
+          n.chapter=''; n.section=''; n.chapters=[]; n.sections=[];
           chapterMigrated=true;
         }
       });
+      allMapNodes().forEach(n=>{ if(!normalizePathText(n.path||'')) inheritPathFromParent(n,allMapNodes()); });
       normalizeNotesTaxonomy();
       if(migratePathOverridesIntoNotes()) repaired=true;
       if(normalizeNoteIds(true)) repaired=true;

@@ -291,8 +291,8 @@ const noteScopeKeys = (n,arrKey,singleKey) => {
   return uniq(arr.length?arr:((n&&n[singleKey])?[n[singleKey]]:[]));
 };
 const noteSubjects = n => noteScopeKeys(n,'subjects','subject');
-const noteChapters = n => noteScopeKeys(n,'chapters','chapter');
-const noteSections = n => noteScopeKeys(n,'sections','section');
+const noteChapters = _n => [];
+const noteSections = _n => [];
 const noteSubjectText = n => noteSubjects(n).join(' ');
 const noteChapterText = n => noteChapters(n).join(' ');
 const noteSectionText = n => noteSections(n).join(' ');
@@ -391,6 +391,19 @@ const resolvePathInput = raw => {
   if(parts.length>1) return normalized;
   const aliases=buildPathAliasMap();
   return aliases[normalized]||normalized;
+};
+const inheritPathFromParent = (node, pool=[]) => {
+  if(!node||normalizePathText(node.path||'')) return normalizePathText(node?.path||'');
+  const incoming=(Array.isArray(links)?links:[]).filter(l=>l&&l.to===node.id);
+  for(const lk of incoming){
+    const parent=pool.find(n=>n&&n.id===lk.from)||mapNodeById(lk.from);
+    const p=normalizePathText(parent?.path||'');
+    if(p){
+      node.path=p;
+      return p;
+    }
+  }
+  return '';
 };
 const nextReviewDateISO = (status='knew', now=new Date()) => {
   const day=REVIEW_INTERVALS_DAYS[status]||REVIEW_INTERVALS_DAYS.knew;

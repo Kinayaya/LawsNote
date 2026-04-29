@@ -273,7 +273,18 @@ function saveNote() {
   const typeKey=g('ft').value;
   const path=resolvePathInput(g('fpath').value||'');
   const fieldData=collectFormValuesByType(typeKey);
-  if(!fieldData.application.trim()){showToast('Application 為必填：請填「你會在何處使用這個知識」');return;}
+  const typeFieldKeys=getTypeFieldKeys(typeKey);
+  const requiresApplication=typeFieldKeys.includes('application');
+  if(requiresApplication&&!fieldData.application.trim()){
+    showToast('Application 為必填：請填「你會在何處使用這個知識」');
+    const appInput=g('f-field-application');
+    if(appInput){
+      appInput.focus();
+      appInput.style.borderColor='#FF3B30';
+      setTimeout(()=>{appInput.style.borderColor='';},1800);
+    }
+    return;
+  }
   if((fieldData.question.length+fieldData.answer.length)>600){
     showToast('提示：請保持原子化（單一概念、精簡問答）');
   }

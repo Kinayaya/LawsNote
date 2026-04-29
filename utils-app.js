@@ -83,6 +83,7 @@ function restoreLastViewState(){
       nodePos={};
       forceLayout();
       drawMap();
+      saveLastViewState();
     }
     return;
   }

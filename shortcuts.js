@@ -82,7 +82,7 @@ function toggleMapView(open) {
   const advanced=g('filterAdvanced');
   if(advanced) advanced.style.display=open?'none':(searchQ.trim()?'block':'none');
   if(open){
-    mapPageStack=[];
+    mapPageStack=normalizeMapPageStack(mapPageStack);
     setMapAdvanced(false);
     if(cch!=='all') mapFilter.chapter=cch;
     else if(selectedChapters.length) mapFilter.chapter=selectedChapters[0];
@@ -93,7 +93,7 @@ function toggleMapView(open) {
     setMapLinkedOnlyBtnStyle();
     updateMapPagePath();
     setTimeout(()=>{const hadNodePos=Object.keys(nodePos).length>0;initNodePos();drawMap();if(!hadNodePos)saveData();},80);
-  } else { mapPageStack=[];updateMapPagePath();closeLanePanel();closeMapPopup(); }
+  } else { updateMapPagePath();closeLanePanel();closeMapPopup(); }
   saveLastViewState();
 }
 
